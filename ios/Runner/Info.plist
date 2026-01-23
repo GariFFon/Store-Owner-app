@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- App basics -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>Exanor</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Exanor</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(FLUTTER_BUILD_NAME)</string>
+    <key>CFBundleVersion</key>
+    <string>$(FLUTTER_BUILD_NUMBER)</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <!-- Launch & UI -->
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+    <key>UIMainStoryboardFile</key>
+    <string>Main</string>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+      <string>UIInterfaceOrientationPortrait</string>
+      <string>UIInterfaceOrientationLandscapeLeft</string>
+      <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+      <string>UIInterfaceOrientationPortrait</string>
+      <string>UIInterfaceOrientationPortraitUpsideDown</string>
+      <string>UIInterfaceOrientationLandscapeLeft</string>
+      <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
+    <key>CADisableMinimumFrameDurationOnPhone</key>
+    <true/>
+    <!-- Scene configuration (DO NOT REMOVE) -->
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+      <key>UIApplicationSupportsMultipleScenes</key>
+      <false/>
+      <key>UISceneConfigurations</key>
+      <dict>
+        <key>UIWindowSceneSessionRoleApplication</key>
+        <array>
+          <dict>
+            <key>UISceneClassName</key>
+            <string>UIWindowScene</string>
+            <key>UISceneConfigurationName</key>
+            <string>flutter</string>
+            <key>UISceneDelegateClassName</key>
+            <string>FlutterSceneDelegate</string>
+            <key>UISceneStoryboardFile</key>
+            <string>Main</string>
+          </dict>
+        </array>
+      </dict>
+    </dict>
+    <!-- 🔥 AdMob (REQUIRED) -->
+    <key>GADApplicationIdentifier</key>
+    <string>ca-app-pub-6018213289392959~5368020865</string>
+
+    <!-- 🔥 Google Maps (REQUIRED) -->
+    <key>GMSApiKey</key>
+    <string>AIzaSyCP4Kqp_KQ35KbqG3lUHPltBA6W6b_aorg</string>
+    <!-- 🔐 App Tracking Transparency -->
+    <key>NSUserTrackingUsageDescription</key>
+    <string>This app uses your data to show relevant ads.</string>
+    <!-- 🎤 Microphone -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>This app needs access to the microphone for recording videos.</string>
+    <!-- 🗣 Speech -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>This app needs access to speech recognition for voice search functionality.</string>
+    <!-- 📍 Location -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>This app needs access to location to show your current position on the map and find nearby services.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>This app needs access to location to show your current position on the map and find nearby services.</string>
+    <!-- 📸 Camera -->
+    <key>NSCameraUsageDescription</key>
+    <string>This app needs access to the camera to take profile and media photos.</string>
+    <!-- 🖼 Photos -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app needs access to your photo library to select profile and media images.</string>
+    <!-- 👥 Contacts -->
+    <key>NSContactsUsageDescription</key>
+    <string>This app needs access to your contacts to help you easily invite friends and earn rewards through our referral program.</string>
+  </dict>
+</plist>
