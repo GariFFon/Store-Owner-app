@@ -48,7 +48,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   String _voiceSearchText = '';
 
   // Cart
-  List<Map<String, dynamic>> _cartItems = [];
+  int _totalProductsInCart = 0;
+  List<Map<String, dynamic>> _cartItemsAvailable = [];
+  List<Map<String, dynamic>> _cartItemsUnavailable = [];
+  Map<String, dynamic>? _cartData;
+  double _grandTotal = 0.0;
 
   @override
   void initState() {
@@ -56,6 +60,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     _initializeSpeech();
     _fetchCategories();
     _setupScrollListener();
+    _validateCart(); // Load cart data on init
   }
 
   @override
@@ -275,6 +280,264 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
+  Future<void> _validateCart() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final customerUserId = prefs.getString('user_id') ?? '';
+
+      final response = await ApiService.post(
+        '/auto-validate-cart/',
+        body: {
+          'store_id': widget.storeId,
+          'order_method_id':
+              '1d9eb8ba-4d33-4d3d-b218-aba12a3fb7b1', // Default order method
+          'user_address_id':
+              '6068c242-8d0f-4513-aaf3-401fafdad596', // Default address
+          'lat': 0.0,
+          'lng': 0.0,
+          'store_access': true,
+          'customer_user_id': customerUserId,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data']['response'];
+        setState(() {
+          _totalProductsInCart = data['total_products_in_cart'] ?? 0;
+          _cartItemsAvailable = List<Map<String, dynamic>>.from(
+            data['items_available'] ?? [],
+          );
+          _cartItemsUnavailable = List<Map<String, dynamic>>.from(
+            data['items_unavailable'] ?? [],
+          );
+          _grandTotal = (data['grand_total'] ?? 0.0).toDouble();
+          _cartData = data;
+        });
+      }
+    } catch (e) {
+      print('Error validating cart: $e');
+    }
+  }
+
+  void _showCartBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) {
+          return Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 4),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Cart ($_totalProductsInCart ${_totalProductsInCart == 1 ? 'item' : 'items'})',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Cart items list
+              Expanded(
+                child: _cartItemsAvailable.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.shopping_cart_outlined,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Your cart is empty',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _cartItemsAvailable.length,
+                        itemBuilder: (context, index) {
+                          final item = _cartItemsAvailable[index];
+                          final pricing = item['pricing_details'] ?? {};
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item['product_name'] ?? '',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Qty: ${item['enquired_quantity']}',
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Text(
+                                        '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (item['is_available'] == false)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red[50],
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Currently unavailable',
+                                          style: TextStyle(
+                                            color: Colors.red[700],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              // Total section
+              if (_cartItemsAvailable.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Grand Total',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '₹${_grandTotal.toStringAsFixed(2)}',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // TODO: Proceed to checkout
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Proceeding to checkout...'),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Proceed to Checkout',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _searchProducts(String query) async {
     if (query.isEmpty) {
       // If search is empty, fetch products by selected category
@@ -415,6 +678,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           ],
         ),
       ),
+      floatingActionButton: _totalProductsInCart > 0
+          ? Badge(
+              label: Text('$_totalProductsInCart'),
+              backgroundColor: Colors.red,
+              child: FloatingActionButton(
+                onPressed: _showCartBottomSheet,
+                backgroundColor: theme.primaryColor,
+                child: const Icon(Icons.shopping_cart, color: Colors.white),
+              ),
+            )
+          : null,
     );
   }
 
@@ -943,202 +1217,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
-  void _showVariantsBottomSheet(Map<String, dynamic> product, List variations) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          return Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 4),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            product['product_name'] ?? 'Select Options',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Choose your preferences',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              // Variations list
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: variations.length,
-                  itemBuilder: (context, index) {
-                    final variation = variations[index];
-                    final variationName =
-                        variation['variation_name'] ?? 'Options';
-                    final isRequired = variation['is_required'] ?? false;
-                    final minSelection = variation['minimum_selection'] ?? 0;
-                    final maxSelection = variation['maximum_selection'] ?? 1;
-                    final variationValues =
-                        variation['variation_value'] as List? ?? [];
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Variation header
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            children: [
-                              Text(
-                                _capitalizeCategoryName(variationName),
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              if (isRequired)
-                                Container(
-                                  margin: const EdgeInsets.only(left: 8),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red[50],
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'Required',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.red[700],
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Variation values
-                        ...variationValues.map((value) {
-                          final valueName = value['variation_value_name'] ?? '';
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey[300]!),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: ListTile(
-                              title: Text(valueName),
-                              trailing: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  // TODO: Add to cart with selected variation
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Added: $valueName'),
-                                      duration: const Duration(seconds: 1),
-                                    ),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Theme.of(
-                                    context,
-                                  ).primaryColor,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('Select'),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                        if (index < variations.length - 1)
-                          const SizedBox(height: 24),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _addToCart(Map<String, dynamic> product, Map<String, dynamic>? variant) {
-    setState(() {
-      // Check if  item already exists in cart
-      final existingIndex = _cartItems.indexWhere((item) {
-        final sameProduct = item['product_id'] == product['id'];
-        if (variant == null) {
-          return sameProduct && item['variant'] == null;
-        }
-        return sameProduct && item['variant']?['id'] == variant['id'];
-      });
-
-      if (existingIndex != -1) {
-        // Item exists, increment quantity
-        _cartItems[existingIndex]['quantity'] += 1;
-      } else {
-        // New item, add to cart
-        _cartItems.add({
-          'product_id': product['id'],
-          'product_name': product['product_name'],
-          'product_image': product['img_url'],
-          'price': variant != null
-              ? (variant['price'] ?? variant['variant_price'] ?? 0)
-              : (product['lowest_available_price'] ??
-                    product['price_starts_from'] ??
-                    0),
-          'variant': variant,
-          'quantity': 1,
-        });
-      }
-    });
-
-    // Show snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Added to cart'),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
   void _showProductDetails(Map<String, dynamic> product) {
     showDialog(
       context: context,
@@ -1187,6 +1265,393 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   String _capitalizeCategoryName(String name) {
     if (name.isEmpty) return name;
     return name[0].toUpperCase() + name.substring(1);
+  }
+
+  void _showVariantsBottomSheet(Map<String, dynamic> product, List variations) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _VariantsBottomSheetContent(
+        product: product,
+        variations: variations,
+        storeId: widget.storeId,
+      ),
+    );
+  }
+}
+
+// Stateful Bottom Sheet Widget for Variants
+class _VariantsBottomSheetContent extends StatefulWidget {
+  final Map<String, dynamic> product;
+  final List variations;
+  final String storeId;
+
+  const _VariantsBottomSheetContent({
+    required this.product,
+    required this.variations,
+    required this.storeId,
+  });
+
+  @override
+  State<_VariantsBottomSheetContent> createState() =>
+      _VariantsBottomSheetContentState();
+}
+
+class _VariantsBottomSheetContentState
+    extends State<_VariantsBottomSheetContent> {
+  int _quantity = 1;
+  List<String> _selectedVariationIds = [];
+  bool _isAvailable = false;
+  double _price = 0.0;
+  bool _isLoading = false;
+  String? _productCombinationId;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-validate if there are variations
+    if (widget.variations.isNotEmpty) {
+      _validateAvailability();
+    }
+  }
+
+  Future<void> _validateAvailability() async {
+    if (_selectedVariationIds.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final customerUserId = prefs.getString('user_id') ?? '';
+
+      final response = await ApiService.post(
+        '/validate-product-availability/',
+        body: {
+          'product_id': widget.product['id'],
+          'store_id': widget.storeId,
+          'store_access': true,
+          'customer_user_id': customerUserId,
+          'quantity': _quantity,
+          'variations': _selectedVariationIds,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data']['response'];
+        setState(() {
+          _isAvailable = data['is_available'] ?? false;
+          _productCombinationId = data['product_combination_id'];
+          _price =
+              data['pricing_details']?['selling_amount_including_tax']
+                  ?.toDouble() ??
+              0.0;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isAvailable = false;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isAvailable = false;
+        _isLoading = false;
+      });
+      print('Error validating availability: $e');
+    }
+  }
+
+  void _incrementQuantity() {
+    setState(() {
+      _quantity++;
+    });
+    _validateAvailability();
+  }
+
+  void _decrementQuantity() {
+    if (_quantity > 1) {
+      setState(() {
+        _quantity--;
+      });
+      _validateAvailability();
+    }
+  }
+
+  void _selectVariation(String variationValueId) {
+    setState(() {
+      if (_selectedVariationIds.contains(variationValueId)) {
+        _selectedVariationIds.remove(variationValueId);
+      } else {
+        _selectedVariationIds.add(variationValueId);
+      }
+    });
+    _validateAvailability();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.product['product_name'] ?? 'Select Options',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Choose your preferences',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Variations list
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                itemCount: widget.variations.length,
+                itemBuilder: (context, index) {
+                  final variation = widget.variations[index];
+                  final variationName =
+                      variation['variation_name'] ?? 'Options';
+                  final isRequired = variation['is_required'] ?? false;
+                  final variationValues =
+                      variation['variation_value'] as List? ?? [];
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Variation header
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 12),
+                        child: Row(
+                          children: [
+                            Text(
+                              variationName[0].toUpperCase() +
+                                  variationName.substring(1),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (isRequired)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red[50],
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Required',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.red[700],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      // Variation values
+                      ...variationValues.map((value) {
+                        final valueId = value['id'];
+                        final valueName = value['variation_value_name'] ?? '';
+                        final isSelected = _selectedVariationIds.contains(
+                          valueId,
+                        );
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: isSelected
+                                  ? theme.primaryColor
+                                  : Colors.grey[300]!,
+                              width: isSelected ? 2 : 1,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                            color: isSelected
+                                ? theme.primaryColor.withOpacity(0.1)
+                                : null,
+                          ),
+                          child: ListTile(
+                            title: Text(
+                              valueName,
+                              style: TextStyle(
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? Icon(
+                                    Icons.check_circle,
+                                    color: theme.primaryColor,
+                                  )
+                                : null,
+                            onTap: () => _selectVariation(valueId),
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  );
+                },
+              ),
+            ),
+            // Bottom section with quantity and add button
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Quantity controls
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: _decrementQuantity,
+                          icon: const Icon(Icons.remove),
+                          iconSize: 20,
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            '$_quantity',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _incrementQuantity,
+                          icon: const Icon(Icons.add),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Add button
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isAvailable && !_isLoading
+                          ? () {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Added $_quantity item(s) to cart',
+                                  ),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.primaryColor,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[300],
+                        disabledForegroundColor: Colors.grey[600],
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              'Add item${_price > 0 ? ' ₹${(_price * _quantity).toStringAsFixed(2)}' : ''}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 
