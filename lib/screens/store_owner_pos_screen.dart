@@ -83,9 +83,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         if (data['status'] == 200 && data['response'] != null) {
           setState(() {
             _categories = List<Map<String, dynamic>>.from(data['response']);
+
+            // Add "All" category at the beginning
+            _categories.insert(0, {
+              'id': 'all',
+              'category_name': 'All',
+              'category_icon': null,
+            });
+
             _isCategoriesLoading = false;
 
-            // Auto-select first category
+            // Auto-select first category (which is now "All")
             if (_categories.isNotEmpty) {
               _selectedCategoryId = _categories[0]['id'];
               _fetchProductsByCategory(_selectedCategoryId!);
@@ -123,11 +131,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       final customerUserId = prefs.getString('user_id') ?? '';
 
       // Use the /product/ endpoint with proper payload
+      // If categoryId is 'all', use empty query to fetch all products
+      final queryParam = categoryId == 'all'
+          ? {}
+          : {'parent_category_id': categoryId};
+
       final response = await ApiService.post(
         '/product/',
         body: {
           'store_id': widget.storeId,
-          'query': {'parent_category_id': categoryId},
+          'query': queryParam,
           'page': 1,
           'store_access': true,
           'customer_user_id': customerUserId,
@@ -523,7 +536,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                   const SizedBox(height: 8),
                   // Category Name
                   Text(
-                    category['category_name'] ?? '',
+                    _capitalizeCategoryName(category['category_name'] ?? ''),
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -723,6 +736,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         ],
       ),
     );
+  }
+
+  /// Helper method to capitalize the first letter of category name
+  String _capitalizeCategoryName(String name) {
+    if (name.isEmpty) return name;
+    return name[0].toUpperCase() + name.substring(1);
   }
 }
 
