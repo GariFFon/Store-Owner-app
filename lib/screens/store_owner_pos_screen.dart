@@ -47,6 +47,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   bool _isListening = false;
   String _voiceSearchText = '';
 
+  // Cart
+  List<Map<String, dynamic>> _cartItems = [];
+
   @override
   void initState() {
     super.initState();
@@ -753,18 +756,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () {
-          // Handle product selection
-          _showProductDetails(product);
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Product Image
-            Expanded(
-              flex: 3,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Product Image - Tappable for details
+          Expanded(
+            flex: 3,
+            child: InkWell(
+              onTap: () => _showProductDetails(product),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(12),
@@ -784,37 +786,178 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       ),
               ),
             ),
+          ),
 
-            // Product Details
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+          // Product Details
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Expanded(
+                    child: Text(
                       productName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                      style: theme.textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      '₹${productPrice.toString()}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.primaryColor,
-                        fontWeight: FontWeight.bold,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '₹${productPrice.toString()}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: theme.primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 4),
+                      // Add button
+                      SizedBox(
+                        height: 26,
+                        child: ElevatedButton(
+                          onPressed: () => _handleAddToCart(product),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 2,
+                            ),
+                            backgroundColor: theme.primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add, size: 14),
+                              SizedBox(width: 2),
+                              Text('Add', style: TextStyle(fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleAddToCart(Map<String, dynamic> product) {
+    final hasVariants =
+        product['variants'] != null && (product['variants'] as List).isNotEmpty;
+
+    if (hasVariants) {
+      _showVariantSelectionDialog(product);
+    } else {
+      _addToCart(product, null);
+    }
+  }
+
+  void _showVariantSelectionDialog(Map<String, dynamic> product) {
+    final variants = product['variants'] as List;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Select Variant'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: variants.length,
+            itemBuilder: (context, index) {
+              final variant = variants[index];
+              final variantName =
+                  variant['name'] ??
+                  variant['variant_name'] ??
+                  'Variant ${index + 1}';
+              final variantPrice =
+                  variant['price'] ?? variant['variant_price'] ?? 0;
+
+              return ListTile(
+                title: Text(variantName),
+                subtitle: Text('₹$variantPrice'),
+                trailing: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _addToCart(product, variant);
+                  },
+                  child: const Text('Add'),
+                ),
+              );
+            },
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addToCart(Map<String, dynamic> product, Map<String, dynamic>? variant) {
+    setState(() {
+      // Check if  item already exists in cart
+      final existingIndex = _cartItems.indexWhere((item) {
+        final sameProduct = item['product_id'] == product['id'];
+        if (variant == null) {
+          return sameProduct && item['variant'] == null;
+        }
+        return sameProduct && item['variant']?['id'] == variant['id'];
+      });
+
+      if (existingIndex != -1) {
+        // Item exists, increment quantity
+        _cartItems[existingIndex]['quantity'] += 1;
+      } else {
+        // New item, add to cart
+        _cartItems.add({
+          'product_id': product['id'],
+          'product_name': product['product_name'],
+          'product_image': product['img_url'],
+          'price': variant != null
+              ? (variant['price'] ?? variant['variant_price'] ?? 0)
+              : (product['lowest_available_price'] ??
+                    product['price_starts_from'] ??
+                    0),
+          'variant': variant,
+          'quantity': 1,
+        });
+      }
+    });
+
+    // Show snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Added to cart'),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
