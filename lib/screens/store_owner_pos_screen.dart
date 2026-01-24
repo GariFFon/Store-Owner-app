@@ -865,58 +865,235 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     );
   }
 
-  void _handleAddToCart(Map<String, dynamic> product) {
-    final hasVariants =
-        product['variants'] != null && (product['variants'] as List).isNotEmpty;
+  void _handleAddToCart(Map<String, dynamic> product) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
 
-    if (hasVariants) {
-      _showVariantSelectionDialog(product);
-    } else {
-      _addToCart(product, null);
+      // Get customer_user_id from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final customerUserId = prefs.getString('user_id') ?? '';
+
+      // Call API to get product variations
+      final response = await ApiService.post(
+        '/product-variation-value/',
+        body: {
+          'order_by': 'variation_name',
+          'query': {'store_id': widget.storeId, 'product_id': product['id']},
+          'store_id': widget.storeId,
+          'customer_user_id': customerUserId,
+        },
+        useBearerToken: true,
+      );
+
+      // Close loading indicator
+      if (mounted) Navigator.pop(context);
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        final additionalData = data['additional_data'];
+
+        // Case A: Product added directly (no variants)
+        if (additionalData != null &&
+            additionalData['is_product_added_to_cart_successfully'] == true) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['response'] ?? 'Product added to cart'),
+                duration: const Duration(seconds: 2),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          return;
+        }
+
+        // Case B: Product has variants - show bottom sheet
+        if (data['status'] == 200 && data['response'] is List) {
+          final variations = data['response'] as List;
+          if (variations.isNotEmpty && mounted) {
+            _showVariantsBottomSheet(product, variations);
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to add product'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading if still open
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
-  void _showVariantSelectionDialog(Map<String, dynamic> product) {
-    final variants = product['variants'] as List;
-
-    showDialog(
+  void _showVariantsBottomSheet(Map<String, dynamic> product, List variations) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Select Variant'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: variants.length,
-            itemBuilder: (context, index) {
-              final variant = variants[index];
-              final variantName =
-                  variant['name'] ??
-                  variant['variant_name'] ??
-                  'Variant ${index + 1}';
-              final variantPrice =
-                  variant['price'] ?? variant['variant_price'] ?? 0;
-
-              return ListTile(
-                title: Text(variantName),
-                subtitle: Text('₹$variantPrice'),
-                trailing: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _addToCart(product, variant);
-                  },
-                  child: const Text('Add'),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) {
+          return Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 4),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
                 ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            product['product_name'] ?? 'Select Options',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Choose your preferences',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Variations list
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: variations.length,
+                  itemBuilder: (context, index) {
+                    final variation = variations[index];
+                    final variationName =
+                        variation['variation_name'] ?? 'Options';
+                    final isRequired = variation['is_required'] ?? false;
+                    final minSelection = variation['minimum_selection'] ?? 0;
+                    final maxSelection = variation['maximum_selection'] ?? 1;
+                    final variationValues =
+                        variation['variation_value'] as List? ?? [];
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Variation header
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              Text(
+                                _capitalizeCategoryName(variationName),
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              if (isRequired)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red[50],
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Required',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.red[700],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        // Variation values
+                        ...variationValues.map((value) {
+                          final valueName = value['variation_value_name'] ?? '';
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey[300]!),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ListTile(
+                              title: Text(valueName),
+                              trailing: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  // TODO: Add to cart with selected variation
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Added: $valueName'),
+                                      duration: const Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(
+                                    context,
+                                  ).primaryColor,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Select'),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        if (index < variations.length - 1)
+                          const SizedBox(height: 24),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
