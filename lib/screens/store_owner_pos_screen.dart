@@ -66,9 +66,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
   void _setupScrollListener() {
     _scrollController.addListener(() {
+      // Trigger pagination when user reaches 70% of the scroll
       if (_scrollController.position.pixels >=
-          _scrollController.position.maxScrollExtent - 200) {
-        // User is near the bottom, load more products
+          _scrollController.position.maxScrollExtent * 0.7) {
+        // User has scrolled 70% down, load more products
         if (!_isLoadingMore && _hasMoreProducts && !_isProductsLoading) {
           _loadMoreProducts();
         }
