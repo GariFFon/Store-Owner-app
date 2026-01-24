@@ -32,6 +32,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   bool _isProductsLoading = false;
   String? _productsError;
 
+  // Pagination
+  int _currentPage = 1;
+  bool _hasMoreProducts = true;
+  bool _isLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
+
   // Search
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
@@ -46,6 +52,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     super.initState();
     _initializeSpeech();
     _fetchCategories();
+    _setupScrollListener();
   }
 
   @override
@@ -53,7 +60,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     _searchController.dispose();
     _searchDebounce?.cancel();
     _speech.stop();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _setupScrollListener() {
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        // User is near the bottom, load more products
+        if (!_isLoadingMore && _hasMoreProducts && !_isProductsLoading) {
+          _loadMoreProducts();
+        }
+      }
+    });
   }
 
   void _initializeSpeech() async {
@@ -124,6 +144,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       setState(() {
         _isProductsLoading = true;
         _productsError = null;
+        _currentPage = 1; // Reset to first page
+        _hasMoreProducts = true; // Assume there might be more
       });
 
       // Get customer_user_id from SharedPreferences
@@ -141,7 +163,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         body: {
           'store_id': widget.storeId,
           'query': queryParam,
-          'page': 1,
+          'page': _currentPage,
           'store_access': true,
           'customer_user_id': customerUserId,
         },
@@ -152,27 +174,100 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         final data = response['data'];
 
         if (data['status'] == 200 && data['response'] != null) {
+          final newProducts = List<Map<String, dynamic>>.from(data['response']);
           setState(() {
-            _products = List<Map<String, dynamic>>.from(data['response']);
+            _products = newProducts;
             _isProductsLoading = false;
+            // If we got fewer products than expected, there might not be more
+            _hasMoreProducts =
+                newProducts.length >= 10; // Assuming 10 items per page
           });
         } else {
           setState(() {
             _productsError = 'No products found';
             _isProductsLoading = false;
+            _hasMoreProducts = false;
           });
         }
       } else {
         setState(() {
           _productsError = 'Failed to fetch products';
           _isProductsLoading = false;
+          _hasMoreProducts = false;
         });
       }
     } catch (e) {
       setState(() {
         _productsError = 'Error: $e';
         _isProductsLoading = false;
+        _hasMoreProducts = false;
       });
+    }
+  }
+
+  Future<void> _loadMoreProducts() async {
+    if (_isLoadingMore || !_hasMoreProducts || _selectedCategoryId == null) {
+      return;
+    }
+
+    try {
+      setState(() {
+        _isLoadingMore = true;
+      });
+
+      _currentPage++; // Increment page
+
+      // Get customer_user_id from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final customerUserId = prefs.getString('user_id') ?? '';
+
+      // Use the same query logic as _fetchProductsByCategory
+      final queryParam = _selectedCategoryId == 'all'
+          ? {}
+          : {'parent_category_id': _selectedCategoryId};
+
+      final response = await ApiService.post(
+        '/product/',
+        body: {
+          'store_id': widget.storeId,
+          'query': queryParam,
+          'page': _currentPage,
+          'store_access': true,
+          'customer_user_id': customerUserId,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+
+        if (data['status'] == 200 && data['response'] != null) {
+          final newProducts = List<Map<String, dynamic>>.from(data['response']);
+          setState(() {
+            _products.addAll(newProducts); // Append new products
+            _isLoadingMore = false;
+            // If we got fewer products than expected, there might not be more
+            _hasMoreProducts =
+                newProducts.length >= 10; // Assuming 10 items per page
+          });
+        } else {
+          setState(() {
+            _isLoadingMore = false;
+            _hasMoreProducts = false; // No more products
+          });
+        }
+      } else {
+        setState(() {
+          _isLoadingMore = false;
+          _hasMoreProducts = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingMore = false;
+        // Don't set hasMoreProducts to false on error, allow retry
+      });
+      print('Error loading more products: $e');
     }
   }
 
@@ -603,19 +698,48 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: _products.length,
-      itemBuilder: (context, index) {
-        final product = _products[index];
-        return _buildProductCard(theme, product);
-      },
+    return CustomScrollView(
+      controller: _scrollController,
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(16),
+          sliver: SliverGrid(
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 200,
+              childAspectRatio: 0.75,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final product = _products[index];
+              return _buildProductCard(theme, product);
+            }, childCount: _products.length),
+          ),
+        ),
+        // Loading indicator at the bottom when loading more
+        if (_isLoadingMore)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+        // Show "No more products" message if at end
+        if (!_hasMoreProducts && _products.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: Text(
+                  'No more products',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
