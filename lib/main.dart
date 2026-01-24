@@ -12,11 +12,11 @@ import 'package:exanor/screens/SplashScreen.dart';
 import 'package:exanor/screens/onboarding_screen.dart';
 import 'package:exanor/screens/phone_registration_screen.dart';
 import 'package:exanor/screens/otp_verification_screen.dart';
-import 'package:exanor/screens/HomeScreen.dart';
 import 'package:exanor/screens/location_selection_screen.dart';
 import 'package:exanor/screens/saved_addresses_screen.dart';
 import 'package:exanor/screens/remote_config_debug_screen.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
+import 'package:exanor/screens/store_selection_screen.dart';
 // REMOVED: Deleted screens (chat, subscription, profiles, refer & earn, feed, taxi)
 
 import 'package:exanor/config/theme_config.dart';
@@ -594,7 +594,8 @@ class _MyAppState extends State<MyApp> {
                   const PhoneRegistrationScreen(),
               '/otp_verification': (context) =>
                   const OTPVerificationScreen(phoneNumber: ''),
-              '/home': (context) => const HomeScreen(),
+              '/home': (context) => const StoreSelectionScreen(),
+              '/store-selection': (context) => const StoreSelectionScreen(),
               '/location_selection': (context) =>
                   const LocationSelectionScreen(),
               '/saved_addresses': (context) => const SavedAddressesScreen(),

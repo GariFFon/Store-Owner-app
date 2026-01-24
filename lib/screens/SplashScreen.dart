@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/config/theme_config.dart';
-import 'package:exanor/screens/HomeScreen.dart';
+import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/screens/onboarding_screen.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/services/in_app_update_service.dart';
@@ -179,9 +179,11 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (mounted) {
         if (accessToken != null && refreshToken != null) {
-          // User is logged in, navigate to HomeScreen
+          // User is logged in, navigate to Store Selection Screen
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            MaterialPageRoute(
+              builder: (context) => const StoreSelectionScreen(),
+            ),
           );
         } else {
           // No tokens found, navigate to OnboardingScreen

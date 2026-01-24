@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
-import 'package:exanor/screens/store_screen.dart'; // We will create this
+// import 'package:exanor/screens/store_screen.dart'; // REMOVED - Customer screen
 import 'package:exanor/components/translation_widget.dart';
 
 class QRScannerScreen extends StatefulWidget {
@@ -92,12 +92,16 @@ class _QRScannerScreenState extends State<QRScannerScreen>
       // Valid Store ID found
       _controller.stop();
       if (mounted) {
-        Navigator.pushReplacement(
+        // TODO: Navigate to store owner POS screen or show store info
+        ScaffoldMessenger.of(
           context,
-          MaterialPageRoute(
-            builder: (context) => StoreScreen(storeId: storeId!),
-          ),
-        );
+        ).showSnackBar(SnackBar(content: Text('Store ID found: $storeId')));
+        // Navigator.pushReplacement(
+        //   context,
+        //   MaterialPageRoute(
+        //     builder: (context) => StoreScreen(storeId: storeId!),
+        //   ),
+        // );
       }
     } else {
       // Normal URL or other data

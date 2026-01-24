@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:exanor/components/otp_input_section.dart';
-import 'package:exanor/screens/HomeScreen.dart';
+import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/screens/location_selection_screen.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -322,10 +322,12 @@ class _SimpleOTPVerificationScreenState
             }
 
             if (hasExistingData) {
-              print('🎉 Existing user - navigating to HomeScreen');
+              print('🎉 Existing user - navigating to StoreSelectionScreen');
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const StoreSelectionScreen(),
+                ),
                 (route) => false,
               );
             } else {
