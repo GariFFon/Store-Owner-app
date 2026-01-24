@@ -5,6 +5,7 @@ import 'package:exanor/services/api_service.dart';
 import 'package:exanor/components/custom_cached_network_image.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:country_code_picker/country_code_picker.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -54,6 +55,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   Map<String, dynamic>? _cartData;
   double _grandTotal = 0.0;
 
+  // Customer
+  String? customer_user_id;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +65,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     _fetchCategories();
     _setupScrollListener();
     _validateCart(); // Load cart data on init
+    
+    // Show customer phone dialog on init
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showCustomerPhoneDialog();
+    });
   }
 
   @override
@@ -648,6 +657,170 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/store-selection');
+    }
+  }
+
+  // Customer Phone Dialog
+  void _showCustomerPhoneDialog() {
+    final TextEditingController phoneController = TextEditingController();
+    CountryCode selectedCountry = CountryCode.fromCountryCode('IN');
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Enter Customer Phone'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number',
+                      prefixIcon: CountryCodePicker(
+                        onChanged: (CountryCode countryCode) {
+                          setState(() {
+                            selectedCountry = countryCode;
+                          });
+                        },
+                        initialSelection: 'IN',
+                        favorite: const ['+91', 'IN'],
+                        showCountryOnly: false,
+                        showOnlyCountryWhenClosed: false,
+                        alignLeft: false,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.qr_code_scanner),
+                        onPressed: () async {
+                          // Open QR scanner
+                          final scannedCode = await Navigator.push<String>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => _QRScannerDialog(),
+                            ),
+                          );
+                          if (scannedCode != null) {
+                            phoneController.text = scannedCode;
+                          }
+                        },
+                      ),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  if (isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          Navigator.of(dialogContext).pop();
+                        },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final phone = phoneController.text.trim();
+                          if (phone.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please enter a phone number'),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setState(() {
+                            isLoading = true;
+                          });
+
+                          // Get country code
+                          final countryCode = selectedCountry.dialCode
+                                  ?.replaceAll('+', '') ??
+                              '91';
+                          final fullPhoneNumber = '$countryCode$phone';
+
+                          try {
+                            await _fetchCustomerData(fullPhoneNumber);
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop();
+                            }
+                          } catch (e) {
+                            setState(() {
+                              isLoading = false;
+                            });
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: const Text('Continue'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Fetch customer data from API
+  Future<void> _fetchCustomerData(String phoneNumber) async {
+    try {
+      final response = await ApiService.post(
+        '/view-user-data/',
+        body: {
+          'phone_number': int.parse(phoneNumber),
+          'store_id': widget.storeId,
+          'store_access': true,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+
+        if (data['status'] == 200 && data['response'] != null) {
+          final List<dynamic> userList = data['response'];
+          if (userList.isNotEmpty) {
+            final userData = userList[0] as Map<String, dynamic>;
+            setState(() {
+              customer_user_id = userData['id'] as String?;
+            });
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Customer loaded: ${userData['first_name']} ${userData['last_name']}',
+                  ),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching customer data: $e');
+      rethrow;
     }
   }
 
@@ -1278,6 +1451,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         product: product,
         variations: variations,
         storeId: widget.storeId,
+        onCartUpdated: _validateCart, // Call cart validation after adding
       ),
     );
   }
@@ -1288,11 +1462,13 @@ class _VariantsBottomSheetContent extends StatefulWidget {
   final Map<String, dynamic> product;
   final List variations;
   final String storeId;
+  final VoidCallback onCartUpdated;
 
   const _VariantsBottomSheetContent({
     required this.product,
     required this.variations,
     required this.storeId,
+    required this.onCartUpdated,
   });
 
   @override
@@ -1605,6 +1781,8 @@ class _VariantsBottomSheetContentState
                       onPressed: _isAvailable && !_isLoading
                           ? () {
                               Navigator.pop(context);
+                              // Call the callback to update cart in parent widget
+                              widget.onCartUpdated();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
@@ -1651,6 +1829,48 @@ class _VariantsBottomSheetContentState
           ],
         );
       },
+    );
+  }
+}
+
+// QR Scanner Dialog for Phone Number
+class _QRScannerDialog extends StatefulWidget {
+  @override
+  State<_QRScannerDialog> createState() => _QRScannerDialogState();
+}
+
+class _QRScannerDialogState extends State<_QRScannerDialog> {
+  MobileScannerController controller = MobileScannerController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scan QR Code'),
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: MobileScanner(
+        controller: controller,
+        onDetect: (capture) {
+          final List<Barcode> barcodes = capture.barcodes;
+          for (final barcode in barcodes) {
+            if (barcode.rawValue != null) {
+              Navigator.pop(context, barcode.rawValue);
+              return;
+            }
+          }
+        },
+      ),
     );
   }
 }
