@@ -8,7 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:exanor/screens/order_success_popup.dart';
+import 'package:exanor/screens/review_order_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -838,7 +838,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               context,
               MaterialPageRoute(
                 fullscreenDialog: true,
-                builder: (context) => OrderSuccessPopup(
+                builder: (context) => ReviewOrderScreen(
                   data: Map<String, dynamic>.from(data['response']),
                   onPlaceOrder: () {
                     // Trigger actual order placement

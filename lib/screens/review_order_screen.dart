@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/components/translation_widget.dart';
 
-class OrderSuccessPopup extends StatelessWidget {
+class ReviewOrderScreen extends StatelessWidget {
   final Map<String, dynamic> data;
   final VoidCallback onPlaceOrder;
 
-  const OrderSuccessPopup({
+  const ReviewOrderScreen({
     super.key,
     required this.data,
     required this.onPlaceOrder,
