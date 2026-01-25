@@ -483,9 +483,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   int _getProductQuantityInCart(String productId) {
     int qty = 0;
     for (var item in _cartItemsAvailable) {
-      if (item['product_id'] == productId || item['id'] == productId) {
-        // Check both for safety
-        qty += (item['enquired_quantity'] as num? ?? 0).toInt();
+      final itemProductId = item['product_id']?.toString();
+      final itemId = item['id']?.toString();
+      final pId = productId.toString();
+
+      if (itemProductId == pId || itemId == pId) {
+        final q = item['enquired_quantity'] ?? item['quantity'];
+        qty += (q as num? ?? 0).toInt();
       }
     }
     return qty;
@@ -2094,19 +2098,7 @@ class _VariantsBottomSheetContentState
                   Expanded(
                     child: ElevatedButton(
                       onPressed: _isAvailable && !_isLoading
-                          ? () {
-                              Navigator.pop(context);
-                              // Call the callback to update cart in parent widget
-                              widget.onCartUpdated();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Added $_quantity item(s) to cart',
-                                  ),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            }
+                          ? _addToCart
                           : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.primaryColor,
@@ -2145,6 +2137,77 @@ class _VariantsBottomSheetContentState
         );
       },
     );
+  }
+
+  Future<void> _addToCart() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await ApiService.post(
+        '/add-product-in-cart/',
+        body: {
+          'quantity': _quantity,
+          'product_id': widget.product['id'],
+          'store_id': widget.storeId,
+          'store_access': true,
+          'customer_user_id': widget.customerUserId ?? '',
+          'variations': _selectedVariationIds,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+
+        if (data['status'] == 200) {
+          if (mounted) {
+            Navigator.pop(context);
+            widget.onCartUpdated(); // Refresh cart
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['response'] ?? 'Product added to cart'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['response'] ?? 'Failed to add product'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to add product to cart'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding to cart: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 }
 
