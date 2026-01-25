@@ -68,6 +68,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   String? customer_user_id;
   Map<String, dynamic>? _currentCustomer;
 
+  // Address
+  String? selected_address_id;
+
   // Payment Modes
   List<Map<String, dynamic>> _bankDetails = [];
   String _selectedPaymentMode = 'UNPAID';
@@ -166,6 +169,35 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     } catch (e) {
       print("Error fetching order methods: $e");
       if (mounted) setState(() => _isOrderMethodsLoading = false);
+    }
+  }
+
+  Future<void> _fetchUserAddresses() async {
+    try {
+      final response = await ApiService.post(
+        '/user-address/',
+        body: {
+          "store_id": widget.storeId,
+          "customer_user_id": customer_user_id ?? "",
+          "query": {},
+          "store_access": true,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          final addresses = List<Map<String, dynamic>>.from(data['response']);
+          if (addresses.isNotEmpty) {
+            setState(() {
+              selected_address_id = addresses[0]['id'];
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print("Error fetching user addresses: $e");
     }
   }
 
@@ -395,6 +427,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       print('Error getting location: $e');
     }
     if (mounted) await _fetchOrderMethods();
+    if (mounted) await _fetchUserAddresses();
     if (mounted) _validateCart();
   }
 
@@ -435,10 +468,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         body: {
           'store_id': widget.storeId,
           'order_method_id':
-              _selectedOrderMethod?['id'] ??
-              '1d9eb8ba-4d33-4d3d-b218-aba12a3fb7b1', // Default order method
-          'user_address_id':
-              '6068c242-8d0f-4513-aaf3-401fafdad596', // Default address
+              _selectedOrderMethod?['id'] ?? null, // Default order method
+          'user_address_id': selected_address_id ?? null, // Default address
           'lat': _lat,
           'lng': _lng,
           'store_access': true,
@@ -1559,6 +1590,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             // Refresh products and cart with new customer ID
             if (customer_user_id != null) {
               await _fetchOrderMethods();
+              await _fetchUserAddresses();
               _fetchProductsByCategory(_selectedCategoryId ?? 'all');
               _validateCart();
             }
