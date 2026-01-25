@@ -6,6 +6,7 @@ import 'package:exanor/components/custom_cached_network_image.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:country_code_picker/country_code_picker.dart';
+import 'package:geolocator/geolocator.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -55,6 +56,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   Map<String, dynamic>? _cartData;
   double _grandTotal = 0.0;
 
+  // Location
+  double _lat = 0.0;
+  double _lng = 0.0;
+
   // Customer
   String? customer_user_id;
 
@@ -64,7 +69,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     _initializeSpeech();
     _fetchCategories();
     _setupScrollListener();
-    _validateCart(); // Load cart data on init
+    _initLocationAndCart(); // Load location then cart data
 
     // Show customer phone dialog on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -293,6 +298,45 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
+  Future<void> _initLocationAndCart() async {
+    try {
+      await _getCurrentLocation();
+    } catch (e) {
+      print('Error getting location: $e');
+    }
+    if (mounted) _validateCart();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition();
+    if (mounted) {
+      setState(() {
+        _lat = position.latitude;
+        _lng = position.longitude;
+      });
+    }
+  }
+
   Future<void> _validateCart() async {
     try {
       final response = await ApiService.post(
@@ -303,8 +347,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               '1d9eb8ba-4d33-4d3d-b218-aba12a3fb7b1', // Default order method
           'user_address_id':
               '6068c242-8d0f-4513-aaf3-401fafdad596', // Default address
-          'lat': 0.0,
-          'lng': 0.0,
+          'lat': _lat,
+          'lng': _lng,
           'store_access': true,
           'customer_user_id': customer_user_id ?? '',
         },
@@ -1601,6 +1645,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           'query': {'store_id': widget.storeId, 'product_id': product['id']},
           'store_id': widget.storeId,
           'customer_user_id': customer_user_id ?? '',
+          'store_access': true,
         },
         useBearerToken: true,
       );
