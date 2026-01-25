@@ -882,6 +882,48 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
+  Future<void> _sendDeviceData() async {
+    try {
+      await ApiService.post(
+        '/add-user-devices/',
+        body: {
+          "software_version": 1,
+          "device_id": "device_unknown",
+          "device_brand": "BrandName",
+          "device_model": "ModelName",
+          "os_version": "1.0.0",
+          "last_online": DateTime.now().millisecondsSinceEpoch,
+          "browser":
+              "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36",
+          "device_build_id": "build123",
+          "mac_address": "00:00:00:00:00:00",
+          "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+          "platform":
+              "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36",
+          "language": "en-US",
+          "app_name": "AppName",
+          "app_version": "1.0.0",
+          "screen_width": "1150",
+          "screen_height": "1016",
+          "device_pixel_ratio": "2",
+          "screen_orientation": "landscape-primary",
+          "color_depth": "24",
+          "cookies_enabled": "true",
+          "network_effective_type": "unknown",
+          "network_rtt": "unknown",
+          "network_downlink": "unknown",
+          "customer_user_id": customer_user_id ?? "",
+          "store_access": true,
+          "store_id": widget.storeId,
+        },
+        useBearerToken: true,
+      );
+      print("Device Data Created Successfully");
+    } catch (e) {
+      print("Error sending device data: $e");
+    }
+  }
+
   Future<void> _confirmPlaceOrder() async {
     // Show loading
     showDialog(
@@ -891,6 +933,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     );
 
     try {
+      // Send device data before placing order
+      await _sendDeviceData();
+
       dynamic response;
       if (_selectedPaymentMode == 'UNPAID') {
         response = await ApiService.post(
