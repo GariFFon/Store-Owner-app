@@ -244,7 +244,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Future<void> _loadMoreProducts() async {
-    if (_isLoadingMore || !_hasMoreProducts || _selectedCategoryId == null) {
+    if (_isLoadingMore || !_hasMoreProducts) {
+      return;
+    }
+
+    final isSearching = _searchController.text.isNotEmpty;
+    if (!isSearching && _selectedCategoryId == null) {
       return;
     }
 
@@ -255,22 +260,41 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
       _currentPage++; // Increment page
 
-      // Use the same query logic as _fetchProductsByCategory
-      final queryParam = _selectedCategoryId == 'all'
-          ? {}
-          : {'parent_category_id': _selectedCategoryId};
+      dynamic response;
 
-      final response = await ApiService.post(
-        '/product/',
-        body: {
-          'store_id': widget.storeId,
-          'query': queryParam,
-          'page': _currentPage,
-          'store_access': true,
-          'customer_user_id': customer_user_id ?? '',
-        },
-        useBearerToken: true,
-      );
+      if (isSearching) {
+        response = await ApiService.post(
+          '/search-in-store/',
+          body: {
+            "customer_user_id": customer_user_id ?? "",
+            "is_store": false,
+            "lat": _lat,
+            "lng": _lng,
+            "page": _currentPage,
+            "query": _searchController.text,
+            "store_access": true,
+            "store_id": widget.storeId,
+          },
+          useBearerToken: true,
+        );
+      } else {
+        // Use the same query logic as _fetchProductsByCategory
+        final queryParam = _selectedCategoryId == 'all'
+            ? {}
+            : {'parent_category_id': _selectedCategoryId};
+
+        response = await ApiService.post(
+          '/product/',
+          body: {
+            'store_id': widget.storeId,
+            'query': queryParam,
+            'page': _currentPage,
+            'store_access': true,
+            'customer_user_id': customer_user_id ?? '',
+          },
+          useBearerToken: true,
+        );
+      }
 
       if (response['statusCode'] == 200 && response['data'] != null) {
         final data = response['data'];
@@ -280,9 +304,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           setState(() {
             _products.addAll(newProducts); // Append new products
             _isLoadingMore = false;
-            // If we got fewer products than expected, there might not be more
-            _hasMoreProducts =
-                newProducts.length >= 10; // Assuming 10 items per page
+
+            if (isSearching) {
+              _hasMoreProducts = data['has_next'] ?? false;
+            } else {
+              // If we got fewer products than expected, there might not be more
+              _hasMoreProducts = newProducts.length >= 10;
+            }
           });
         } else {
           setState(() {
@@ -811,12 +839,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       setState(() {
         _isProductsLoading = true;
         _productsError = null;
+        _currentPage = 1;
       });
 
-      // TODO: Replace with actual API endpoint for searching products
       final response = await ApiService.post(
-        '/search-products/', // You'll need to provide the actual endpoint
-        body: {'store_id': widget.storeId, 'query': query},
+        '/search-in-store/',
+        body: {
+          "customer_user_id": customer_user_id ?? "",
+          "is_store": false,
+          "lat": _lat,
+          "lng": _lng,
+          "page": _currentPage,
+          "query": query,
+          "store_access": true,
+          "store_id": widget.storeId,
+        },
         useBearerToken: true,
       );
 
@@ -824,27 +861,32 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         final data = response['data'];
 
         if (data['status'] == 200 && data['response'] != null) {
+          final newProducts = List<Map<String, dynamic>>.from(data['response']);
           setState(() {
-            _products = List<Map<String, dynamic>>.from(data['response']);
+            _products = newProducts;
             _isProductsLoading = false;
+            _hasMoreProducts = data['has_next'] ?? false;
           });
         } else {
           setState(() {
             _products = [];
             _productsError = 'No products found for "$query"';
             _isProductsLoading = false;
+            _hasMoreProducts = false;
           });
         }
       } else {
         setState(() {
           _productsError = 'Search failed';
           _isProductsLoading = false;
+          _hasMoreProducts = false;
         });
       }
     } catch (e) {
       setState(() {
         _productsError = 'Search error: $e';
         _isProductsLoading = false;
+        _hasMoreProducts = false;
       });
     }
   }
