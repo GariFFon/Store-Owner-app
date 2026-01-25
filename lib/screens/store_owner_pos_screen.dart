@@ -75,6 +75,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   // Payment Modes
   List<Map<String, dynamic>> _bankDetails = [];
   String _selectedPaymentMode = 'UNPAID';
+  Map<String, double> _multiModeValues = {}; // Store split amounts
 
   // Order Methods
   List<Map<String, dynamic>> _orderMethods = [];
@@ -770,6 +771,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           (currentTotal - _grandTotal).abs() < 0.01
                       ? () {
                           Navigator.pop(context);
+                          // Save the values
+                          _multiModeValues.clear();
+                          controllers.forEach((id, controller) {
+                            final val = double.tryParse(controller.text) ?? 0.0;
+                            if (val > 0) {
+                              _multiModeValues[id] = val;
+                            }
+                          });
                           setSheetState(() {
                             // Multi-mode confirmed
                           });
@@ -882,21 +891,61 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     );
 
     try {
-      final response = await ApiService.post(
-        '/place-order/',
-        body: {
-          "customer_user_id": customer_user_id,
-          "lat": _lat,
-          "lng": _lng,
-          "order_method_id": _selectedOrderMethod?['id'],
-          "payment_method_id": _selectedPaymentMethodId,
-          "store_access": true,
-          "store_id": widget.storeId,
-          "user_address_id": selected_address_id,
-          "coupon_code": "",
-        },
-        useBearerToken: true,
-      );
+      dynamic response;
+      if (_selectedPaymentMode == 'UNPAID') {
+        response = await ApiService.post(
+          '/place-order/',
+          body: {
+            "customer_user_id": customer_user_id,
+            "lat": _lat,
+            "lng": _lng,
+            "order_method_id": _selectedOrderMethod?['id'],
+            "payment_method_id": _selectedPaymentMethodId,
+            "store_access": true,
+            "store_id": widget.storeId,
+            "user_address_id": selected_address_id,
+            "coupon_code": "",
+          },
+          useBearerToken: true,
+        );
+      } else {
+        // Construct payment_methods array
+        List<Map<String, dynamic>> paymentMethodsList = [];
+
+        if (_selectedPaymentMode == 'MULTI-MODE') {
+          _multiModeValues.forEach((key, value) {
+            if (value > 0) {
+              paymentMethodsList.add({
+                "payment_method_store_bank_id": key,
+                "amount": value,
+              });
+            }
+          });
+        } else {
+          // Single bank selected (not UNPAID, not MULTI-MODE)
+          paymentMethodsList.add({
+            "payment_method_store_bank_id": _selectedPaymentMode,
+            "amount": _grandTotal,
+          });
+        }
+
+        response = await ApiService.post(
+          '/place-order-with-completion/',
+          body: {
+            "customer_user_id": customer_user_id,
+            "lat": _lat,
+            "lng": _lng,
+            "order_method_id": _selectedOrderMethod?['id'],
+            "payment_method_id": _selectedPaymentMethodId,
+            "store_access": true,
+            "store_id": widget.storeId,
+            "user_address_id": selected_address_id,
+            "payment_methods": paymentMethodsList,
+            "coupon_code": "",
+          },
+          useBearerToken: true,
+        );
+      }
 
       // Hide loading
       if (mounted) Navigator.pop(context);
