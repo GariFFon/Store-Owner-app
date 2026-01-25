@@ -711,375 +711,478 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return DraggableScrollableSheet(
-            initialChildSize: 0.7,
-            minChildSize: 0.5,
-            maxChildSize: 0.95,
-            expand: false,
-            builder: (context, scrollController) {
-              final theme = Theme.of(context);
-              return Column(
-                children: [
-                  // Handle bar
-                  Container(
-                    margin: const EdgeInsets.only(top: 8, bottom: 4),
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
+      builder: (context) {
+        bool showDetails = false;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (context, scrollController) {
+                final theme = Theme.of(context);
+                return Column(
+                  children: [
+                    // Handle bar
+                    Container(
+                      margin: const EdgeInsets.only(top: 8, bottom: 4),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ),
-                  // Header
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TranslatedText(
-                          'Cart ($_totalProductsInCart ${_totalProductsInCart == 1 ? 'item' : 'items'})',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TranslatedText(
+                            'Cart ($_totalProductsInCart ${_totalProductsInCart == 1 ? 'item' : 'items'})',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Divider(height: 1),
-                  // Cart items list
-                  Expanded(
-                    child: _cartItemsAvailable.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                    const Divider(height: 1),
+                    // Cart items list
+                    Expanded(
+                      child: _cartItemsAvailable.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.shopping_cart_outlined,
+                                    size: 64,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TranslatedText(
+                                    'Your cart is empty',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: scrollController,
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _cartItemsAvailable.length,
+                              itemBuilder: (context, index) {
+                                final item = _cartItemsAvailable[index];
+                                final pricing = item['pricing_details'] ?? {};
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  TranslatedText(
+                                                    item['product_name'] ?? '',
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  // Cart Counter
+                                                  Container(
+                                                    decoration: BoxDecoration(
+                                                      border: Border.all(
+                                                        color:
+                                                            Colors.grey[300]!,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        InkWell(
+                                                          onTap: () async {
+                                                            await _decrementCartItem(
+                                                              item['product_combination_id'] ??
+                                                                  '',
+                                                              item['product_id'] ??
+                                                                  '',
+                                                            );
+                                                            // Update sheet state
+                                                            setSheetState(
+                                                              () {},
+                                                            );
+                                                          },
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal: 8,
+                                                                  vertical: 4,
+                                                                ),
+                                                            child: Icon(
+                                                              Icons.remove,
+                                                              size: 16,
+                                                              color: theme
+                                                                  .primaryColor,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 8,
+                                                              ),
+                                                          child: TranslatedText(
+                                                            '${item['enquired_quantity']}',
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        InkWell(
+                                                          onTap: () async {
+                                                            await _incrementCartItem(
+                                                              item['product_combination_id'] ??
+                                                                  '',
+                                                              item['product_id'] ??
+                                                                  '',
+                                                            );
+                                                            // Update sheet state
+                                                            setSheetState(
+                                                              () {},
+                                                            );
+                                                          },
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal: 8,
+                                                                  vertical: 4,
+                                                                ),
+                                                            child: Icon(
+                                                              Icons.add,
+                                                              size: 16,
+                                                              color: theme
+                                                                  .primaryColor,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            TranslatedText(
+                                              '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (item['is_available'] == false)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 8,
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red[50],
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: TranslatedText(
+                                                'Currently unavailable',
+                                                style: TextStyle(
+                                                  color: Colors.red[700],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    // Total section
+                    if (_cartItemsAvailable.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Icon(
-                                  Icons.shopping_cart_outlined,
-                                  size: 64,
-                                  color: Colors.grey,
+                                Row(
+                                  children: [
+                                    TranslatedText(
+                                      'Grand Total',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(
+                                        showDetails
+                                            ? Icons.keyboard_arrow_up
+                                            : Icons.keyboard_arrow_down,
+                                      ),
+                                      onPressed: () {
+                                        setSheetState(() {
+                                          showDetails = !showDetails;
+                                        });
+                                      },
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 16),
                                 TranslatedText(
-                                  'Your cart is empty',
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
+                                  '₹${_grandTotal.toStringAsFixed(2)}',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(context).primaryColor,
+                                      ),
                                 ),
                               ],
                             ),
-                          )
-                        : ListView.builder(
-                            controller: scrollController,
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _cartItemsAvailable.length,
-                            itemBuilder: (context, index) {
-                              final item = _cartItemsAvailable[index];
-                              final pricing = item['pricing_details'] ?? {};
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                TranslatedText(
-                                                  item['product_name'] ?? '',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
+                            if (showDetails && _cartData != null) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  children: [
+                                    if (_cartData!['cart_total'] != null)
+                                      ...(_cartData!['cart_total'] as List).map(
+                                        (e) => Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 4,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              TranslatedText(
+                                                e['title'] ?? '',
+                                                style: TextStyle(
+                                                  color: Colors.grey[700],
                                                 ),
-                                                const SizedBox(height: 8),
-                                                // Cart Counter
-                                                Container(
-                                                  decoration: BoxDecoration(
-                                                    border: Border.all(
-                                                      color: Colors.grey[300]!,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                  ),
-                                                  child: Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      InkWell(
-                                                        onTap: () async {
-                                                          await _decrementCartItem(
-                                                            item['product_combination_id'] ??
-                                                                '',
-                                                            item['product_id'] ??
-                                                                '',
-                                                          );
-                                                          // Update sheet state
-                                                          setSheetState(() {});
-                                                        },
-                                                        child: Padding(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 8,
-                                                                vertical: 4,
-                                                              ),
-                                                          child: Icon(
-                                                            Icons.remove,
-                                                            size: 16,
-                                                            color: theme
-                                                                .primaryColor,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets.symmetric(
-                                                              horizontal: 8,
-                                                            ),
-                                                        child: TranslatedText(
-                                                          '${item['enquired_quantity']}',
-                                                          style:
-                                                              const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                      InkWell(
-                                                        onTap: () async {
-                                                          await _incrementCartItem(
-                                                            item['product_combination_id'] ??
-                                                                '',
-                                                            item['product_id'] ??
-                                                                '',
-                                                          );
-                                                          // Update sheet state
-                                                          setSheetState(() {});
-                                                        },
-                                                        child: Padding(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 8,
-                                                                vertical: 4,
-                                                              ),
-                                                          child: Icon(
-                                                            Icons.add,
-                                                            size: 16,
-                                                            color: theme
-                                                                .primaryColor,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          TranslatedText(
-                                            '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      if (item['is_available'] == false)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 8,
-                                          ),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.red[50],
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: TranslatedText(
-                                              'Currently unavailable',
-                                              style: TextStyle(
-                                                color: Colors.red[700],
-                                                fontSize: 12,
                                               ),
-                                            ),
+                                              TranslatedText(
+                                                '₹${e['value']?.toString() ?? '0.0'}',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                    ],
-                                  ),
+                                      ),
+                                    if (_cartData!['platform_fees'] != null)
+                                      ...(_cartData!['platform_fees'] as List).map(
+                                        (e) => Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 4,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              TranslatedText(
+                                                e['title'] ?? '',
+                                                style: TextStyle(
+                                                  color: Colors.grey[700],
+                                                ),
+                                              ),
+                                              TranslatedText(
+                                                '₹${e['value']?.toString() ?? '0.0'}',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                              );
-                            },
-                          ),
-                  ),
-                  // Total section
-                  if (_cartItemsAvailable.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, -2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              TranslatedText(
-                                'Grand Total',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
-                              TranslatedText(
-                                '₹${_grandTotal.toStringAsFixed(2)}',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).primaryColor,
-                                    ),
-                              ),
+                              const SizedBox(height: 12),
                             ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              // Payment Method Dropdown
-                              Expanded(
-                                flex: 2,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.grey[300]!,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<String>(
-                                      value: _selectedPaymentMode,
-                                      isExpanded: true,
-                                      hint: const TranslatedText('Select Mode'),
-                                      items: [
-                                        const DropdownMenuItem(
-                                          value: 'UNPAID',
-                                          child: TranslatedText('UNPAID'),
-                                        ),
-                                        const DropdownMenuItem(
-                                          value: 'MULTI-MODE',
-                                          child: TranslatedText('MULTI-MODE'),
-                                        ),
-                                        ..._bankDetails.map((bank) {
-                                          final label =
-                                              bank['bank_name'] != null
-                                              ? "${bank['bank_name']} - ${bank['account_holder_name']}"
-                                              : bank['account_holder_name'] ??
-                                                    'Unknown';
-                                          return DropdownMenuItem(
-                                            value: bank['id'].toString(),
-                                            child: Text(
-                                              label,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          );
-                                        }),
-                                      ],
-                                      onChanged: (value) {
-                                        if (value != null) {
-                                          if (value == 'MULTI-MODE') {
-                                            setSheetState(() {
-                                              _selectedPaymentMode = value;
-                                            });
-                                            _showMultiModeDialog(setSheetState);
-                                          } else {
-                                            setSheetState(() {
-                                              _selectedPaymentMode = value;
-                                            });
-                                          }
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              // Checkout Button
-                              Expanded(
-                                flex: 3,
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    // TODO: Proceed to checkout
-                                    // Pass _selectedPaymentMode and distribution if Multi-Mode
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: TranslatedText(
-                                          'Proceeding to checkout with $_selectedPaymentMode...',
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Theme.of(
-                                      context,
-                                    ).primaryColor,
-                                    foregroundColor: Colors.white,
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                // Payment Method Dropdown
+                                Expanded(
+                                  flex: 2,
+                                  child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
+                                      horizontal: 12,
                                     ),
-                                    shape: RoundedRectangleBorder(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.grey[300]!,
+                                      ),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                  ),
-                                  child: const TranslatedText(
-                                    'Place Order',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _selectedPaymentMode,
+                                        isExpanded: true,
+                                        hint: const TranslatedText(
+                                          'Select Mode',
+                                        ),
+                                        items: [
+                                          const DropdownMenuItem(
+                                            value: 'UNPAID',
+                                            child: TranslatedText('UNPAID'),
+                                          ),
+                                          const DropdownMenuItem(
+                                            value: 'MULTI-MODE',
+                                            child: TranslatedText('MULTI-MODE'),
+                                          ),
+                                          ..._bankDetails.map((bank) {
+                                            final label =
+                                                bank['bank_name'] != null
+                                                ? "${bank['bank_name']} - ${bank['account_holder_name']}"
+                                                : bank['account_holder_name'] ??
+                                                      'Unknown';
+                                            return DropdownMenuItem(
+                                              value: bank['id'].toString(),
+                                              child: Text(
+                                                label,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            );
+                                          }),
+                                        ],
+                                        onChanged: (value) {
+                                          if (value != null) {
+                                            if (value == 'MULTI-MODE') {
+                                              setSheetState(() {
+                                                _selectedPaymentMode = value;
+                                              });
+                                              _showMultiModeDialog(
+                                                setSheetState,
+                                              );
+                                            } else {
+                                              setSheetState(() {
+                                                _selectedPaymentMode = value;
+                                              });
+                                            }
+                                          }
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                                const SizedBox(width: 12),
+                                // Checkout Button
+                                Expanded(
+                                  flex: 3,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      // TODO: Proceed to checkout
+                                      // Pass _selectedPaymentMode and distribution if Multi-Mode
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: TranslatedText(
+                                            'Proceeding to checkout with $_selectedPaymentMode...',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Theme.of(
+                                        context,
+                                      ).primaryColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const TranslatedText(
+                                      'Place Order',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                ],
-              );
-            },
-          );
-        },
-      ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
