@@ -502,274 +502,298 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          final theme = Theme.of(context);
-          return Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 4),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Cart ($_totalProductsInCart ${_totalProductsInCart == 1 ? 'item' : 'items'})',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) {
+              final theme = Theme.of(context);
+              return Column(
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 8, bottom: 4),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              // Cart items list
-              Expanded(
-                child: _cartItemsAvailable.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.shopping_cart_outlined,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Your cart is empty',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ],
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Cart ($_totalProductsInCart ${_totalProductsInCart == 1 ? 'item' : 'items'})',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                      )
-                    : ListView.builder(
-                        controller: scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _cartItemsAvailable.length,
-                        itemBuilder: (context, index) {
-                          final item = _cartItemsAvailable[index];
-                          final pricing = item['pricing_details'] ?? {};
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  // Cart items list
+                  Expanded(
+                    child: _cartItemsAvailable.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.shopping_cart_outlined,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Your cart is empty',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _cartItemsAvailable.length,
+                            itemBuilder: (context, index) {
+                              final item = _cartItemsAvailable[index];
+                              final pricing = item['pricing_details'] ?? {};
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item['product_name'] ?? '',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            // Cart Counter
-                                            Container(
-                                              decoration: BoxDecoration(
-                                                border: Border.all(
-                                                  color: Colors.grey[300]!,
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item['product_name'] ?? '',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  InkWell(
-                                                    onTap: () => _decrementCartItem(
-                                                      item['product_combination_id'] ??
-                                                          '',
-                                                      item['product_id'] ?? '',
+                                                const SizedBox(height: 8),
+                                                // Cart Counter
+                                                Container(
+                                                  decoration: BoxDecoration(
+                                                    border: Border.all(
+                                                      color: Colors.grey[300]!,
                                                     ),
-                                                    child: Padding(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
-                                                          ),
-                                                      child: Icon(
-                                                        Icons.remove,
-                                                        size: 16,
-                                                        color:
-                                                            theme.primaryColor,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
                                                         ),
-                                                    child: Text(
-                                                      '${item['enquired_quantity']}',
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
                                                   ),
-                                                  InkWell(
-                                                    onTap: () => _incrementCartItem(
-                                                      item['product_combination_id'] ??
-                                                          '',
-                                                      item['product_id'] ?? '',
-                                                    ),
-                                                    child: Padding(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      InkWell(
+                                                        onTap: () async {
+                                                          await _decrementCartItem(
+                                                            item['product_combination_id'] ??
+                                                                '',
+                                                            item['product_id'] ??
+                                                                '',
+                                                          );
+                                                          // Update sheet state
+                                                          setSheetState(() {});
+                                                        },
+                                                        child: Padding(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 8,
+                                                                vertical: 4,
+                                                              ),
+                                                          child: Icon(
+                                                            Icons.remove,
+                                                            size: 16,
+                                                            color: theme
+                                                                .primaryColor,
                                                           ),
-                                                      child: Icon(
-                                                        Icons.add,
-                                                        size: 16,
-                                                        color:
-                                                            theme.primaryColor,
+                                                        ),
                                                       ),
-                                                    ),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                            ),
+                                                        child: Text(
+                                                          '${item['enquired_quantity']}',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      InkWell(
+                                                        onTap: () async {
+                                                          await _incrementCartItem(
+                                                            item['product_combination_id'] ??
+                                                                '',
+                                                            item['product_id'] ??
+                                                                '',
+                                                          );
+                                                          // Update sheet state
+                                                          setSheetState(() {});
+                                                        },
+                                                        child: Padding(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 8,
+                                                                vertical: 4,
+                                                              ),
+                                                          child: Icon(
+                                                            Icons.add,
+                                                            size: 16,
+                                                            color: theme
+                                                                .primaryColor,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Text(
+                                            '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (item['is_available'] == false)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 8,
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red[50],
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              'Currently unavailable',
+                                              style: TextStyle(
+                                                color: Colors.red[700],
+                                                fontSize: 12,
                                               ),
                                             ),
-                                          ],
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
                                     ],
                                   ),
-                                  if (item['is_available'] == false)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red[50],
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Currently unavailable',
-                                          style: TextStyle(
-                                            color: Colors.red[700],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              // Total section
-              if (_cartItemsAvailable.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Grand Total',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            '₹${_grandTotal.toStringAsFixed(2)}',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).primaryColor,
                                 ),
+                              );
+                            },
+                          ),
+                  ),
+                  // Total section
+                  if (_cartItemsAvailable.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, -2),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // TODO: Proceed to checkout
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Proceeding to checkout...'),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Grand Total',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              Text(
+                                '₹${_grandTotal.toStringAsFixed(2)}',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).primaryColor,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                // TODO: Proceed to checkout
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Proceeding to checkout...'),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'Proceed to Checkout',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
-                          child: const Text(
-                            'Proceed to Checkout',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-            ],
+                    ),
+                ],
+              );
+            },
           );
         },
       ),
