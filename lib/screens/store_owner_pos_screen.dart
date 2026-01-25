@@ -468,17 +468,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
-  /// Helper to find cart item for a product (returns the first match)
-  Map<String, dynamic>? _getCartItemForProduct(String productId) {
-    try {
-      return _cartItemsAvailable.firstWhere(
-        (item) => item['product_id'] == productId || item['id'] == productId,
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-
   /// Get total quantity of a product in cart (sum of all variations)
   int _getProductQuantityInCart(Map<String, dynamic> product) {
     // First, check if the product object itself has a quantity (from /product API)
@@ -1646,10 +1635,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
 
     // If in cart, show counter
-    // For the (-) button: We need a product_combination_id.
-    // We'll try to find the last added variation or just the first one.
-    final cartItem = _getCartItemForProduct(product['id']);
-    final combinationId = cartItem?['product_combination_id'] ?? '';
 
     return Container(
       height: 28,
@@ -1663,18 +1648,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         children: [
           InkWell(
             onTap: () {
-              // Decrement
-              if (combinationId.isNotEmpty) {
-                _decrementCartItem(combinationId, product['id']);
-              } else {
-                // Fallback or handle error
-                // Maybe show variants sheet?
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please modify in cart for variations'),
-                  ),
-                );
-              }
+              // Decrement with empty combination ID as requested
+              _decrementCartItem('', product['id']);
             },
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
