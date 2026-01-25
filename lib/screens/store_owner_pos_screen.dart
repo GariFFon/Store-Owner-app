@@ -157,14 +157,25 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
-  Future<void> _fetchProductsByCategory(String categoryId) async {
+  Future<void> _fetchProductsByCategory(
+    String categoryId, {
+    bool isRefresh = false,
+  }) async {
     try {
-      setState(() {
-        _isProductsLoading = true;
-        _productsError = null;
-        _currentPage = 1; // Reset to first page
-        _hasMoreProducts = true; // Assume there might be more
-      });
+      if (!isRefresh) {
+        setState(() {
+          _isProductsLoading = true;
+          _productsError = null;
+          _currentPage = 1; // Reset to first page
+          _hasMoreProducts = true; // Assume there might be more
+        });
+      } else {
+        setState(() {
+          _productsError = null;
+          _currentPage = 1;
+          _hasMoreProducts = true;
+        });
+      }
 
       // Use the /product/ endpoint with proper payload
       // If categoryId is 'all', use empty query to fetch all products
@@ -198,6 +209,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           });
         } else {
           setState(() {
+            _products = [];
             _productsError = 'No products found';
             _isProductsLoading = false;
             _hasMoreProducts = false;
@@ -300,22 +312,139 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       );
 
       if (response['statusCode'] == 200 && response['data'] != null) {
-        final data = response['data']['response'];
-        setState(() {
-          _totalProductsInCart = data['total_products_in_cart'] ?? 0;
-          _cartItemsAvailable = List<Map<String, dynamic>>.from(
-            data['items_available'] ?? [],
+        final Map<String, dynamic> responseData = Map<String, dynamic>.from(
+          response['data'],
+        );
+
+        // If 'response' is a map (nested data), merge it into the top level
+        if (responseData['response'] is Map) {
+          responseData.addAll(
+            Map<String, dynamic>.from(responseData['response']),
           );
-          _cartItemsUnavailable = List<Map<String, dynamic>>.from(
-            data['items_unavailable'] ?? [],
-          );
-          _grandTotal = (data['grand_total'] ?? 0.0).toDouble();
-          _cartData = data;
-        });
+        }
+
+        _updateCartState(responseData);
       }
     } catch (e) {
       print('Error validating cart: $e');
     }
+  }
+
+  void _updateCartState(Map<String, dynamic> data) {
+    if (mounted) {
+      setState(() {
+        _totalProductsInCart = data['total_products_in_cart'] ?? 0;
+
+        // Robustly fetch items from either key directly
+        final items =
+            data['items_available'] ?? data['validated_cart_data'] ?? [];
+        _cartItemsAvailable = List<Map<String, dynamic>>.from(items);
+
+        // 'items_unavailable' is usually only in auto-validate-cart response
+        _cartItemsUnavailable = List<Map<String, dynamic>>.from(
+          data['items_unavailable'] ?? [],
+        );
+
+        _grandTotal = (data['grand_total'] ?? 0.0).toDouble();
+        _cartData = data;
+      });
+    }
+  }
+
+  Future<void> _incrementCartItem(
+    String productCombinationId,
+    String productId,
+  ) async {
+    try {
+      // Optimistic update (optional, but good for UI)
+      // For now, we wait for API
+
+      final response = await ApiService.post(
+        '/increment-product-in-cart/',
+        body: {
+          "store_id": widget.storeId,
+          "product_id": productId,
+          "customer_user_id": customer_user_id ?? '',
+          "product_combination_id": productCombinationId,
+          "store_access": true,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        // The structure of response for increment/decrement is slightly different
+        // It has check keys like "validated_cart_data" at the top level of 'data' usually?
+        // Wait, the user said "with sample response: { ... validated_cart_data: ... }"
+        // If ApiService wraps it in 'data', then 'data' contains 'validated_cart_data'.
+
+        // However, we need to be careful if 'response' key exists or provided directly.
+        // Let's pass 'data' to _updateCartState but we might need to normalize it.
+
+        // The user sample:
+        // { "status": 200, "updated_data": ..., "validated_cart_data": [...], ... }
+
+        // So 'data' variable here holds that JSON.
+        _updateCartState(data);
+      }
+    } catch (e) {
+      print('Error incrementing item: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating cart: $e')));
+    }
+  }
+
+  Future<void> _decrementCartItem(
+    String productCombinationId,
+    String productId,
+  ) async {
+    try {
+      final response = await ApiService.post(
+        '/decrement-product-in-cart/',
+        body: {
+          "store_id": widget.storeId,
+          "product_id": productId,
+          "customer_user_id": customer_user_id ?? '',
+          "product_combination_id": productCombinationId,
+          "store_access": true,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        _updateCartState(data);
+      }
+    } catch (e) {
+      print('Error decrementing item: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating cart: $e')));
+    }
+  }
+
+  /// Helper to find cart item for a product (returns the first match)
+  Map<String, dynamic>? _getCartItemForProduct(String productId) {
+    try {
+      return _cartItemsAvailable.firstWhere(
+        (item) => item['product_id'] == productId || item['id'] == productId,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get total quantity of a product in cart (sum of all variations)
+  int _getProductQuantityInCart(String productId) {
+    int qty = 0;
+    for (var item in _cartItemsAvailable) {
+      if (item['product_id'] == productId || item['id'] == productId) {
+        // Check both for safety
+        qty += (item['enquired_quantity'] as num? ?? 0).toInt();
+      }
+    }
+    return qty;
   }
 
   void _showCartBottomSheet() {
@@ -331,6 +460,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         maxChildSize: 0.95,
         expand: false,
         builder: (context, scrollController) {
+          final theme = Theme.of(context);
           return Column(
             children: [
               // Handle bar
@@ -413,11 +543,73 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                                 fontSize: 16,
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Qty: ${item['enquired_quantity']}',
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
+                                            const SizedBox(height: 8),
+                                            // Cart Counter
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                border: Border.all(
+                                                  color: Colors.grey[300]!,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  InkWell(
+                                                    onTap: () => _decrementCartItem(
+                                                      item['product_combination_id'] ??
+                                                          '',
+                                                      item['product_id'] ?? '',
+                                                    ),
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 4,
+                                                          ),
+                                                      child: Icon(
+                                                        Icons.remove,
+                                                        size: 16,
+                                                        color:
+                                                            theme.primaryColor,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                        ),
+                                                    child: Text(
+                                                      '${item['enquired_quantity']}',
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  InkWell(
+                                                    onTap: () => _incrementCartItem(
+                                                      item['product_combination_id'] ??
+                                                          '',
+                                                      item['product_id'] ?? '',
+                                                    ),
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 4,
+                                                          ),
+                                                      child: Icon(
+                                                        Icons.add,
+                                                        size: 16,
+                                                        color:
+                                                            theme.primaryColor,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ],
@@ -1101,91 +1293,114 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Widget _buildProductsGrid(ThemeData theme) {
-    if (_isProductsLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_productsError != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              _productsError!,
-              style: theme.textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                if (_selectedCategoryId != null) {
-                  _fetchProductsByCategory(_selectedCategoryId!);
-                }
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_products.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text('No products found', style: theme.textTheme.titleMedium),
-          ],
-        ),
-      );
-    }
-
-    return CustomScrollView(
-      controller: _scrollController,
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.all(16),
-          sliver: SliverGrid(
-            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 200,
-              childAspectRatio: 0.75,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final product = _products[index];
-              return _buildProductCard(theme, product);
-            }, childCount: _products.length),
-          ),
-        ),
-        // Loading indicator at the bottom when loading more
-        if (_isLoadingMore)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+    return RefreshIndicator(
+      onRefresh: () async {
+        final cartFuture = _validateCart();
+        final productsFuture = _fetchProductsByCategory(
+          _selectedCategoryId ?? 'all',
+          isRefresh: true,
+        );
+        await Future.wait([cartFuture, productsFuture]);
+      },
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          if (_isProductsLoading)
+            const SliverFillRemaining(
               child: Center(child: CircularProgressIndicator()),
-            ),
-          ),
-        // Show "No more products" message if at end
-        if (!_hasMoreProducts && _products.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+            )
+          else if (_productsError != null)
+            SliverFillRemaining(
               child: Center(
-                child: Text(
-                  'No more products',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _productsError!,
+                      style: theme.textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (_selectedCategoryId != null) {
+                          _fetchProductsByCategory(_selectedCategoryId!);
+                        }
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (_products.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.inventory_2_outlined,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No products found',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.all(16),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 200,
+                  childAspectRatio: 0.75,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final product = _products[index];
+                  return _buildProductCard(theme, product);
+                }, childCount: _products.length),
+              ),
+            ),
+          // Loading indicator at the bottom when loading more
+          if (!_isProductsLoading && _isLoadingMore)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+          // Show "No more products" message if at end
+          if (!_isProductsLoading && !_hasMoreProducts && _products.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: Text(
+                    'No more products',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.grey,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1268,38 +1483,100 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      // Add button
-                      SizedBox(
-                        height: 26,
-                        child: ElevatedButton(
-                          onPressed: () => _handleAddToCart(product),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 2,
-                            ),
-                            backgroundColor: theme.primaryColor,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.add, size: 14),
-                              SizedBox(width: 2),
-                              Text('Add', style: TextStyle(fontSize: 11)),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // Add button or Counter
+                      _buildProductAction(theme, product),
                     ],
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductAction(ThemeData theme, Map<String, dynamic> product) {
+    final qty = _getProductQuantityInCart(product['id']);
+
+    // If not in cart, show Add button
+    if (qty == 0) {
+      return SizedBox(
+        height: 26,
+        child: ElevatedButton(
+          onPressed: () => _handleAddToCart(product),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            backgroundColor: theme.primaryColor,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add, size: 14),
+              SizedBox(width: 2),
+              Text('Add', style: TextStyle(fontSize: 11)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // If in cart, show counter
+    // For the (-) button: We need a product_combination_id.
+    // We'll try to find the last added variation or just the first one.
+    final cartItem = _getCartItemForProduct(product['id']);
+    final combinationId = cartItem?['product_combination_id'] ?? '';
+
+    return Container(
+      height: 28,
+      decoration: BoxDecoration(
+        color: theme.primaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: theme.primaryColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () {
+              // Decrement
+              if (combinationId.isNotEmpty) {
+                _decrementCartItem(combinationId, product['id']);
+              } else {
+                // Fallback or handle error
+                // Maybe show variants sheet?
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please modify in cart for variations'),
+                  ),
+                );
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.remove, size: 16, color: theme.primaryColor),
+            ),
+          ),
+          Text(
+            '$qty',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: theme.primaryColor,
+              fontSize: 13,
+            ),
+          ),
+          InkWell(
+            // (+) Button calls /product-variation-value/ i.e. _handleAddToCart
+            onTap: () => _handleAddToCart(product),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.add, size: 16, color: theme.primaryColor),
             ),
           ),
         ],
@@ -1342,10 +1619,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(data['response'] ?? 'Product added to cart'),
-                duration: const Duration(seconds: 2),
+                duration: const Duration(seconds: 1), // Short duration
                 backgroundColor: Colors.green,
               ),
             );
+            // REFRESH CART
+            _validateCart();
           }
           return;
         }
