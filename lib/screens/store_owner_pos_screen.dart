@@ -416,20 +416,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       );
 
       if (response['statusCode'] == 200 && response['data'] != null) {
-        final data = response['data'];
-        // The structure of response for increment/decrement is slightly different
-        // It has check keys like "validated_cart_data" at the top level of 'data' usually?
-        // Wait, the user said "with sample response: { ... validated_cart_data: ... }"
-        // If ApiService wraps it in 'data', then 'data' contains 'validated_cart_data'.
-
-        // However, we need to be careful if 'response' key exists or provided directly.
-        // Let's pass 'data' to _updateCartState but we might need to normalize it.
-
-        // The user sample:
-        // { "status": 200, "updated_data": ..., "validated_cart_data": [...], ... }
-
-        // So 'data' variable here holds that JSON.
-        _updateCartState(data);
+        // We call validateCart to ensure we get the FULL updated cart,
+        // as increment/decrement might return partial structure.
+        await _validateCart();
       }
     } catch (e) {
       print('Error incrementing item: $e');
@@ -457,8 +446,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       );
 
       if (response['statusCode'] == 200 && response['data'] != null) {
-        final data = response['data'];
-        _updateCartState(data);
+        // We call validateCart to ensure we get the FULL updated cart.
+        await _validateCart();
       }
     } catch (e) {
       print('Error decrementing item: $e');
