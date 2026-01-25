@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:exanor/components/translation_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/services/api_service.dart';
@@ -67,6 +68,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   String? customer_user_id;
   Map<String, dynamic>? _currentCustomer;
 
+  // Payment Modes
+  List<Map<String, dynamic>> _bankDetails = [];
+  String _selectedPaymentMode = 'UNPAID';
+
   @override
   void initState() {
     super.initState();
@@ -75,7 +80,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     _setupScrollListener();
     _initializeSpeech();
     _fetchCategories();
+    _fetchCategories();
     _fetchPaymentMethods();
+    _fetchStoreBankDetails();
     _setupScrollListener();
     _initLocationAndCart(); // Load location then cart data
 
@@ -460,9 +467,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       }
     } catch (e) {
       print('Error incrementing item: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error updating cart: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: TranslatedText('Error updating cart: $e')),
+      );
     }
   }
 
@@ -491,9 +498,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       }
     } catch (e) {
       print('Error decrementing item: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error updating cart: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: TranslatedText('Error updating cart: $e')),
+      );
     }
   }
 
@@ -520,6 +527,154 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       }
     }
     return qty;
+  }
+
+  Future<void> _fetchStoreBankDetails() async {
+    try {
+      // setState(() => _isBankDetailsLoading = true);
+      final response = await ApiService.post(
+        '/store-bank-details/',
+        body: {
+          "store_id": widget.storeId,
+          "store_access": true,
+          "create": false,
+          "query": {"is_active": true},
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          setState(() {
+            _bankDetails = List<Map<String, dynamic>>.from(data['response']);
+          });
+        }
+      }
+    } catch (e) {
+      print("Error fetching bank details: $e");
+    } finally {
+      // setState(() => _isBankDetailsLoading = false);
+    }
+  }
+
+  void _showMultiModeDialog(StateSetter setSheetState) {
+    // Initialize controllers with 0 or split equally? Let's start with 0.
+    // We need to track values for each bank detail.
+    final Map<String, TextEditingController> controllers = {};
+    for (var bank in _bankDetails) {
+      controllers[bank['id']] = TextEditingController(text: '');
+    }
+
+    double currentTotal = 0.0;
+    String errorText = '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            void calculateTotal() {
+              double sum = 0.0;
+              controllers.forEach((_, controller) {
+                sum += double.tryParse(controller.text) ?? 0.0;
+              });
+              setState(() {
+                currentTotal = sum;
+                if ((currentTotal - _grandTotal).abs() > 0.01) {
+                  errorText =
+                      'Total must match ₹${_grandTotal.toStringAsFixed(2)}';
+                } else {
+                  errorText = '';
+                }
+              });
+            }
+
+            return AlertDialog(
+              title: const TranslatedText('Multi-Mode Payment'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Grand Total: ₹${_grandTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: _bankDetails.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final bank = _bankDetails[index];
+                          final label = bank['bank_name'] != null
+                              ? "${bank['bank_name']} (${bank['account_number_or_upi_id']})"
+                              : bank['account_holder_name'] ??
+                                    bank['account_number_or_upi_id'];
+                          return TextField(
+                            controller: controllers[bank['id']],
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: label,
+                              border: const OutlineInputBorder(),
+                              prefixText: '₹ ',
+                            ),
+                            onChanged: (_) => calculateTotal(),
+                          );
+                        },
+                      ),
+                    ),
+                    if (errorText.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          '$errorText (Current: ₹${currentTotal.toStringAsFixed(2)})',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    // Reset selection if cancelled? Or just close.
+                    // If cancelled, maybe revert to UNPAID or keep MULTI-MODE but invalid?
+                    // Better to just close. User can retry.
+                    Navigator.pop(context);
+                    setSheetState(() {
+                      _selectedPaymentMode = 'UNPAID';
+                    });
+                  },
+                  child: const TranslatedText('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed:
+                      errorText.isEmpty &&
+                          (currentTotal - _grandTotal).abs() < 0.01
+                      ? () {
+                          // Save the distribution if needed for API later
+                          // For now just validate and close
+                          Navigator.pop(context);
+                          setSheetState(() {
+                            // Multi-mode confirmed
+                          });
+                        }
+                      : null,
+                  child: const TranslatedText('Confirm'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showCartBottomSheet() {
@@ -556,7 +711,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        TranslatedText(
                           'Cart ($_totalProductsInCart ${_totalProductsInCart == 1 ? 'item' : 'items'})',
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.bold),
@@ -582,7 +737,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                   color: Colors.grey,
                                 ),
                                 const SizedBox(height: 16),
-                                Text(
+                                TranslatedText(
                                   'Your cart is empty',
                                   style: Theme.of(
                                     context,
@@ -615,7 +770,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                Text(
+                                                TranslatedText(
                                                   item['product_name'] ?? '',
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
@@ -668,7 +823,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                                             const EdgeInsets.symmetric(
                                                               horizontal: 8,
                                                             ),
-                                                        child: Text(
+                                                        child: TranslatedText(
                                                           '${item['enquired_quantity']}',
                                                           style:
                                                               const TextStyle(
@@ -709,7 +864,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                               ],
                                             ),
                                           ),
-                                          Text(
+                                          TranslatedText(
                                             '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
@@ -733,7 +888,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                               borderRadius:
                                                   BorderRadius.circular(4),
                                             ),
-                                            child: Text(
+                                            child: TranslatedText(
                                               'Currently unavailable',
                                               style: TextStyle(
                                                 color: Colors.red[700],
@@ -768,12 +923,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              TranslatedText(
                                 'Grand Total',
                                 style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
-                              Text(
+                              TranslatedText(
                                 '₹${_grandTotal.toStringAsFixed(2)}',
                                 style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(
@@ -784,36 +939,110 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                // TODO: Proceed to checkout
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Proceeding to checkout...'),
+                          Row(
+                            children: [
+                              // Payment Method Dropdown
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
                                   ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).primaryColor,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.grey[300]!,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: _selectedPaymentMode,
+                                      isExpanded: true,
+                                      hint: const TranslatedText('Select Mode'),
+                                      items: [
+                                        const DropdownMenuItem(
+                                          value: 'UNPAID',
+                                          child: TranslatedText('UNPAID'),
+                                        ),
+                                        const DropdownMenuItem(
+                                          value: 'MULTI-MODE',
+                                          child: TranslatedText('MULTI-MODE'),
+                                        ),
+                                        ..._bankDetails.map((bank) {
+                                          final label =
+                                              bank['bank_name'] != null
+                                              ? "${bank['bank_name']} - ${bank['account_holder_name']}"
+                                              : bank['account_holder_name'] ??
+                                                    'Unknown';
+                                          return DropdownMenuItem(
+                                            value: bank['id'].toString(),
+                                            child: Text(
+                                              label,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          );
+                                        }),
+                                      ],
+                                      onChanged: (value) {
+                                        if (value != null) {
+                                          if (value == 'MULTI-MODE') {
+                                            setSheetState(() {
+                                              _selectedPaymentMode = value;
+                                            });
+                                            _showMultiModeDialog(setSheetState);
+                                          } else {
+                                            setSheetState(() {
+                                              _selectedPaymentMode = value;
+                                            });
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ),
                                 ),
                               ),
-                              child: const Text(
-                                'Proceed to Checkout',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                              const SizedBox(width: 12),
+                              // Checkout Button
+                              Expanded(
+                                flex: 3,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    // TODO: Proceed to checkout
+                                    // Pass _selectedPaymentMode and distribution if Multi-Mode
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: TranslatedText(
+                                          'Proceeding to checkout with $_selectedPaymentMode...',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).primaryColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const TranslatedText(
+                                    'Place Order',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
@@ -1004,7 +1233,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: const Text('Enter Customer Phone'),
+              title: const TranslatedText('Enter Customer Phone'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1057,7 +1286,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       : () {
                           Navigator.of(dialogContext).pop();
                         },
-                  child: const Text('Cancel'),
+                  child: const TranslatedText('Cancel'),
                 ),
                 ElevatedButton(
                   onPressed: isLoading
@@ -1067,7 +1296,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           if (phone.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Please enter a phone number'),
+                                content: TranslatedText(
+                                  'Please enter a phone number',
+                                ),
                               ),
                             );
                             return;
@@ -1095,14 +1326,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Error: ${e.toString()}'),
+                                  content: TranslatedText(
+                                    'Error: ${e.toString()}',
+                                  ),
                                   backgroundColor: Colors.red,
                                 ),
                               );
                             }
                           }
                         },
-                  child: const Text('Continue'),
+                  child: const TranslatedText('Continue'),
                 ),
               ],
             );
@@ -1146,7 +1379,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
+                  content: TranslatedText(
                     'Customer loaded: ${userData['first_name']} ${userData['last_name']}',
                   ),
                   backgroundColor: Colors.green,
@@ -1191,7 +1424,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       ),
       floatingActionButton: _totalProductsInCart > 0
           ? Badge(
-              label: Text('$_totalProductsInCart'),
+              label: TranslatedText('$_totalProductsInCart'),
               backgroundColor: Colors.red,
               child: FloatingActionButton(
                 onPressed: _showCartBottomSheet,
@@ -1264,7 +1497,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               const SizedBox(height: 16),
 
               // Name
-              Text(
+              TranslatedText(
                 fullName,
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
@@ -1274,7 +1507,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
+                  TranslatedText(
                     '+$phone', // Assuming phone is number w/o + or has country code
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: Colors.grey[600],
@@ -1284,7 +1517,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
+              TranslatedText(
                 email,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: Colors.grey[500],
@@ -1302,7 +1535,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     _showCustomerPhoneDialog();
                   },
                   icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Change Customer'),
+                  label: const TranslatedText('Change Customer'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -1358,7 +1591,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             border: Border.all(color: color, width: 2),
           ),
           child: Center(
-            child: Text(
+            child: TranslatedText(
               '$score',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
@@ -1368,11 +1601,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            TranslatedText(
               label,
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
-            Text(
+            TranslatedText(
               subLabel, // This might need logic based on score
               style: TextStyle(color: Colors.grey[500], fontSize: 12),
             ),
@@ -1415,14 +1648,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                TranslatedText(
                   widget.storeName,
                   style: theme.textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(
+                TranslatedText(
                   'Point of Sale',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: Colors.white.withOpacity(0.9),
@@ -1540,7 +1773,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           children: [
             Icon(Icons.error_outline, color: Colors.red),
             const SizedBox(height: 8),
-            Text(
+            TranslatedText(
               'Error',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
@@ -1610,7 +1843,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     ),
                   const SizedBox(height: 8),
                   // Category Name
-                  Text(
+                  TranslatedText(
                     _capitalizeCategoryName(category['category_name'] ?? ''),
                     textAlign: TextAlign.center,
                     maxLines: 2,
@@ -1664,7 +1897,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       color: Colors.grey,
                     ),
                     const SizedBox(height: 16),
-                    Text(
+                    TranslatedText(
                       _productsError!,
                       style: theme.textTheme.titleMedium,
                       textAlign: TextAlign.center,
@@ -1676,7 +1909,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           _fetchProductsByCategory(_selectedCategoryId!);
                         }
                       },
-                      child: const Text('Retry'),
+                      child: const TranslatedText('Retry'),
                     ),
                   ],
                 ),
@@ -1694,7 +1927,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       color: Colors.grey,
                     ),
                     const SizedBox(height: 16),
-                    Text(
+                    TranslatedText(
                       'No products found',
                       style: theme.textTheme.titleMedium,
                     ),
@@ -1732,7 +1965,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Center(
-                  child: Text(
+                  child: TranslatedText(
                     'No more products',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: Colors.grey,
@@ -1797,7 +2030,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Expanded(
-                    child: Text(
+                    child: TranslatedText(
                       productName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -1813,7 +2046,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: Text(
+                        child: TranslatedText(
                           '₹${productPrice.toString()}',
                           style: theme.textTheme.titleSmall?.copyWith(
                             color: theme.primaryColor,
@@ -1862,7 +2095,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             children: [
               Icon(Icons.add, size: 14),
               SizedBox(width: 2),
-              Text('Add', style: TextStyle(fontSize: 11)),
+              TranslatedText('Add', style: TextStyle(fontSize: 11)),
             ],
           ),
         ),
@@ -1891,7 +2124,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               child: Icon(Icons.remove, size: 16, color: theme.primaryColor),
             ),
           ),
-          Text(
+          TranslatedText(
             '$qty',
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -1947,7 +2180,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(data['response'] ?? 'Product added to cart'),
+                content: TranslatedText(
+                  data['response'] ?? 'Product added to cart',
+                ),
                 duration: const Duration(seconds: 1), // Short duration
                 backgroundColor: Colors.green,
               ),
@@ -1974,7 +2209,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to add product'),
+              content: TranslatedText('Failed to add product'),
               backgroundColor: Colors.red,
             ),
           );
@@ -1988,7 +2223,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: TranslatedText('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -1998,7 +2236,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(product['product_name'] ?? 'Product Details'),
+        title: TranslatedText(product['product_name'] ?? 'Product Details'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2010,28 +2248,28 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 fit: BoxFit.cover,
               ),
             const SizedBox(height: 16),
-            Text(
+            TranslatedText(
               'Price: ₹${product['lowest_available_price'] ?? product['price_starts_from'] ?? 0}',
             ),
             if (product['description'] != null &&
                 product['description'] != 'undefined') ...[
               const SizedBox(height: 8),
-              Text(product['description']),
+              TranslatedText(product['description']),
             ],
             if (product['parent_category'] != null) ...[
               const SizedBox(height: 8),
-              Text('Category: ${product['parent_category']}'),
+              TranslatedText('Category: ${product['parent_category']}'),
             ],
             if (product['child_category'] != null) ...[
               const SizedBox(height: 4),
-              Text('Sub-category: ${product['child_category']}'),
+              TranslatedText('Sub-category: ${product['child_category']}'),
             ],
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: const TranslatedText('Close'),
           ),
         ],
       ),
@@ -2214,14 +2452,14 @@ class _VariantsBottomSheetContentState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        TranslatedText(
                           widget.product['product_name'] ?? 'Select Options',
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
+                        TranslatedText(
                           'Choose your preferences',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: Colors.grey[600],
@@ -2263,7 +2501,7 @@ class _VariantsBottomSheetContentState
                         padding: const EdgeInsets.only(top: 16, bottom: 12),
                         child: Row(
                           children: [
-                            Text(
+                            TranslatedText(
                               variationName[0].toUpperCase() +
                                   variationName.substring(1),
                               style: theme.textTheme.titleMedium?.copyWith(
@@ -2281,7 +2519,7 @@ class _VariantsBottomSheetContentState
                                   color: Colors.red[50],
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(
+                                child: TranslatedText(
                                   'Required',
                                   style: TextStyle(
                                     fontSize: 10,
@@ -2316,7 +2554,7 @@ class _VariantsBottomSheetContentState
                                 : null,
                           ),
                           child: ListTile(
-                            title: Text(
+                            title: TranslatedText(
                               valueName,
                               style: TextStyle(
                                 fontWeight: isSelected
@@ -2369,7 +2607,7 @@ class _VariantsBottomSheetContentState
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
+                          child: TranslatedText(
                             '$_quantity',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
@@ -2412,7 +2650,7 @@ class _VariantsBottomSheetContentState
                                 ),
                               ),
                             )
-                          : Text(
+                          : TranslatedText(
                               'Add item${_price > 0 ? ' ₹${(_price * _quantity).toStringAsFixed(2)}' : ''}',
                               style: const TextStyle(
                                 fontSize: 16,
@@ -2458,7 +2696,9 @@ class _VariantsBottomSheetContentState
             widget.onCartUpdated(); // Refresh cart
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(data['response'] ?? 'Product added to cart'),
+                content: TranslatedText(
+                  data['response'] ?? 'Product added to cart',
+                ),
                 backgroundColor: Colors.green,
               ),
             );
@@ -2467,7 +2707,9 @@ class _VariantsBottomSheetContentState
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(data['response'] ?? 'Failed to add product'),
+                content: TranslatedText(
+                  data['response'] ?? 'Failed to add product',
+                ),
                 backgroundColor: Colors.red,
               ),
             );
@@ -2477,7 +2719,7 @@ class _VariantsBottomSheetContentState
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to add product to cart'),
+              content: TranslatedText('Failed to add product to cart'),
               backgroundColor: Colors.red,
             ),
           );
@@ -2487,7 +2729,7 @@ class _VariantsBottomSheetContentState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error adding to cart: $e'),
+            content: TranslatedText('Error adding to cart: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -2521,7 +2763,7 @@ class _QRScannerDialogState extends State<_QRScannerDialog> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scan QR Code'),
+        title: const TranslatedText('Scan QR Code'),
         backgroundColor: Colors.black,
         leading: IconButton(
           icon: const Icon(Icons.close),
@@ -2567,7 +2809,7 @@ class _QRScannerScreenState extends State<_QRScannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scan QR Code'),
+        title: const TranslatedText('Scan QR Code'),
         backgroundColor: Colors.black,
       ),
       body: MobileScanner(
