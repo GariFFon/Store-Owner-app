@@ -65,6 +65,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
   // Customer
   String? customer_user_id;
+  Map<String, dynamic>? _currentCustomer;
 
   @override
   void initState() {
@@ -1133,6 +1134,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             final userData = userList[0] as Map<String, dynamic>;
             setState(() {
               customer_user_id = userData['id'] as String?;
+              _currentCustomer = userData;
             });
 
             // Refresh products and cart with new customer ID
@@ -1201,6 +1203,185 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     );
   }
 
+  void _showCustomerProfileDialog() {
+    if (_currentCustomer == null) {
+      _showCustomerPhoneDialog();
+      return;
+    }
+
+    final theme = Theme.of(context);
+    final user = _currentCustomer!;
+
+    // Extract data with fallbacks
+    final firstName = user['first_name'] ?? 'Guest';
+    final lastName = user['last_name'] ?? '';
+    final fullName = '$firstName $lastName'.trim();
+    final phone = user['phone_number']?.toString() ?? 'N/A';
+    final email = user['email'] ?? 'unregistereduser@exanor.com';
+
+    // Scores (Using -1/Defaults if not present)
+    final creditScore = user['credit_score'] ?? -1;
+    final loyaltyScore = user['loyalty_score'] ?? -1;
+    final behaviourScore = user['behaviour_score'] ?? -1;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          width: 340, // Fixed width for consistent look
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Avatar
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  border: Border.all(
+                    color: Colors.blue.withOpacity(0.1),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.05),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.person_outline,
+                    size: 40,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Name
+              Text(
+                fullName,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '+$phone', // Assuming phone is number w/o + or has country code
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                email,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[500],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Change Customer Button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showCustomerPhoneDialog();
+                  },
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Change Customer'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 24),
+
+              // Scores
+              _buildScoreRow(creditScore, loyaltyScore, behaviourScore),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScoreRow(dynamic credit, dynamic loyalty, dynamic behaviour) {
+    return Column(
+      children: [
+        _buildScoreItem(credit, 'Credit Score', 'Fair', Colors.blue),
+        const SizedBox(height: 16),
+        _buildScoreItem(loyalty, 'Loyalty Score', 'New', Colors.green),
+        const SizedBox(height: 16),
+        _buildScoreItem(
+          behaviour,
+          'Behaviour Score',
+          'Needs attention',
+          Colors.purple,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScoreItem(
+    dynamic score,
+    String label,
+    String subLabel,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 2),
+          ),
+          child: Center(
+            child: Text(
+              '$score',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+            Text(
+              subLabel, // This might need logic based on score
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildHeader(ThemeData theme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1216,6 +1397,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       ),
       child: Row(
         children: [
+          // Customer Profile Button
+          InkWell(
+            onTap: _showCustomerProfileDialog,
+            borderRadius: BorderRadius.circular(20),
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.white.withOpacity(0.2),
+              child: const Icon(Icons.person, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 12),
+
           Icon(Icons.store, color: Colors.white, size: 28),
           const SizedBox(width: 12),
           Expanded(
