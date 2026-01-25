@@ -60,6 +60,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   double _lat = 0.0;
   double _lng = 0.0;
 
+  // Payment
+  String? _selectedPaymentMethodId;
+
   // Customer
   String? customer_user_id;
 
@@ -68,6 +71,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     super.initState();
     _initializeSpeech();
     _fetchCategories();
+    _setupScrollListener();
+    _initializeSpeech();
+    _fetchCategories();
+    _fetchPaymentMethods();
     _setupScrollListener();
     _initLocationAndCart(); // Load location then cart data
 
@@ -419,6 +426,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         // We call validateCart to ensure we get the FULL updated cart,
         // as increment/decrement might return partial structure.
         await _validateCart();
+        // Refresh products to show updated counters from API
+        _fetchProductsByCategory(_selectedCategoryId ?? 'all', isRefresh: true);
       }
     } catch (e) {
       print('Error incrementing item: $e');
@@ -448,6 +457,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       if (response['statusCode'] == 200 && response['data'] != null) {
         // We call validateCart to ensure we get the FULL updated cart.
         await _validateCart();
+        // Refresh products to show updated counters from API
+        _fetchProductsByCategory(_selectedCategoryId ?? 'all', isRefresh: true);
       }
     } catch (e) {
       print('Error decrementing item: $e');
@@ -469,14 +480,23 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   /// Get total quantity of a product in cart (sum of all variations)
-  int _getProductQuantityInCart(String productId) {
+  int _getProductQuantityInCart(Map<String, dynamic> product) {
+    // First, check if the product object itself has a quantity (from /product API)
+    if (product.containsKey('quantity') && product['quantity'] != null) {
+      final q = (product['quantity'] as num).toInt();
+      if (q > 0) return q;
+    }
+
+    // Fallback: Calculate from local cart items list
     int qty = 0;
+    final productId = product['id']?.toString() ?? '';
+    if (productId.isEmpty) return 0;
+
     for (var item in _cartItemsAvailable) {
       final itemProductId = item['product_id']?.toString();
       final itemId = item['id']?.toString();
-      final pId = productId.toString();
 
-      if (itemProductId == pId || itemId == pId) {
+      if (itemProductId == productId || itemId == productId) {
         final q = item['enquired_quantity'] ?? item['quantity'];
         qty += (q as num? ?? 0).toInt();
       }
@@ -837,6 +857,43 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         _productsError = 'Search error: $e';
         _isProductsLoading = false;
       });
+    }
+  }
+
+  Future<void> _fetchPaymentMethods() async {
+    try {
+      final response = await ApiService.post(
+        '/payment-method/',
+        body: {
+          "store_id": widget.storeId,
+          "customer_user_id": customer_user_id ?? '',
+          "query": {},
+          "store_access": true,
+          "order_by": "payment_method_template_id",
+          "view": true,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] is List) {
+          final methods = List<Map<String, dynamic>>.from(data['response']);
+          final payOnDelivery = methods.firstWhere(
+            (m) => m['payment_method_name'] == 'Pay on Delivery',
+            orElse: () => {},
+          );
+
+          if (payOnDelivery.isNotEmpty) {
+            setState(() {
+              _selectedPaymentMethodId = payOnDelivery['id'];
+            });
+            print('Selected Payment Method ID: $_selectedPaymentMethodId');
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching payment methods: $e');
     }
   }
 
@@ -1558,7 +1615,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Widget _buildProductAction(ThemeData theme, Map<String, dynamic> product) {
-    final qty = _getProductQuantityInCart(product['id']);
+    final qty = _getProductQuantityInCart(product);
 
     // If not in cart, show Add button
     if (qty == 0) {
@@ -1686,7 +1743,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               ),
             );
             // REFRESH CART
-            _validateCart();
+            await _validateCart();
+            // Refresh products
+            _fetchProductsByCategory(
+              _selectedCategoryId ?? 'all',
+              isRefresh: true,
+            );
           }
           return;
         }
@@ -1784,7 +1846,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         variations: variations,
         storeId: widget.storeId,
         customerUserId: customer_user_id,
-        onCartUpdated: _validateCart, // Call cart validation after adding
+        onCartUpdated: () {
+          _validateCart();
+          _fetchProductsByCategory(
+            _selectedCategoryId ?? 'all',
+            isRefresh: true,
+          );
+        }, // Call cart validation and product refresh after adding
       ),
     );
   }
