@@ -562,11 +562,27 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     // Initialize controllers with 0 or split equally? Let's start with 0.
     // We need to track values for each bank detail.
     final Map<String, TextEditingController> controllers = {};
+    String? defaultModeId;
+
+    // Find default mode and initialize controllers
     for (var bank in _bankDetails) {
       controllers[bank['id']] = TextEditingController(text: '');
+      if (bank['is_default'] == true) {
+        defaultModeId = bank['id'];
+      }
     }
 
-    double currentTotal = 0.0;
+    // Fallback if no default found
+    if (defaultModeId == null && _bankDetails.isNotEmpty) {
+      defaultModeId = _bankDetails.last['id'];
+    }
+
+    // Set initial value for default mode to grand total
+    if (defaultModeId != null) {
+      controllers[defaultModeId]!.text = _grandTotal.toStringAsFixed(2);
+    }
+
+    double currentTotal = _grandTotal;
     String errorText = '';
 
     showDialog(
@@ -575,11 +591,26 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            void calculateTotal() {
+            void updateCalculations(String changedId) {
+              // If we are editing a non-default field, update the default field
+              if (defaultModeId != null && changedId != defaultModeId) {
+                double otherSum = 0.0;
+                controllers.forEach((id, controller) {
+                  if (id != defaultModeId) {
+                    otherSum += double.tryParse(controller.text) ?? 0.0;
+                  }
+                });
+
+                double remaining = _grandTotal - otherSum;
+                controllers[defaultModeId]!.text = remaining.toStringAsFixed(2);
+              }
+
+              // Recalculate total for validation
               double sum = 0.0;
               controllers.forEach((_, controller) {
                 sum += double.tryParse(controller.text) ?? 0.0;
               });
+
               setState(() {
                 currentTotal = sum;
                 if ((currentTotal - _grandTotal).abs() > 0.01) {
@@ -625,7 +656,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                               border: const OutlineInputBorder(),
                               prefixText: '₹ ',
                             ),
-                            onChanged: (_) => calculateTotal(),
+                            onChanged: (_) =>
+                                updateCalculations(bank['id'].toString()),
                           );
                         },
                       ),
@@ -644,9 +676,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    // Reset selection if cancelled? Or just close.
-                    // If cancelled, maybe revert to UNPAID or keep MULTI-MODE but invalid?
-                    // Better to just close. User can retry.
                     Navigator.pop(context);
                     setSheetState(() {
                       _selectedPaymentMode = 'UNPAID';
@@ -659,8 +688,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       errorText.isEmpty &&
                           (currentTotal - _grandTotal).abs() < 0.01
                       ? () {
-                          // Save the distribution if needed for API later
-                          // For now just validate and close
                           Navigator.pop(context);
                           setSheetState(() {
                             // Multi-mode confirmed
