@@ -8,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:exanor/screens/order_success_popup.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -784,6 +785,169 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     );
   }
 
+  Future<void> _reviewOrder() async {
+    if (_cartItemsAvailable.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: TranslatedText('Cart is empty')));
+      return;
+    }
+
+    if (customer_user_id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: TranslatedText('Please select a customer')),
+      );
+      return;
+    }
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final response = await ApiService.post(
+        '/order-init/',
+        body: {
+          "customer_user_id": customer_user_id,
+          "lat": _lat,
+          "lng": _lng,
+          "order_method_id": _selectedOrderMethod?['id'],
+          "payment_method_id": _selectedPaymentMethodId,
+          "store_access": true,
+          "store_id": widget.storeId,
+          "user_address_id": selected_address_id,
+        },
+        useBearerToken: true,
+      );
+
+      // Hide loading
+      if (mounted) Navigator.pop(context);
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          // Close cart sheet
+          if (mounted) Navigator.pop(context);
+
+          // Show Review/Summary Popup
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                fullscreenDialog: true,
+                builder: (context) => OrderSuccessPopup(
+                  data: Map<String, dynamic>.from(data['response']),
+                  onPlaceOrder: () {
+                    // Trigger actual order placement
+                    _confirmPlaceOrder();
+                  },
+                ),
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(data['message'] ?? 'Review failed')),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: TranslatedText('Review failed')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // Hide loading
+      print("Error reviewing order: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _confirmPlaceOrder() async {
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final response = await ApiService.post(
+        '/place-order/',
+        body: {
+          "customer_user_id": customer_user_id,
+          "lat": _lat,
+          "lng": _lng,
+          "order_method_id": _selectedOrderMethod?['id'],
+          "payment_method_id": _selectedPaymentMethodId,
+          "store_access": true,
+          "store_id": widget.storeId,
+          "user_address_id": selected_address_id,
+          "coupon_code": "",
+        },
+        useBearerToken: true,
+      );
+
+      // Hide loading
+      if (mounted) Navigator.pop(context);
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          // Close the Summary Popup
+          if (mounted) Navigator.pop(context);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: TranslatedText('Order placed successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Refresh
+            _initLocationAndCart();
+            _fetchProductsByCategory(
+              _selectedCategoryId ?? 'all',
+              isRefresh: true,
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? 'Order placement failed'),
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: TranslatedText('Order placement failed')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      print("Error placing order: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
   void _showCartBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -1224,18 +1388,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                   flex: 3,
                                   child: ElevatedButton(
                                     onPressed: () {
-                                      // TODO: Proceed to checkout
-                                      // Pass _selectedPaymentMode and distribution if Multi-Mode
-                                      Navigator.pop(context);
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: TranslatedText(
-                                            'Proceeding to checkout with $_selectedPaymentMode...',
-                                          ),
-                                        ),
-                                      );
+                                      _reviewOrder();
                                     },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Theme.of(
@@ -1250,7 +1403,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                       ),
                                     ),
                                     child: const TranslatedText(
-                                      'Place Order',
+                                      'Review Order',
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
