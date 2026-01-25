@@ -1869,18 +1869,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       ),
       child: Row(
         children: [
-          // QR Scanner Button
-          IconButton(
-            onPressed: _openQRScanner,
-            icon: const Icon(Icons.qr_code_scanner),
-            style: IconButton.styleFrom(
-              backgroundColor: theme.primaryColor.withOpacity(0.1),
-              foregroundColor: theme.primaryColor,
-            ),
-            tooltip: 'Scan QR Code',
-          ),
-          const SizedBox(width: 8),
-
           // Order Method Button
           if (!_isOrderMethodsLoading)
             InkWell(
@@ -1930,6 +1918,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               ),
             ),
           if (!_isOrderMethodsLoading) const SizedBox(width: 8),
+
+          // QR Scanner Button
+          IconButton(
+            onPressed: _openQRScanner,
+            icon: const Icon(Icons.qr_code_scanner),
+            style: IconButton.styleFrom(
+              backgroundColor: theme.primaryColor.withOpacity(0.1),
+              foregroundColor: theme.primaryColor,
+            ),
+            tooltip: 'Scan QR Code',
+          ),
+          const SizedBox(width: 8),
 
           // Search TextField
           Expanded(
