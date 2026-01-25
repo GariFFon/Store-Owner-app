@@ -72,6 +72,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   List<Map<String, dynamic>> _bankDetails = [];
   String _selectedPaymentMode = 'UNPAID';
 
+  // Order Methods
+  List<Map<String, dynamic>> _orderMethods = [];
+  Map<String, dynamic>? _selectedOrderMethod;
+  bool _isOrderMethodsLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -120,6 +125,48 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       onError: (error) => print('Speech recognition error: $error'),
       onStatus: (status) => print('Speech recognition status: $status'),
     );
+  }
+
+  Future<void> _fetchOrderMethods() async {
+    try {
+      setState(() => _isOrderMethodsLoading = true);
+      final response = await ApiService.post(
+        '/order-method/',
+        body: {
+          "store_access": true,
+          "customer_user_id": customer_user_id ?? "",
+          "query": {},
+          "store_id": widget.storeId,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          final methods = List<Map<String, dynamic>>.from(data['response']);
+          if (mounted) {
+            setState(() {
+              _orderMethods = methods;
+              // Maintain selection if still valid, else default
+              if (_selectedOrderMethod == null ||
+                  !methods.any((m) => m['id'] == _selectedOrderMethod!['id'])) {
+                _selectedOrderMethod = methods.firstWhere(
+                  (m) => m['is_enabled'] == true,
+                  orElse: () => methods.isNotEmpty ? methods.first : {},
+                );
+              }
+              _isOrderMethodsLoading = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) setState(() => _isOrderMethodsLoading = false);
+      }
+    } catch (e) {
+      print("Error fetching order methods: $e");
+      if (mounted) setState(() => _isOrderMethodsLoading = false);
+    }
   }
 
   Future<void> _fetchCategories() async {
@@ -347,6 +394,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     } catch (e) {
       print('Error getting location: $e');
     }
+    if (mounted) await _fetchOrderMethods();
     if (mounted) _validateCart();
   }
 
@@ -387,6 +435,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         body: {
           'store_id': widget.storeId,
           'order_method_id':
+              _selectedOrderMethod?['id'] ??
               '1d9eb8ba-4d33-4d3d-b218-aba12a3fb7b1', // Default order method
           'user_address_id':
               '6068c242-8d0f-4513-aaf3-401fafdad596', // Default address
@@ -1502,6 +1551,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
             // Refresh products and cart with new customer ID
             if (customer_user_id != null) {
+              await _fetchOrderMethods();
               _fetchProductsByCategory(_selectedCategoryId ?? 'all');
               _validateCart();
             }
@@ -1830,6 +1880,56 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             tooltip: 'Scan QR Code',
           ),
           const SizedBox(width: 8),
+
+          // Order Method Button
+          if (!_isOrderMethodsLoading)
+            InkWell(
+              onTap: _showOrderMethodSelection,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.primaryColor.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_selectedOrderMethod != null &&
+                        _selectedOrderMethod!['img_url'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: CustomCachedNetworkImage(
+                          imgUrl: _selectedOrderMethod!['img_url'],
+                          width: 20,
+                          height: 20,
+                        ),
+                      ),
+                    TranslatedText(
+                      _selectedOrderMethod?['order_method_name'] ??
+                          'Order Type',
+                      style: TextStyle(
+                        color: theme.primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 20,
+                      color: theme.primaryColor,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (!_isOrderMethodsLoading) const SizedBox(width: 8),
 
           // Search TextField
           Expanded(
@@ -2403,6 +2503,101 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showOrderMethodSelection() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const TranslatedText('Select Order Method'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: _orderMethods.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final method = _orderMethods[index];
+                final isSelected = method['id'] == _selectedOrderMethod?['id'];
+
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedOrderMethod = method;
+                    });
+                    Navigator.pop(context);
+                    // Re-validate cart with new method
+                    _validateCart();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isSelected
+                            ? Theme.of(context).primaryColor
+                            : Colors.grey[300]!,
+                        width: isSelected ? 2 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      color: isSelected
+                          ? Theme.of(context).primaryColor.withOpacity(0.05)
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        if (method['img_url'] != null)
+                          CustomCachedNetworkImage(
+                            imgUrl: method['img_url'],
+                            width: 32,
+                            height: 32,
+                          ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TranslatedText(
+                                method['order_method_name'] ?? '',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.black87,
+                                ),
+                              ),
+                              if (method['order_method_description'] != null)
+                                TranslatedText(
+                                  method['order_method_description'],
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (isSelected)
+                          Icon(
+                            Icons.check_circle,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const TranslatedText('Cancel'),
+            ),
+          ],
+        );
+      },
     );
   }
 
