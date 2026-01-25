@@ -1010,14 +1010,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    TranslatedText(
-                                      'Grand Total',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                    GestureDetector(
+                                      onTap: () {
+                                        setSheetState(() {
+                                          showDetails = !showDetails;
+                                        });
+                                      },
+                                      child: TranslatedText(
+                                        'Grand Total',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
                                     ),
                                     IconButton(
                                       icon: Icon(
