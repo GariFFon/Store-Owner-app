@@ -65,7 +65,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     _fetchCategories();
     _setupScrollListener();
     _validateCart(); // Load cart data on init
-    
+
     // Show customer phone dialog on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showCustomerPhoneDialog();
@@ -166,10 +166,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         _hasMoreProducts = true; // Assume there might be more
       });
 
-      // Get customer_user_id from SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      final customerUserId = prefs.getString('user_id') ?? '';
-
       // Use the /product/ endpoint with proper payload
       // If categoryId is 'all', use empty query to fetch all products
       final queryParam = categoryId == 'all'
@@ -183,7 +179,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           'query': queryParam,
           'page': _currentPage,
           'store_access': true,
-          'customer_user_id': customerUserId,
+          'customer_user_id': customer_user_id ?? '',
         },
         useBearerToken: true,
       );
@@ -235,10 +231,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
       _currentPage++; // Increment page
 
-      // Get customer_user_id from SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      final customerUserId = prefs.getString('user_id') ?? '';
-
       // Use the same query logic as _fetchProductsByCategory
       final queryParam = _selectedCategoryId == 'all'
           ? {}
@@ -251,7 +243,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           'query': queryParam,
           'page': _currentPage,
           'store_access': true,
-          'customer_user_id': customerUserId,
+          'customer_user_id': customer_user_id ?? '',
         },
         useBearerToken: true,
       );
@@ -291,9 +283,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
   Future<void> _validateCart() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final customerUserId = prefs.getString('user_id') ?? '';
-
       final response = await ApiService.post(
         '/auto-validate-cart/',
         body: {
@@ -305,7 +294,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           'lat': 0.0,
           'lng': 0.0,
           'store_access': true,
-          'customer_user_id': customerUserId,
+          'customer_user_id': customer_user_id ?? '',
         },
         useBearerToken: true,
       );
@@ -747,8 +736,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           });
 
                           // Get country code
-                          final countryCode = selectedCountry.dialCode
-                                  ?.replaceAll('+', '') ??
+                          final countryCode =
+                              selectedCountry.dialCode?.replaceAll('+', '') ??
                               '91';
                           final fullPhoneNumber = '$countryCode$phone';
 
@@ -804,6 +793,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             setState(() {
               customer_user_id = userData['id'] as String?;
             });
+
+            // Refresh products and cart with new customer ID
+            if (customer_user_id != null) {
+              _fetchProductsByCategory(_selectedCategoryId ?? 'all');
+              _validateCart();
+            }
 
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1321,10 +1316,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Get customer_user_id from SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      final customerUserId = prefs.getString('user_id') ?? '';
-
       // Call API to get product variations
       final response = await ApiService.post(
         '/product-variation-value/',
@@ -1332,7 +1323,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           'order_by': 'variation_name',
           'query': {'store_id': widget.storeId, 'product_id': product['id']},
           'store_id': widget.storeId,
-          'customer_user_id': customerUserId,
+          'customer_user_id': customer_user_id ?? '',
         },
         useBearerToken: true,
       );
@@ -1451,6 +1442,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         product: product,
         variations: variations,
         storeId: widget.storeId,
+        customerUserId: customer_user_id,
         onCartUpdated: _validateCart, // Call cart validation after adding
       ),
     );
@@ -1462,12 +1454,14 @@ class _VariantsBottomSheetContent extends StatefulWidget {
   final Map<String, dynamic> product;
   final List variations;
   final String storeId;
+  final String? customerUserId;
   final VoidCallback onCartUpdated;
 
   const _VariantsBottomSheetContent({
     required this.product,
     required this.variations,
     required this.storeId,
+    required this.customerUserId,
     required this.onCartUpdated,
   });
 
@@ -1504,16 +1498,13 @@ class _VariantsBottomSheetContentState
     });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final customerUserId = prefs.getString('user_id') ?? '';
-
       final response = await ApiService.post(
         '/validate-product-availability/',
         body: {
           'product_id': widget.product['id'],
           'store_id': widget.storeId,
           'store_access': true,
-          'customer_user_id': customerUserId,
+          'customer_user_id': widget.customerUserId ?? '',
           'quantity': _quantity,
           'variations': _selectedVariationIds,
         },
