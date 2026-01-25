@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:exanor/screens/store_owner_pos_screen.dart';
+import 'package:exanor/screens/store_owner_dashboard_screen.dart';
 import 'package:exanor/services/api_service.dart';
 
 class StoreSelectionScreen extends StatefulWidget {
@@ -34,7 +34,7 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => StoreOwnerPOSScreen(
+              builder: (context) => StoreOwnerDashboardScreen(
                 storeId: selectedStoreId,
                 storeName: selectedStoreName,
               ),
@@ -113,8 +113,10 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                StoreOwnerPOSScreen(storeId: storeId, storeName: storeName),
+            builder: (context) => StoreOwnerDashboardScreen(
+              storeId: storeId,
+              storeName: storeName,
+            ),
           ),
         );
       }

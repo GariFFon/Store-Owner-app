@@ -48,6 +48,10 @@ class FirebaseRemoteConfigService {
   // Dashboard section configuration
   static const String _dashboardSectionKey = 'dashboardSection';
 
+  // Store Owner Dashboard Bottom Nav
+  static const String _storeOwnerBottomNavTabsKey =
+      'store_owner_bottom_nav_tabs';
+
   // Default values
   static const Map<String, dynamic> _defaults = {
     _baseUrlKey: 'https://development.api.exanor.com/api/v1',
@@ -171,6 +175,24 @@ class FirebaseRemoteConfigService {
         "action": "navigateToBusinesses",
         "enabled": true,
         "order": 2
+      }
+    ]''',
+
+    // Store Owner Dashboard Bottom Nav default configuration
+    _storeOwnerBottomNavTabsKey: '''[
+      {
+        "id": "pos",
+        "label": "POS",
+        "icon": "point_of_sale_outlined",
+        "activeIcon": "point_of_sale",
+        "index": 0
+      },
+      {
+        "id": "orders",
+        "label": "Orders",
+        "icon": "receipt_long_outlined",
+        "activeIcon": "receipt_long",
+        "index": 1
       }
     ]''',
   };
@@ -806,6 +828,34 @@ class FirebaseRemoteConfigService {
         name: 'RemoteConfig',
       );
       return _defaults[_disclaimerKey] as String;
+    }
+  }
+
+  /// Get Store Owner Bottom Nav Tabs configuration
+  static List<Map<String, dynamic>> getStoreOwnerBottomNavTabs() {
+    try {
+      String jsonString;
+
+      if (!_isInitialized || _remoteConfig == null) {
+        developer.log(
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default store owner tabs',
+          name: 'RemoteConfig',
+        );
+        jsonString = _defaults[_storeOwnerBottomNavTabsKey] as String;
+      } else {
+        jsonString = _remoteConfig!.getString(_storeOwnerBottomNavTabsKey);
+      }
+
+      final List<dynamic> decoded = jsonDecode(jsonString);
+      return List<Map<String, dynamic>>.from(decoded);
+    } catch (e) {
+      developer.log(
+        '❌ FirebaseRemoteConfig: Error getting store owner tabs: $e',
+        name: 'RemoteConfig',
+      );
+      // Return default as fallback
+      final jsonString = _defaults[_storeOwnerBottomNavTabsKey] as String;
+      return List<Map<String, dynamic>>.from(jsonDecode(jsonString));
     }
   }
 

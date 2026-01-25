@@ -92,6 +92,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         "page": 1,
         "query": {"id": widget.orderId},
         "store_id": widget.storeId,
+        "store_access": true,
       };
 
       print("📦 Fetching order details for: ${widget.orderId}");
@@ -448,55 +449,159 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Widget _buildProductItem(ThemeData theme, Map<String, dynamic> product) {
     final quantity = product['quantity'] ?? 0;
     final itemTotal =
-        double.tryParse(product['item_total']?.toString() ?? '0') ?? 0.0;
+        double.tryParse((product['item_total'] ?? 0).toString()) ?? 0.0;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: TranslatedText(
-            '${quantity}x',
-            style: TextStyle(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
+    final cgst = double.tryParse(product['cgst']?.toString() ?? '0') ?? 0.0;
+    final sgst = double.tryParse(product['sgst']?.toString() ?? '0') ?? 0.0;
+    final igst = double.tryParse(product['igst']?.toString() ?? '0') ?? 0.0;
+    final cess = double.tryParse(product['cess']?.toString() ?? '0') ?? 0.0;
+    final amountExcludingTax =
+        double.tryParse(product['amount_excluding_tax']?.toString() ?? '0') ??
+        0.0;
+    // final amountIncludingTax = double.tryParse(product['amount_including_tax']?.toString() ?? '0') ?? 0.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TranslatedText(
-                product['product_name'] ?? 'Unknown Product',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: TranslatedText(
+                  '${quantity}x',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
-              const SizedBox(height: 4),
-              TranslatedText(
-                '₹${itemTotal.toStringAsFixed(2)}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TranslatedText(
+                      product['product_name'] ?? 'Unknown Product',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    TranslatedText(
+                      '₹${itemTotal.toStringAsFixed(2)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  TranslatedText(
+                    '₹${itemTotal.toStringAsFixed(2)}',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ),
-        TranslatedText(
-          '₹${itemTotal.toStringAsFixed(2)}',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
+          if (cgst > 0 || sgst > 0 || igst > 0 || cess > 0) ...[
+            const SizedBox(height: 12),
+            Theme(
+              data: theme.copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                title: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 14,
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                    const SizedBox(width: 6),
+                    TranslatedText(
+                      'Tax Breakdown',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+                children: [
+                  _buildTaxRow(theme, 'Base Price', amountExcludingTax),
+                  if (cgst > 0) _buildTaxRow(theme, 'CGST', cgst),
+                  if (sgst > 0) _buildTaxRow(theme, 'SGST', sgst),
+                  if (igst > 0) _buildTaxRow(theme, 'IGST', igst),
+                  if (cess > 0) _buildTaxRow(theme, 'Cess', cess),
+                  const Divider(),
+                  _buildTaxRow(theme, 'Total', itemTotal, isTotal: true),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaxRow(
+    ThemeData theme,
+    String label,
+    double amount, {
+    bool isTotal = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TranslatedText(
+            label,
+            style: isTotal
+                ? theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  )
+                : theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    fontSize: 11,
+                  ),
           ),
-        ),
-      ],
+          TranslatedText(
+            '₹${amount.toStringAsFixed(2)}',
+            style: isTotal
+                ? theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  )
+                : theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    fontSize: 11,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -972,7 +1077,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   Widget _buildAnimatedStatusIcon(ThemeData theme, String? status) {
-    Color statusColor = _getStatusColorFromString(status);
     IconData iconData = _getStatusIcon(status);
 
     return Container(
