@@ -210,4 +210,85 @@ class StoreOwnerApiService {
       throw Exception('Failed to fetch purchase entries: $e');
     }
   }
+
+  /// Fetch units
+  /// POST /units/
+  static Future<List<Map<String, dynamic>>> getUnits(String storeId) async {
+    try {
+      final response = await ApiService.post(
+        '/units/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'create': false,
+          'limit': 100,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return List<Map<String, dynamic>>.from(data['response']);
+        }
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to fetch units: $e');
+    }
+  }
+
+  /// Fetch godowns
+  /// POST /godowns/
+  static Future<List<Map<String, dynamic>>> getGodowns(String storeId) async {
+    try {
+      final response = await ApiService.post(
+        '/godowns/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'create': false,
+          'limit': 50,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return List<Map<String, dynamic>>.from(data['response']);
+        }
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to fetch godowns: $e');
+    }
+  }
+
+  /// Fetch racks
+  /// POST /racks/
+  static Future<List<Map<String, dynamic>>> getRacks(String storeId) async {
+    try {
+      final response = await ApiService.post(
+        '/racks/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'create': false,
+          'limit': 100,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return List<Map<String, dynamic>>.from(data['response']);
+        }
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to fetch racks: $e');
+    }
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:exanor/components/translation_widget.dart';
+import 'package:exanor/screens/add_purchase_order_screen.dart';
 import 'package:exanor/screens/purchase_details_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
@@ -146,7 +147,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             padding: const EdgeInsets.only(right: 16.0),
             child: ElevatedButton.icon(
               onPressed: () {
-                // TODO: Implement create purchase
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        AddPurchaseOrderScreen(storeId: widget.storeId),
+                  ),
+                );
               },
               icon: const Icon(Icons.add, size: 18),
               label: const TranslatedText('New Purchase'),
