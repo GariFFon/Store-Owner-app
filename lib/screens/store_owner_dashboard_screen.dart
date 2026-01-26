@@ -1,5 +1,6 @@
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
+import 'package:exanor/screens/purchase_screen.dart';
 import 'package:exanor/screens/store_owner_pos_screen.dart';
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'package:flutter/material.dart';
@@ -46,6 +47,10 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
         return Icons.receipt_long;
       case 'receipt_long_outlined':
         return Icons.receipt_long_outlined;
+      case 'shopping_bag':
+        return Icons.shopping_bag;
+      case 'shopping_bag_outlined':
+        return Icons.shopping_bag_outlined;
       case 'home':
         return Icons.home;
       case 'home_outlined':
@@ -82,6 +87,8 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
         );
       } else if (id == 'orders') {
         return OrdersListScreen(storeId: widget.storeId);
+      } else if (id == 'purchases') {
+        return PurchaseScreen(storeId: widget.storeId);
       }
       return Container(); // Fallback for unknown IDs
     }).toList();

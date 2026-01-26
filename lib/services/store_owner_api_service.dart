@@ -171,4 +171,43 @@ class StoreOwnerApiService {
       throw Exception('Failed to fetch store products: $e');
     }
   }
+
+  /// Fetch purchase entries
+  /// POST /view-purchase-entry/
+  ///
+  /// Example payload: {"store_id": "...", "store_access": true, "filters": {}, "sort_by": "date", "sort_order": "desc", "limit": 50, "offset": 0}
+  static Future<Map<String, dynamic>> getPurchaseEntries(
+    String storeId, {
+    Map<String, dynamic>? filters,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/view-purchase-entry/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'filters': filters ?? {},
+          'sort_by': 'date',
+          'sort_order': 'desc',
+          'limit': limit,
+          'offset': offset,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+
+        if (data['status'] == 200 && data['response'] != null) {
+          return Map<String, dynamic>.from(data['response']);
+        }
+      }
+
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch purchase entries: $e');
+    }
+  }
 }
