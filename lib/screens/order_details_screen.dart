@@ -354,22 +354,23 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   void _showUpdateStatusSheet() {
     _fetchStoreBankDetails();
+
+    // Move state variables outside StatefulBuilder to prevent recreation
+    String? selectedStatusId;
+    String? selectedStatusValue;
+    String? selectedBankId;
+    final TextEditingController amountController = TextEditingController();
+
+    // Pre-fill amount with Grand Total
+    final double grandTotal =
+        double.tryParse(_orderData?['grand_total']?.toString() ?? '0') ?? 0.0;
+    amountController.text = grandTotal.toStringAsFixed(2);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        String? selectedStatusId;
-        String? selectedStatusValue;
-        String? selectedBankId;
-        final TextEditingController amountController = TextEditingController();
-
-        // Pre-fill amount with Grand Total
-        final double grandTotal =
-            double.tryParse(_orderData?['grand_total']?.toString() ?? '0') ??
-            0.0;
-        amountController.text = grandTotal.toStringAsFixed(2);
-
         return StatefulBuilder(
           builder: (context, setStateSheet) {
             final theme = Theme.of(context);
@@ -396,304 +397,77 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             // For completed, we pre-fill full amount. For partial, we might want it empty or 0.
             // A simple approach is handled in the UI logic below or just letting user edit.
 
-            return Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
-              ),
+            return Padding(
               padding: EdgeInsets.only(
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TranslatedText(
-                          'Change Order Status',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
                   ),
-                  const Divider(),
-
-                  if (_isUpdatingStatus)
-                    const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else ...[
-                    // Status Selection List
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                20,
-                                10,
-                                20,
-                                10,
-                              ),
-                              child: TranslatedText(
-                                'Select New Status *',
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface
-                                      .withOpacity(0.6),
-                                ),
-                              ),
+                ),
+                padding: const EdgeInsets.only(top: 20, bottom: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TranslatedText(
+                            'Change Order Status',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
                             ),
-                            Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: theme.dividerColor.withOpacity(0.2),
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: ButtonTheme(
-                                  alignedDropdown: true,
-                                  child: DropdownButton<String>(
-                                    isExpanded: true,
-                                    value: selectedStatusId,
-                                    hint: const TranslatedText(
-                                      'Choose status...',
-                                    ),
-                                    items: _statusOptions.map((option) {
-                                      return DropdownMenuItem<String>(
-                                        value: option['id'],
-                                        child: Text(
-                                          option['status_title_for_seller'] ??
-                                              option['status'],
-                                        ),
-                                        onTap: () {
-                                          setStateSheet(() {
-                                            selectedStatusValue =
-                                                option['status'];
-                                          });
-                                        },
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      setStateSheet(() {
-                                        selectedStatusId = value;
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
 
-                            // Info Banner for selected status
-                            if (selectedStatusId != null) ...[
-                              const SizedBox(height: 16),
-                              Container(
-                                width: double.infinity,
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Icon(
-                                      Icons.info_outline_rounded,
-                                      color: Colors.blue,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          TranslatedText(
-                                            selectedStatusValue ?? '',
-                                            style: theme.textTheme.bodyMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.blue.shade800,
-                                                ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          TranslatedText(
-                                            _statusOptions.firstWhere(
-                                                  (e) =>
-                                                      e['id'] ==
-                                                      selectedStatusId,
-                                                )['description'] ??
-                                                'Status update',
-                                            style: theme.textTheme.bodySmall
-                                                ?.copyWith(
-                                                  color: Colors.blue.shade900,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-
-                            // Amount Paid Input (For order_completed & order_partially_paid)
-                            if (showAmountInput) ...[
-                              const SizedBox(height: 20),
+                    if (_isUpdatingStatus)
+                      const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else ...[
+                      // Status Selection List
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                child: Row(
-                                  children: [
-                                    TranslatedText(
-                                      'Amount Paid',
-                                      style: theme.textTheme.labelMedium
-                                          ?.copyWith(
-                                            color: theme.colorScheme.onSurface
-                                                .withOpacity(0.6),
-                                          ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Divider(
-                                        color: theme.dividerColor.withOpacity(
-                                          0.2,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                child: TextField(
-                                  controller: amountController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  decoration: InputDecoration(
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: theme.dividerColor.withOpacity(
-                                          0.2,
-                                        ),
-                                      ),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: theme.dividerColor.withOpacity(
-                                          0.2,
-                                        ),
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: theme.colorScheme.primary,
-                                      ),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    // Make it easier to edit by selecting all if pre-filled
-                                    amountController.selection = TextSelection(
-                                      baseOffset: 0,
-                                      extentOffset:
-                                          amountController.text.length,
-                                    );
-                                  },
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 4,
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  10,
+                                  20,
+                                  10,
                                 ),
                                 child: TranslatedText(
-                                  isOrderCompleted
-                                      ? 'Full amount (₹${grandTotal.toStringAsFixed(2)}) will be recorded as paid'
-                                      : 'Maximum: ₹${grandTotal.toStringAsFixed(2)}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
+                                  'Select New Status *',
+                                  style: theme.textTheme.labelMedium?.copyWith(
                                     color: theme.colorScheme.onSurface
-                                        .withOpacity(0.5),
-                                    fontSize: 11,
+                                        .withOpacity(0.6),
                                   ),
                                 ),
                               ),
-                            ],
-
-                            // Payment/Refund Method (Bank Account) Dropdown
-                            if (showPaymentOptions) ...[
-                              const SizedBox(height: 20),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: TranslatedText(
-                                        isOrderReturned
-                                            ? 'Refund Method (Bank Account)'
-                                            : 'Payment Method (Bank Account)',
-                                        style: theme.textTheme.labelMedium
-                                            ?.copyWith(
-                                              color: Colors.blue,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Divider(
-                                        color: Colors.blue.withOpacity(0.3),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
                               Container(
                                 margin: const EdgeInsets.symmetric(
                                   horizontal: 20,
                                 ),
                                 decoration: BoxDecoration(
                                   border: Border.all(
-                                    color: Colors.blue.withOpacity(0.5),
-                                    width: 1.5,
+                                    color: theme.dividerColor.withOpacity(0.2),
                                   ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -702,99 +476,333 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                     alignedDropdown: true,
                                     child: DropdownButton<String>(
                                       isExpanded: true,
-                                      value: selectedBankId,
-                                      hint: TranslatedText(
-                                        isOrderReturned
-                                            ? 'Select Refund Account'
-                                            : 'Select Payment Account',
+                                      value: selectedStatusId,
+                                      hint: const TranslatedText(
+                                        'Choose status...',
                                       ),
-                                      items: _storeBankDetails.map((bank) {
-                                        final name =
-                                            bank['account_holder_name'] ??
-                                            bank['bank_name'] ??
-                                            'Unknown Account';
-                                        final number =
-                                            bank['account_number_or_upi_id'] ??
-                                            '';
+                                      items: _statusOptions.map((option) {
                                         return DropdownMenuItem<String>(
-                                          value: bank['id'],
-                                          child: Text('$name ($number)'),
+                                          value: option['id'],
+                                          child: Text(
+                                            option['status_title_for_seller'] ??
+                                                option['status'],
+                                          ),
+                                          onTap: () {
+                                            setStateSheet(() {
+                                              selectedStatusValue =
+                                                  option['status'];
+                                            });
+                                          },
                                         );
                                       }).toList(),
                                       onChanged: (value) {
                                         setStateSheet(() {
-                                          selectedBankId = value;
+                                          selectedStatusId = value;
                                         });
                                       },
                                     ),
                                   ),
                                 ),
                               ),
+
+                              // Info Banner for selected status
+                              if (selectedStatusId != null) ...[
+                                const SizedBox(height: 16),
+                                Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(
+                                        Icons.info_outline_rounded,
+                                        color: Colors.blue,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            TranslatedText(
+                                              selectedStatusValue ?? '',
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.blue.shade800,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            TranslatedText(
+                                              _statusOptions.firstWhere(
+                                                    (e) =>
+                                                        e['id'] ==
+                                                        selectedStatusId,
+                                                  )['description'] ??
+                                                  'Status update',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: Colors.blue.shade900,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+
+                              // Amount Paid Input (For order_completed & order_partially_paid)
+                              if (showAmountInput) ...[
+                                const SizedBox(height: 20),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      TranslatedText(
+                                        'Amount Paid',
+                                        style: theme.textTheme.labelMedium
+                                            ?.copyWith(
+                                              color: theme.colorScheme.onSurface
+                                                  .withOpacity(0.6),
+                                            ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Divider(
+                                          color: theme.dividerColor.withOpacity(
+                                            0.2,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  child: TextField(
+                                    controller: amountController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: theme.dividerColor.withOpacity(
+                                            0.2,
+                                          ),
+                                        ),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: theme.dividerColor.withOpacity(
+                                            0.2,
+                                          ),
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
+                                    ),
+                                    onTap: () {
+                                      // Make it easier to edit by selecting all if pre-filled
+                                      amountController.selection =
+                                          TextSelection(
+                                            baseOffset: 0,
+                                            extentOffset:
+                                                amountController.text.length,
+                                          );
+                                    },
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 4,
+                                  ),
+                                  child: TranslatedText(
+                                    isOrderCompleted
+                                        ? 'Full amount (₹${grandTotal.toStringAsFixed(2)}) will be recorded as paid'
+                                        : 'Maximum: ₹${grandTotal.toStringAsFixed(2)}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface
+                                          .withOpacity(0.5),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+
+                              // Payment/Refund Method (Bank Account) Dropdown
+                              if (showPaymentOptions) ...[
+                                const SizedBox(height: 20),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: TranslatedText(
+                                          isOrderReturned
+                                              ? 'Refund Method (Bank Account)'
+                                              : 'Payment Method (Bank Account)',
+                                          style: theme.textTheme.labelMedium
+                                              ?.copyWith(
+                                                color: Colors.blue,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Divider(
+                                          color: Colors.blue.withOpacity(0.3),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.blue.withOpacity(0.5),
+                                      width: 1.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: ButtonTheme(
+                                      alignedDropdown: true,
+                                      child: DropdownButton<String>(
+                                        isExpanded: true,
+                                        value: selectedBankId,
+                                        hint: TranslatedText(
+                                          isOrderReturned
+                                              ? 'Select Refund Account'
+                                              : 'Select Payment Account',
+                                        ),
+                                        items: _storeBankDetails.map((bank) {
+                                          final name =
+                                              bank['account_holder_name'] ??
+                                              bank['bank_name'] ??
+                                              'Unknown Account';
+                                          final number =
+                                              bank['account_number_or_upi_id'] ??
+                                              '';
+                                          return DropdownMenuItem<String>(
+                                            value: bank['id'],
+                                            child: Text('$name ($number)'),
+                                          );
+                                        }).toList(),
+                                        onChanged: (value) {
+                                          setStateSheet(() {
+                                            selectedBankId = value;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 4,
+                                  ),
+                                  child: TranslatedText(
+                                    'Optional - defaults to cash if not selected',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface
+                                          .withOpacity(0.5),
+                                    ),
+                                  ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 30),
+
+                              // Update Button
                               Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 20,
-                                  vertical: 4,
                                 ),
-                                child: TranslatedText(
-                                  'Optional - defaults to cash if not selected',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurface
-                                        .withOpacity(0.5),
-                                  ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const TranslatedText('CANCEL'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            theme.colorScheme.primary,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: selectedStatusId == null
+                                          ? null
+                                          : () {
+                                              final amount = double.tryParse(
+                                                amountController.text,
+                                              );
+                                              _updateOrderStatus(
+                                                selectedStatusValue!,
+                                                selectedStatusId!,
+                                                bankId: selectedBankId,
+                                                amountPaid: amount,
+                                              );
+                                            },
+                                      child: const TranslatedText(
+                                        'UPDATE STATUS',
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
-
-                            const SizedBox(height: 30),
-
-                            // Update Button
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const TranslatedText('CANCEL'),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor:
-                                          theme.colorScheme.primary,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    onPressed: selectedStatusId == null
-                                        ? null
-                                        : () {
-                                            final amount = double.tryParse(
-                                              amountController.text,
-                                            );
-                                            _updateOrderStatus(
-                                              selectedStatusValue!,
-                                              selectedStatusId!,
-                                              bankId: selectedBankId,
-                                              amountPaid: amount,
-                                            );
-                                          },
-                                    child: const TranslatedText(
-                                      'UPDATE STATUS',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             );
           },
