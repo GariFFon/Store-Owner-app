@@ -1,4 +1,5 @@
 import 'package:exanor/components/translation_widget.dart';
+import 'package:exanor/screens/purchase_details_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -333,7 +334,16 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            // TODO: Navigate to purchase details
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PurchaseDetailsScreen(
+                  storeId: widget.storeId,
+                  purchaseId: voucher['id'],
+                  voucherNumber: voucher['voucher_number'] ?? '',
+                ),
+              ),
+            );
           },
           borderRadius: BorderRadius.circular(12),
           child: Padding(
