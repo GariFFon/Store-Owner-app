@@ -357,4 +357,48 @@ class StoreOwnerApiService {
       throw Exception('Failed to search products: $e');
     }
   }
+
+  /// Register a new store (supplier)
+  /// POST /store-registration-by-store/
+  static Future<Map<String, dynamic>> registerStore({
+    required String storeId,
+    required String storeName,
+    required String legalName,
+    required String city,
+    required String state,
+    required int pin,
+    required bool isGstEnabled,
+    required String gstIn,
+    required String gstRegisteredState,
+    required String gstRegistrationType,
+    String area = '',
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/store-registration-by-store/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'store_name': storeName,
+          'legal_name': legalName,
+          'city': city,
+          'area': area,
+          'state': state,
+          'pin': pin,
+          'is_gst_enabled': isGstEnabled,
+          'gst_in': gstIn,
+          'gst_registered_state': gstRegisteredState,
+          'gst_registration_type': gstRegistrationType,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to register store: $e');
+    }
+  }
 }

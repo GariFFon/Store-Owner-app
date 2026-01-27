@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:exanor/screens/add_purchase_order_screen.dart';
 
 class ReviewConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -207,11 +208,21 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
-                              // TODO: Submit the purchase order
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Submitting purchase order...'),
-                                  duration: Duration(seconds: 2),
+                              // Navigate to AddPurchaseOrderScreen with AI data
+                              // Close this screen and all intermediate screens
+                              Navigator.of(context).popUntil(
+                                (route) => route.isFirst,
+                              ); // Pop until we reach the first route
+
+                              // Navigate to AddPurchaseOrderScreen with AI data
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AddPurchaseOrderScreen(
+                                    storeId:
+                                        'd95069ca-839d-4469-8037-a5796633deb1',
+                                    aiData: widget.data,
+                                  ),
                                 ),
                               );
                             },

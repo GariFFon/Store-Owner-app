@@ -10,8 +10,9 @@ import 'package:exanor/screens/product_details_screen.dart';
 
 class AddPurchaseOrderScreen extends StatefulWidget {
   final String storeId;
+  final Map<String, dynamic>? aiData;
 
-  const AddPurchaseOrderScreen({super.key, required this.storeId});
+  const AddPurchaseOrderScreen({super.key, required this.storeId, this.aiData});
 
   @override
   State<AddPurchaseOrderScreen> createState() => _AddPurchaseOrderScreenState();
@@ -43,6 +44,30 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   void initState() {
     super.initState();
     _fetchInitialData();
+    _populateFromAiData();
+  }
+
+  void _populateFromAiData() {
+    if (widget.aiData != null) {
+      final response = widget.aiData!['response'] ?? {};
+
+      // Auto-fill invoice ID
+      if (response['invoice_id'] != null) {
+        _invoiceIdController.text = response['invoice_id'].toString();
+      }
+
+      // Auto-fill invoice date
+      if (response['invoice_date'] != null) {
+        try {
+          final dateStr = response['invoice_date'].toString();
+          // Try to parse the date
+          _dateController.text = dateStr;
+          _purchaseDate = DateTime.tryParse(dateStr);
+        } catch (e) {
+          debugPrint('Error parsing invoice date: $e');
+        }
+      }
+    }
   }
 
   Future<void> _fetchInitialData() async {
@@ -412,8 +437,212 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   }
 
   Widget _buildStep1Form(ThemeData theme) {
+    // Extract AI data if available
+    final response = widget.aiData?['response'] ?? {};
+    final supplierDetails = response['supplier_details'] ?? {};
+    final addressDetails = supplierDetails['supplier_address_details'] ?? {};
+
+    final hasAiData = widget.aiData != null && supplierDetails.isNotEmpty;
+    final supplierName = supplierDetails['supplier_name'] ?? '';
+    final supplierGst = supplierDetails['supplier_gst_in'] ?? '';
+    final legalName =
+        supplierDetails['supplier_legal_business_name'] ?? supplierName;
+
+    // Build address
+    final addressLine1 = addressDetails['supplier_address_line_1'] ?? '';
+    final addressLine2 = addressDetails['supplier_address_line_2'] ?? '';
+    final locality = addressDetails['supplier_locality'] ?? '';
+    final city = addressDetails['supplier_city'] ?? '';
+    final state = addressDetails['supplier_state'] ?? '';
+    final pincode = addressDetails['supplier_pincode']?.toString() ?? '';
+
+    final addressParts = [
+      if (addressLine1.isNotEmpty) addressLine1,
+      if (addressLine2.isNotEmpty) addressLine2,
+      if (locality.isNotEmpty) locality,
+      if (city.isNotEmpty) city,
+      if (state.isNotEmpty) state,
+      if (pincode.isNotEmpty) pincode,
+    ];
+    final fullAddress = addressParts.join(', ');
+
+    final gstRegistrationType =
+        supplierDetails['supplier_gst_registration_type']
+            ?.toString()
+            .toLowerCase() ??
+        'regular';
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // AI-Extracted Supplier Information Section
+        if (hasAiData) ...[
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue[100]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AI Extracted Supplier Information',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Supplier Name
+                const Text(
+                  'Supplier Name',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  supplierName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // GST IN
+                const Text(
+                  'GST IN',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  supplierGst,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Address
+                if (fullAddress.isNotEmpty) ...[
+                  const Text(
+                    'Address',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(fullAddress, style: const TextStyle(fontSize: 14)),
+                  const SizedBox(height: 16),
+                ],
+
+                // Create Supplier Button
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    // Show loading
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) =>
+                          const Center(child: CircularProgressIndicator()),
+                    );
+
+                    try {
+                      final int pin = int.tryParse(pincode) ?? 0;
+
+                      final result = await StoreOwnerApiService.registerStore(
+                        storeId: widget.storeId,
+                        storeName: supplierName,
+                        legalName: legalName,
+                        city: city,
+                        state: state,
+                        pin: pin,
+                        isGstEnabled: supplierGst.isNotEmpty,
+                        gstIn: supplierGst,
+                        gstRegisteredState: state,
+                        gstRegistrationType: gstRegistrationType,
+                        area: locality,
+                      );
+
+                      if (mounted) {
+                        Navigator.pop(context); // Close loading dialog
+
+                        if (result.isNotEmpty && result['status'] == 200) {
+                          // Auto-select the newly created supplier in the dropdown
+                          setState(() {
+                            _selectedSupplier = '$supplierName ($supplierGst)';
+                          });
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                result['message'] ??
+                                    'Supplier created successfully!',
+                              ),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Failed to create supplier'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        Navigator.pop(context); // Close loading dialog
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.auto_awesome, size: 18),
+                  label: const Text('Create Supplier'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+
         // Supplier Dropdown
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -426,13 +655,26 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
               value: _selectedSupplier,
               hint: const Text('Pick a supplier'),
               isExpanded: true,
-              items: ['Supplier A', 'Supplier B', 'Other'].map((String value) {
-                // TODO: Fetch suppliers real data
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
+              items: [
+                // If we have a selected supplier that's not in the default list, add it
+                if (_selectedSupplier != null &&
+                    ![
+                      'Supplier A',
+                      'Supplier B',
+                      'Other',
+                    ].contains(_selectedSupplier))
+                  DropdownMenuItem<String>(
+                    value: _selectedSupplier,
+                    child: Text(_selectedSupplier!),
+                  ),
+                // Default options
+                ...['Supplier A', 'Supplier B', 'Other'].map((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
+              ],
               onChanged: (newValue) {
                 setState(() {
                   _selectedSupplier = newValue;
