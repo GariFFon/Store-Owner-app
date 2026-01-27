@@ -25,8 +25,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final Map<int, String> _selectedGodowns = {};
   final Map<int, String> _selectedRacks = {};
 
-  // Linked products
+  // Linked products - track both status and product details
   final Map<int, bool> _linkedProducts = {};
+  final Map<int, String> _linkedProductNames = {};
+  final Map<int, String> _linkedProductIds = {};
 
   static const String storeId = 'd95069ca-839d-4469-8037-a5796633deb1';
 
@@ -60,13 +62,25 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       builder: (context) => ProductSearchBottomSheet(
         productIndex: productIndex,
         productName: productName,
-        onProductLinked: (productId) {
+        onProductLinked: (productId, linkedProductName) {
           setState(() {
             _linkedProducts[productIndex] = true;
+            _linkedProductIds[productIndex] = productId;
+            _linkedProductNames[productIndex] = linkedProductName;
           });
         },
       ),
     );
+  }
+
+  void _unlinkProduct(int productIndex) {
+    setState(() {
+      _linkedProducts[productIndex] = false;
+      _linkedProductIds.remove(productIndex);
+      _linkedProductNames.remove(productIndex);
+      // TODO: Call API to remove link from database
+      // You can add the API call here when the endpoint is ready
+    });
   }
 
   @override
@@ -366,6 +380,19 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
+                        // Show linked product name if linked
+                        if (isLinked &&
+                            _linkedProductNames.containsKey(index)) ...[
+                          Text(
+                            'Linked: ${_linkedProductNames[index]}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                        ],
                         Row(
                           children: [
                             Text(
@@ -391,10 +418,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     ),
                   ),
                 ),
-                // Checkbox button
+                // Checkbox button - toggle on/off
                 InkWell(
-                  onTap: () =>
-                      _showProductSearchBottomSheet(index, productName),
+                  onTap: () {
+                    if (isLinked) {
+                      // If already linked, unlink it
+                      _unlinkProduct(index);
+                    } else {
+                      // If not linked, open search bottom sheet
+                      _showProductSearchBottomSheet(index, productName);
+                    }
+                  },
                   child: Container(
                     width: 32,
                     height: 32,
@@ -658,7 +692,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 class ProductSearchBottomSheet extends StatefulWidget {
   final int productIndex;
   final String productName;
-  final Function(String) onProductLinked;
+  final Function(String productId, String linkedProductName) onProductLinked;
 
   const ProductSearchBottomSheet({
     super.key,
@@ -964,7 +998,7 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
           // Link button
           InkWell(
             onTap: () {
-              widget.onProductLinked(product['id']);
+              widget.onProductLinked(product['id'], productName);
               Navigator.pop(context);
             },
             child: Container(
