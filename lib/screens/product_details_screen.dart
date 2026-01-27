@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'dart:async';
+import 'package:uuid/uuid.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -29,6 +30,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final Map<int, bool> _linkedProducts = {};
   final Map<int, String> _linkedProductNames = {};
   final Map<int, String> _linkedProductIds = {};
+
+  // Barcode controllers for each product
+  final Map<int, TextEditingController> _barcodeControllers = {};
+  final _uuid = const Uuid();
 
   static const String storeId = 'd95069ca-839d-4469-8037-a5796633deb1';
 
@@ -356,11 +361,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    quantity,
+                    '${quantity}x',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.blue,
-                      fontSize: 16,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -372,22 +377,25 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Show linked product name if linked, otherwise original product name
                         Text(
-                          productName,
+                          isLinked && _linkedProductNames.containsKey(index)
+                              ? _linkedProductNames[index]!
+                              : productName,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 4),
-                        // Show linked product name if linked
+                        // Show original product name in shadow text if linked
                         if (isLinked &&
                             _linkedProductNames.containsKey(index)) ...[
                           Text(
-                            'Linked: ${_linkedProductNames[index]}',
+                            'Original Product: $productName',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey[500],
+                              color: Colors.grey[400],
                               fontStyle: FontStyle.italic,
                             ),
                           ),
@@ -461,7 +469,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   const SizedBox(height: 16),
                   _buildFieldRow('Cost (₹)', cost, 'MRP (₹)', mrp),
                   const SizedBox(height: 16),
-                  _buildFieldRow('Sell (₹)', cost, 'MFG DATE', mfgDate),
+                  _buildFieldRow(
+                    'Sell (₹)',
+                    mrp,
+                    'MFG DATE',
+                    mfgDate,
+                  ), // Changed 'Sell' value to mrp
                   const SizedBox(height: 16),
                   _buildFieldRow('EXP DATE', expDate, '', ''),
                   const SizedBox(height: 16),
@@ -487,7 +500,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   const SizedBox(height: 16),
 
                   // Barcode field (without Link button)
-                  _buildBarcodeField(),
+                  _buildBarcodeField(index),
                 ],
               ),
             ),
@@ -631,7 +644,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildBarcodeField() {
+  Widget _buildBarcodeField(int productIndex) {
+    // Generate UUID for barcode if not already exists
+    if (!_barcodeControllers.containsKey(productIndex)) {
+      _barcodeControllers[productIndex] = TextEditingController(
+        text: _uuid.v4(),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -644,44 +664,26 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           ),
         ),
         const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Scan or generate',
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  isDense: true,
-                ),
-                style: const TextStyle(fontSize: 13),
-              ),
+        TextField(
+          controller: _barcodeControllers[productIndex],
+          readOnly: true,
+          decoration: InputDecoration(
+            hintText: 'Scan or Auto-generated UUID',
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
             ),
-            const SizedBox(width: 8),
-            Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Colors.black,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                onPressed: () {},
-              ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
             ),
-          ],
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            isDense: true,
+          ),
+          style: const TextStyle(fontSize: 13, color: Colors.grey),
         ),
       ],
     );
@@ -711,6 +713,15 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = false;
   Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill search bar with product name
+    _searchController.text = widget.productName;
+    // Trigger search with the pre-filled product name
+    _searchProducts(widget.productName);
+  }
 
   @override
   void dispose() {
