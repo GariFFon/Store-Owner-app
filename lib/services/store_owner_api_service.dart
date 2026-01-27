@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/models/category_model.dart';
 
@@ -289,6 +290,39 @@ class StoreOwnerApiService {
       return [];
     } catch (e) {
       throw Exception('Failed to fetch racks: $e');
+    }
+  }
+
+  /// Upload purchase invoice for AI analysis
+  /// POST /purchase-entry-intelligence/
+  /// Upload purchase invoice for AI analysis
+  /// POST /purchase-entry-intelligence/
+  static Future<Map<String, dynamic>> uploadPurchaseInvoice(
+    String storeId,
+    File file,
+    double lat,
+    double lng,
+  ) async {
+    try {
+      final response = await ApiService.uploadImage(
+        '/purchase-entry-intelligence/',
+        imageFile: file,
+        fieldName: 'file',
+        additionalFields: {
+          'store_id': storeId,
+          'store_access': 'true',
+          'lat': lat.toString(),
+          'lng': lng.toString(),
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to upload purchase invoice: $e');
     }
   }
 }

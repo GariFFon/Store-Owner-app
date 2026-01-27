@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:exanor/screens/supplier_details_dialog.dart';
 
 class AddPurchaseOrderScreen extends StatefulWidget {
   final String storeId;
@@ -125,22 +129,16 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 return SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
                   child: isWide
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      ? Column(
                           children: [
-                            SizedBox(
-                              width: 250,
-                              child: _buildVerticalStepper(theme),
-                            ),
-                            const SizedBox(width: 32),
+                            _buildHorizontalStepper(theme),
+                            const SizedBox(height: 32),
                             Expanded(child: _buildCurrentStepContent(theme)),
                           ],
                         )
                       : Column(
                           children: [
-                            _buildVerticalStepper(
-                              theme,
-                            ), // Or horizontal for mobile
+                            _buildHorizontalStepper(theme),
                             const SizedBox(height: 24),
                             _buildCurrentStepContent(theme),
                           ],
@@ -151,72 +149,128 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     );
   }
 
-  Widget _buildVerticalStepper(ThemeData theme) {
-    return Column(
-      children: List.generate(_steps.length, (index) {
-        final isActive = index == _currentStep;
-        final isCompleted = index < _currentStep;
+  Widget _buildHorizontalStepper(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: List.generate(_steps.length, (index) {
+              final isActive = index == _currentStep;
+              final isCompleted = index < _currentStep;
+              final isLast = index == _steps.length - 1;
 
-        return InkWell(
-          onTap: () {
-            // Optional: Allow jumping steps if accessible
-            // setState(() => _currentStep = index);
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 24),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isActive || isCompleted
-                        ? Colors.blue
-                        : Colors.grey[300],
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${index + 1}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              return Expanded(
+                child: Row(
                   children: [
-                    Text(
-                      'STEP ${index + 1}',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
-                        letterSpacing: 1.2,
-                      ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: isActive || isCompleted
+                                ? Colors.blue
+                                : Colors.grey[300],
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      _steps[index],
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: isActive
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: isActive
-                            ? Colors.blue
-                            : theme.colorScheme.onSurface,
+                    if (!isLast)
+                      Expanded(
+                        child: Container(
+                          height: 2,
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          color: isCompleted ? Colors.blue : Colors.grey[300],
+                        ),
                       ),
-                    ),
                   ],
                 ),
-              ],
-            ),
+              );
+            }),
           ),
-        );
-      }),
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(_steps.length, (index) {
+              final isActive = index == _currentStep;
+              return Expanded(
+                child: Text(
+                  _steps[index],
+                  style: TextStyle(
+                    fontSize: 12, // Smaller font for horizontal layout
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                    color: isActive ? Colors.blue : theme.colorScheme.onSurface,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _showIntelligenceDialog() async {
+    final result = await showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing while analyzing
+      builder: (context) => IntelligenceUploadDialog(storeId: widget.storeId),
+    );
+
+    if (result != null && result is Map<String, dynamic> && mounted) {
+      // Show Supplier Details
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => SupplierDetailsDialog(
+          data: result,
+          onBack: () => Navigator.pop(context),
+          onContinue: () {
+            _populateFormFromAi(result);
+            Navigator.pop(context);
+          },
+        ),
+      );
+    }
+  }
+
+  void _populateFormFromAi(Map<String, dynamic> data) {
+    setState(() {
+      // Map fields
+      if (data.containsKey('invoice_id')) {
+        _invoiceIdController.text = data['invoice_id'].toString();
+      }
+
+      if (data.containsKey('invoice_date')) {
+        // Parse date if possible
+        try {
+          final dateStr = data['invoice_date'].toString();
+          // Assuming date format, might need adjustment based on API
+          // If API returns yyyy-MM-dd, great.
+          _dateController.text = dateStr;
+          _purchaseDate = DateTime.tryParse(dateStr);
+        } catch (e) {
+          debugPrint('Error parsing date: $e');
+        }
+      }
+
+      // Handle supplier selection if specific logic exists
+      // For now we just log
+      debugPrint('Populating from AI: $data');
+    });
   }
 
   Widget _buildCurrentStepContent(ThemeData theme) {
@@ -255,30 +309,34 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Exanor Intelligence Button
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Fill Up with Exanor Intelligence',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+              InkWell(
+                onTap: _showIntelligenceDialog,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Fill Up with Exanor Intelligence',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.auto_awesome,
-                      color: Colors.white.withOpacity(0.8),
-                      size: 18,
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.auto_awesome,
+                        color: Colors.white.withOpacity(0.8),
+                        size: 18,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 32),
@@ -421,6 +479,330 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class IntelligenceUploadDialog extends StatefulWidget {
+  final String storeId;
+  const IntelligenceUploadDialog({super.key, required this.storeId});
+
+  @override
+  State<IntelligenceUploadDialog> createState() =>
+      _IntelligenceUploadDialogState();
+}
+
+class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
+  File? _selectedFile;
+  bool _isAnalyzing = false;
+
+  // To store the response if needed or just handle navigation
+  // dynamic _analysisResult;
+
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _selectedFile = File(result.files.single.path!);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking file: $e');
+    }
+  }
+
+  Future<void> _analyzeWithAi() async {
+    if (_selectedFile == null) return;
+
+    setState(() {
+      _isAnalyzing = true;
+    });
+
+    try {
+      // Get Location
+      // Get Location
+      Position? position;
+      try {
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          debugPrint('Location services are disabled.');
+        } else {
+          LocationPermission permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+
+          if (permission == LocationPermission.denied) {
+            debugPrint('Location permissions are denied');
+          } else if (permission == LocationPermission.deniedForever) {
+            debugPrint('Location permissions are permanently denied');
+          } else {
+            // Try last known position first for speed
+            position = await Geolocator.getLastKnownPosition();
+
+            // If no last known position, get current
+            position ??= await Geolocator.getCurrentPosition(
+              desiredAccuracy: LocationAccuracy.medium,
+              timeLimit: const Duration(seconds: 5),
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('Error getting location: $e');
+      }
+
+      final lat = position?.latitude ?? 0.0;
+      final lng = position?.longitude ?? 0.0;
+
+      debugPrint('📍 Location found: $lat, $lng');
+      debugPrint('📤 Sending Payload to /purchase-entry-intelligence/:');
+      debugPrint('   - store_id: ${widget.storeId}');
+      debugPrint('   - store_access: true');
+      debugPrint('   - file: (binary) ${_selectedFile!.path.split('/').last}');
+      debugPrint('   - lat: $lat');
+      debugPrint('   - lng: $lng');
+
+      final result = await StoreOwnerApiService.uploadPurchaseInvoice(
+        widget.storeId,
+        _selectedFile!,
+        lat,
+        lng,
+      );
+
+      if (mounted) {
+        // Close the dialog and return result
+        Navigator.pop(context, result);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAnalyzing = false;
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Analysis failed: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isAnalyzing) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          width: 300,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.3),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.psychology,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Analyzing with AI...',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueAccent,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'AI is processing your data...',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+              const SizedBox(height: 24),
+              LinearProgressIndicator(backgroundColor: Colors.grey[200]),
+              const SizedBox(height: 8),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '35% Complete',
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                  Text(
+                    'Step 2 of 4',
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Dialog(
+      backgroundColor: Colors.black, // Dark theme as per screenshot
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        width: 600, // Wide dialog
+        padding: const EdgeInsets.all(0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Upload Invoice',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Upload and analyze your purchase invoice',
+                        style: TextStyle(color: Colors.grey, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Container(color: Colors.white, height: 1), // Divider
+            // Body
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Upload Invoice',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Upload a PDF, JPG, or PNG file of your purchase invoice',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Upload Area
+                  GestureDetector(
+                    onTap: _pickFile,
+                    child: Container(
+                      height: 200,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.grey[300]!,
+                          style: BorderStyle.solid,
+                        ), // Should be dashed ideally
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.grey[50], // Light background
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_selectedFile != null) ...[
+                            const Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _selectedFile!.path.split('/').last,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _pickFile,
+                              child: const Text("Change File"),
+                            ),
+                          ] else ...[
+                            const Icon(
+                              Icons.cloud_upload,
+                              color: Colors.grey,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Click to upload or drag and drop',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'PDF, JPG, or PNG (Max 10MB)',
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Footer Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('CANCEL'),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        onPressed: _selectedFile != null
+                            ? _analyzeWithAi
+                            : null,
+                        icon: const Icon(Icons.auto_awesome, size: 16),
+                        label: const Text('Analyze with AI'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black, // Dark button
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
