@@ -325,4 +325,36 @@ class StoreOwnerApiService {
       throw Exception('Failed to upload purchase invoice: $e');
     }
   }
+
+  /// Search product combination templates
+  /// POST /product-combinations-templates/
+  static Future<Map<String, dynamic>> searchProductCombinationTemplates({
+    required String query,
+    required String storeId,
+    int page = 1,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/product-combinations-templates/',
+        body: {
+          'query': query,
+          'store_id': storeId,
+          'store_access': true,
+          'page': page,
+          'lat': 0,
+          'lng': 0,
+          'is_store': false,
+          'customer_user_id': '',
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to search products: $e');
+    }
+  }
 }
