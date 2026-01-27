@@ -5,7 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:exanor/screens/supplier_details_dialog.dart';
+import 'package:exanor/screens/supplier_details_screen.dart';
+import 'package:exanor/screens/product_details_screen.dart';
 
 class AddPurchaseOrderScreen extends StatefulWidget {
   final String storeId;
@@ -231,19 +232,28 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     );
 
     if (result != null && result is Map<String, dynamic> && mounted) {
-      // Show Supplier Details
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => SupplierDetailsDialog(
-          data: result,
-          onBack: () => Navigator.pop(context),
-          onContinue: () {
-            _populateFormFromAi(result);
-            Navigator.pop(context);
-          },
+      // Navigate to Supplier Details Screen
+      final shouldContinue = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SupplierDetailsScreen(data: result),
         ),
       );
+
+      // If user clicked Continue on Supplier Details, show Product Details
+      if (shouldContinue == true && mounted) {
+        final productContinue = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductDetailsScreen(data: result),
+          ),
+        );
+
+        // If user clicked Continue on Product Details, populate the form
+        if (productContinue == true && mounted) {
+          _populateFormFromAi(result);
+        }
+      }
     }
   }
 
