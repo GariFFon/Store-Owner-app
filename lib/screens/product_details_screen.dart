@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:exanor/services/store_owner_api_service.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -13,18 +14,47 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   // Track which products are expanded
   final Set<int> _expandedProducts = {};
 
+  // Dropdown options
+  List<Map<String, dynamic>> _units = [];
+  List<Map<String, dynamic>> _godowns = [];
+  List<Map<String, dynamic>> _racks = [];
+
+  // Selected values for each product
+  final Map<int, String> _selectedUnits = {};
+  final Map<int, String> _selectedGodowns = {};
+  final Map<int, String> _selectedRacks = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDropdownData();
+  }
+
+  Future<void> _fetchDropdownData() async {
+    try {
+      // Get store ID from wherever it's stored (you may need to adjust this)
+      const storeId =
+          'd95069ca-839d-4469-8037-a5796633deb1'; // TODO: Get from auth or storage
+
+      final units = await StoreOwnerApiService.getUnits(storeId);
+      final godowns = await StoreOwnerApiService.getGodowns(storeId);
+      final racks = await StoreOwnerApiService.getRacks(storeId);
+
+      setState(() {
+        _units = units;
+        _godowns = godowns;
+        _racks = racks;
+      });
+    } catch (e) {
+      print('Error fetching dropdown data: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Extract products from API response
     final response = widget.data['response'] ?? {};
     final productsList = response['product_data'] as List<dynamic>? ?? [];
-
-    // Count statistics
-    final totalProducts = productsList.length;
-    final alreadyExist = productsList
-        .where((p) => p['product_already_exists'] == true)
-        .length;
-    final needCreation = totalProducts - alreadyExist;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -97,32 +127,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             ),
           ),
 
-          // Statistics
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildStatBox(
-                  totalProducts.toString(),
-                  'Total Products',
-                  Colors.blue,
-                ),
-                _buildStatBox(
-                  alreadyExist.toString(),
-                  'Already Exist',
-                  Colors.green,
-                ),
-                _buildStatBox(
-                  needCreation.toString(),
-                  'Need Creation',
-                  Colors.orange,
-                ),
-              ],
-            ),
-          ),
-
           // Tip Banner
           Container(
             margin: const EdgeInsets.all(16),
@@ -157,15 +161,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 return _buildProductCard(
                   index,
                   product['product_name'] ?? 'Unknown Product',
-                  product['hsn_sac_code']?.toString() ?? '',
-                  product['unit'] ?? 'Select Unit',
                   product['quantity']?.toString() ?? '1',
                   product['rate']?.toString() ?? '',
                   product['mrp']?.toString() ?? '',
-                  product['rate']?.toString() ?? '',
+                  product['hsn_sac_code']?.toString() ?? '',
+                  product['unit'] ?? '',
                   product['manufacturing_date']?.toString() ?? '',
                   product['expiry_date']?.toString() ?? '',
-                  product['product_already_exists'] ?? false,
                   isExpanded,
                   () {
                     setState(() {
@@ -274,35 +276,16 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildStatBox(String value, String label, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-      ],
-    );
-  }
-
   Widget _buildProductCard(
     int index,
     String productName,
-    String hsn,
-    String unit,
-    String qty,
+    String quantity,
     String cost,
     String mrp,
-    String sell,
+    String hsn,
+    String unit,
     String mfgDate,
     String expDate,
-    bool productExists,
     bool isExpanded,
     VoidCallback onToggle,
   ) {
@@ -330,20 +313,21 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
+                  // Quantity instead of S.No.
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
                       color: Colors.blue[50],
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      (index + 1).toString(),
+                      quantity,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.blue,
-                        fontSize: 15,
+                        fontSize: 16,
                       ),
                     ),
                   ),
@@ -360,26 +344,23 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
+                        // Show MRP and Cost instead of product status
                         Row(
                           children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: productExists
-                                    ? Colors.green
-                                    : Colors.orange,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
                             Text(
-                              productExists ? 'Already exists' : 'New product',
+                              'MRP: ₹$mrp',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: productExists
-                                    ? Colors.green
-                                    : Colors.orange,
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Cost: ₹$cost',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[700],
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -408,23 +389,36 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildFieldRow('HSN/SAC', hsn, 'Unit', unit),
+                  _buildFieldRow('HSN/SAC', hsn, 'Quantity', quantity),
                   const SizedBox(height: 16),
-                  _buildFieldRow('Quantity', qty, 'Cost (₹)', cost),
+                  _buildFieldRow('Cost (₹)', cost, 'MRP (₹)', mrp),
                   const SizedBox(height: 16),
-                  _buildFieldRow('MRP (₹)', mrp, 'Sell (₹)', sell),
+                  _buildFieldRow('Sell (₹)', cost, 'MFG DATE', mfgDate),
                   const SizedBox(height: 16),
-                  _buildThreeFieldRow(
-                    'MFG DATE',
-                    mfgDate,
-                    'EXP DATE',
-                    expDate,
-                    'GODOWN',
+                  _buildFieldRow('EXP DATE', expDate, '', ''),
+                  const SizedBox(height: 16),
+
+                  // Dropdowns for Unit, Godown, Rack
+                  _buildDropdownField('Unit', unit, _units, index, 'unit'),
+                  const SizedBox(height: 16),
+                  _buildDropdownField(
+                    'Godown',
                     'Default Godown',
+                    _godowns,
+                    index,
+                    'godown',
                   ),
                   const SizedBox(height: 16),
-                  _buildField('RACK', 'Default Rack'),
+                  _buildDropdownField(
+                    'Rack',
+                    'Default Rack',
+                    _racks,
+                    index,
+                    'rack',
+                  ),
                   const SizedBox(height: 16),
+
+                  // Barcode field
                   _buildBarcodeField(),
                 ],
               ),
@@ -435,31 +429,15 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildThreeFieldRow(
-    String label1,
-    String value1,
-    String label2,
-    String value2,
-    String label3,
-    String value3,
-  ) {
-    return Row(
-      children: [
-        Expanded(child: _buildField(label1, value1)),
-        const SizedBox(width: 12),
-        Expanded(child: _buildField(label2, value2)),
-        const SizedBox(width: 12),
-        Expanded(child: _buildField(label3, value3)),
-      ],
-    );
-  }
-
   Widget _buildFieldRow(
     String label1,
     String value1,
     String label2,
     String value2,
   ) {
+    if (label2.isEmpty) {
+      return _buildField(label1, value1);
+    }
     return Row(
       children: [
         Expanded(child: _buildField(label1, value1)),
@@ -500,6 +478,88 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             isDense: true,
           ),
           style: const TextStyle(fontSize: 13),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdownField(
+    String label,
+    String defaultValue,
+    List<Map<String, dynamic>> options,
+    int productIndex,
+    String type,
+  ) {
+    // Get the appropriate selected value based on type
+    String? selectedValue;
+    if (type == 'unit') {
+      selectedValue = _selectedUnits[productIndex];
+    } else if (type == 'godown') {
+      selectedValue = _selectedGodowns[productIndex];
+    } else if (type == 'rack') {
+      selectedValue = _selectedRacks[productIndex];
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: selectedValue,
+              hint: Text(defaultValue, style: const TextStyle(fontSize: 13)),
+              items: options.map((option) {
+                String displayText;
+                String value;
+
+                if (type == 'unit') {
+                  displayText = '${option['code']} - ${option['description']}';
+                  value = option['id'];
+                } else if (type == 'godown') {
+                  displayText = option['name'];
+                  value = option['id'];
+                } else {
+                  // rack
+                  displayText = option['name'];
+                  value = option['id'];
+                }
+
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(
+                    displayText,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  if (type == 'unit') {
+                    _selectedUnits[productIndex] = value!;
+                  } else if (type == 'godown') {
+                    _selectedGodowns[productIndex] = value!;
+                  } else if (type == 'rack') {
+                    _selectedRacks[productIndex] = value!;
+                  }
+                });
+              },
+            ),
+          ),
         ),
       ],
     );
