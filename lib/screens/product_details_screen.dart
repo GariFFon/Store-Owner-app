@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'dart:async';
 import 'package:uuid/uuid.dart';
+import 'package:exanor/screens/payment_information_screen.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -264,7 +265,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     flex: 2,
                     child: ElevatedButton(
                       onPressed: () {
-                        Navigator.pop(context, true);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                PaymentInformationScreen(data: widget.data),
+                          ),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
