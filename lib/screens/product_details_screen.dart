@@ -72,6 +72,33 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         _units = units;
         _godowns = godowns;
         _racks = racks;
+
+        // Use 'PCS - Pieces' as default unit for all products
+        // We can do this by prepopulating _selectedUnits or handling it in build
+        // Let's find the unit ID for 'PCS - Pieces' or similar
+        // Or if the API returns a list, maybe we just pick the one that matches
+
+        // For now, let's try to find a unit that contains "PCS" or "Pieces"
+        // and set it as the selected unit for all products initially?
+        // Or better, let's just make sure when we BUILD the dropdown, if no selection is made,
+        // we default to PCS if available.
+        // But to ensure it's saved, we should probably set it in _selectedUnits
+        // for each product IF not already set.
+
+        if (_units.isNotEmpty) {
+          // Find "PCS - Pieces" or similar
+          final defaultUnit = _units.firstWhere(
+            (u) =>
+                (u['name']?.toString().toUpperCase().contains('PCS') ??
+                    false) ||
+                (u['name']?.toString().toUpperCase().contains('PIECES') ??
+                    false),
+            orElse: () => _units.first,
+          );
+
+          // We'll apply this default logic in _getUpdatedData and _buildDropdownField
+          // But store the ID for reference if needed
+        }
       });
     } catch (e) {
       print('Error fetching dropdown data: $e');
@@ -141,11 +168,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         product['hsn_sac_code'] = _linkedProductHsnCodes[i];
       }
 
-      // Add selected unit ID - use first unit as default if not selected
+      // Add selected unit ID - use "PCS - Pieces" or first unit as default if not selected
       if (_selectedUnits.containsKey(i)) {
         product['unit_id'] = _selectedUnits[i];
       } else if (_units.isNotEmpty) {
-        product['unit_id'] = _units[0]['id'];
+        // Find "PCS - Pieces" or similar
+        final defaultUnit = _units.firstWhere(
+          (u) =>
+              (u['name']?.toString().toUpperCase().contains('PCS') ?? false) ||
+              (u['name']?.toString().toUpperCase().contains('PIECES') ?? false),
+          orElse: () => _units.first,
+        );
+        product['unit_id'] = defaultUnit['id'];
       }
 
       // Add selected godown ID - use first godown as default if not selected
@@ -871,6 +905,27 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     String? selectedValue;
     if (type == 'unit') {
       selectedValue = _selectedUnits[productIndex];
+
+      // If no unit is selected, try to find default "PCS" unit
+      if (selectedValue == null && options.isNotEmpty) {
+        final defaultUnit = options.firstWhere(
+          (u) =>
+              (u['name']?.toString().toUpperCase().contains('PCS') ?? false) ||
+              (u['name']?.toString().toUpperCase().contains('PIECES') ??
+                  false) ||
+              (u['description']?.toString().toUpperCase().contains('PIECES') ??
+                  false),
+          orElse: () => options.first,
+        );
+        selectedValue = defaultUnit['id'];
+
+        // Ideally should save this back to state, but we can't trigger setState during build.
+        // However, since we are handling default value logic in _getUpdatedData as well,
+        // visually showing it here is enough for the UI.
+        // To make it persist in state immediately for interactions, we rely on the user
+        // changing it or the final save logic.
+        // Actually, let's just use it for the dropdown's 'value'.
+      }
     } else if (type == 'godown') {
       selectedValue = _selectedGodowns[productIndex];
     } else if (type == 'rack') {
