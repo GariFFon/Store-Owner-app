@@ -1,6 +1,8 @@
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/add_purchase_order_screen.dart';
+import 'package:exanor/screens/product_details_screen.dart';
 import 'package:exanor/screens/purchase_details_screen.dart';
+import 'package:exanor/screens/supplier_details_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -146,6 +148,56 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     }
   }
 
+  Future<void> _handleAiPurchase() async {
+    final result = await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => IntelligenceUploadDialog(storeId: widget.storeId),
+    );
+
+    if (result != null && result is Map<String, dynamic> && mounted) {
+      // Navigate to Supplier Details Screen
+      final supplierResult = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              SupplierDetailsScreen(data: result, storeId: widget.storeId),
+        ),
+      );
+
+      // If user clicked Continue on Supplier Details, show Product Details
+      if (supplierResult != null &&
+          supplierResult['continue'] == true &&
+          mounted) {
+        final supplierStoreId = supplierResult['supplierStoreId']?.toString();
+
+        final productContinue = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductDetailsScreen(
+              data: result,
+              storeId: widget.storeId,
+              supplierStoreId: supplierStoreId,
+            ),
+          ),
+        );
+
+        // If user clicked Continue on Product Details, go to Add Purchase Order Screen with data
+        if (productContinue == true && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AddPurchaseOrderScreen(
+                storeId: widget.storeId,
+                aiData: result,
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -162,24 +214,74 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        AddPurchaseOrderScreen(storeId: widget.storeId),
-                  ),
-                );
+            child: PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'manual') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          AddPurchaseOrderScreen(storeId: widget.storeId),
+                    ),
+                  );
+                } else if (value == 'ai') {
+                  _handleAiPurchase();
+                }
               },
-              icon: const Icon(Icons.add, size: 18),
-              label: const TranslatedText('New Purchase'),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add, size: 18, color: Colors.white),
+                    const SizedBox(width: 8),
+                    const TranslatedText(
+                      'New Purchase',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_drop_down,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
               ),
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(
+                  value: 'manual',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_note, color: theme.colorScheme.primary),
+                      const SizedBox(width: 12),
+                      const TranslatedText('Manually'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'ai',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      const TranslatedText('With AI'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],

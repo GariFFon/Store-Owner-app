@@ -126,7 +126,8 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                  result['message']?.toString() ?? 'Failed to create supplier'),
+                result['message']?.toString() ?? 'Failed to create supplier',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -138,10 +139,7 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
           _isCreatingSupplier = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -385,8 +383,8 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                                   _isSearchingSupplier
                                       ? 'Searching for supplier...'
                                       : (supplierExists || _supplierCreated)
-                                          ? 'Supplier exists in your system'
-                                          : 'Supplier not found in your system',
+                                      ? 'Supplier exists in your system'
+                                      : 'Supplier not found in your system',
                                   style: TextStyle(
                                     color: (supplierExists || _supplierCreated)
                                         ? Colors.green
@@ -399,48 +397,6 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                             ],
                           ),
                         ),
-
-                        // Create Supplier Button (only when supplier doesn't exist)
-                        if (!supplierExists && !_supplierCreated) ...[
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed:
-                                  _isCreatingSupplier ? null : _createSupplier,
-                              icon: _isCreatingSupplier
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                Colors.white),
-                                      ),
-                                    )
-                                  : const Icon(Icons.add_business, size: 18),
-                              label: Text(
-                                _isCreatingSupplier
-                                    ? 'Creating Supplier...'
-                                    : 'Create Supplier',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 0,
-                              ),
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -465,28 +421,64 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
             child: SafeArea(
               child: SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    // Return the supplier store ID along with true
-                    Navigator.pop(context, {
-                      'continue': true,
-                      'supplierStoreId': _supplierStoreId,
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Continue',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+                child: (supplierExists || _supplierCreated)
+                    ? ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context, {
+                            'continue': true,
+                            'supplierStoreId': _supplierStoreId,
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Continue',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                    : ElevatedButton.icon(
+                        onPressed: _isCreatingSupplier ? null : _createSupplier,
+                        icon: _isCreatingSupplier
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.add_business, size: 20),
+                        label: Text(
+                          _isCreatingSupplier
+                              ? 'Creating Supplier...'
+                              : 'Create Supplier',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
               ),
             ),
           ),
