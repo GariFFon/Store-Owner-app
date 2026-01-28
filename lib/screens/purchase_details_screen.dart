@@ -1,17 +1,15 @@
 import 'package:exanor/components/translation_widget.dart';
-import 'package:exanor/services/store_owner_api_service.dart';
+
 import 'package:flutter/material.dart';
 
 class PurchaseDetailsScreen extends StatefulWidget {
   final String storeId;
-  final String purchaseId;
-  final String voucherNumber;
+  final Map<String, dynamic> purchaseData;
 
   const PurchaseDetailsScreen({
     super.key,
     required this.storeId,
-    required this.purchaseId,
-    required this.voucherNumber,
+    required this.purchaseData,
   });
 
   @override
@@ -26,44 +24,17 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchPurchaseDetails();
+    _purchaseData = widget.purchaseData;
+    _isLoading = false;
   }
 
   Future<void> _fetchPurchaseDetails() async {
-    setState(() => _isLoading = true);
-    try {
-      // Assuming 'id' filter works as expected for fetching details
-      final result = await StoreOwnerApiService.getPurchaseEntries(
-        widget.storeId,
-        filters: {'id': widget.purchaseId},
-        limit: 1,
-      );
-
-      final vouchers = result['vouchers'] as List<dynamic>? ?? [];
-
-      if (vouchers.isNotEmpty) {
-        if (mounted) {
-          setState(() {
-            _purchaseData = vouchers.first;
-            _isLoading = false;
-          });
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _errorMessage = 'Purchase details not found';
-            _isLoading = false;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-          _isLoading = false;
-        });
-      }
-    }
+    // Optional: Implement refresh logic here if needed,
+    // but for now we rely on the passed data.
+    setState(() {
+      _purchaseData = widget.purchaseData;
+      _isLoading = false;
+    });
   }
 
   Color _getStatusColor(String status) {
@@ -109,7 +80,7 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             Text(
-              widget.voucherNumber,
+              _purchaseData?['voucher_number']?.toString() ?? '',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.6),
               ),

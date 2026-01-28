@@ -346,8 +346,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               MaterialPageRoute(
                 builder: (context) => PurchaseDetailsScreen(
                   storeId: widget.storeId,
-                  purchaseId: voucher['id'],
-                  voucherNumber: voucher['voucher_number'] ?? '',
+                  purchaseData: voucher as Map<String, dynamic>,
                 ),
               ),
             );
