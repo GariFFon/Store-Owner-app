@@ -128,91 +128,104 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: theme.colorScheme.surface,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.receipt_long,
-                          color: Colors.green,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Receipts',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+        child: GestureDetector(
+          onTap: () {
+            FocusScope.of(context).unfocus();
+          },
+          child: Column(
+            children: [
+              // Header Section
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: theme.colorScheme.surface,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          Text(
-                            'View and manage receipt entries',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.textTheme.bodyMedium?.color
-                                  ?.withOpacity(0.6),
-                            ),
+                          child: const Icon(
+                            Icons.receipt_long,
+                            color: Colors.green,
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Receipts',
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'View and manage receipt entries',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.textTheme.bodyMedium?.color
+                                    ?.withOpacity(0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
 
-                  // Search Bar
-                  TextField(
-                    controller: _searchController,
-                    onSubmitted: (_) => _fetchReceipts(),
-                    decoration: InputDecoration(
-                      hintText: 'Search by voucher number...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.tune), // Filter icon
-                        onPressed: () {
-                          // Implement filters if needed
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Filters coming soon'),
-                            ),
-                          );
-                        },
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: theme.dividerColor),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: theme.dividerColor),
-                      ),
-                      filled: true,
-                      fillColor: theme.cardColor,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
+                    // Search Bar
+                    TextField(
+                      controller: _searchController,
+                      onSubmitted: (_) {
+                        _fetchReceipts();
+                        FocusScope.of(
+                          context,
+                        ).unfocus(); // Unfocus after submit
+                      },
+                      textInputAction: TextInputAction
+                          .search, // Action for keyboard search button
+                      autofocus: false, // Ensure not auto-focused
+                      decoration: InputDecoration(
+                        hintText: 'Search by voucher number...',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.tune), // Filter icon
+                          onPressed: () {
+                            // Implement filters if needed
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Filters coming soon'),
+                              ),
+                            );
+                          },
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: theme.dividerColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: theme.dividerColor),
+                        ),
+                        filled: true,
+                        fillColor: theme.cardColor,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            Expanded(child: _buildBody(theme)),
-          ],
+              Expanded(child: _buildBody(theme)),
+            ],
+          ),
         ),
       ),
     );
