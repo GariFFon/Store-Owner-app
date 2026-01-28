@@ -31,7 +31,24 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_scrollListener);
     _fetchPurchases();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoading &&
+        !_isLoadingMore &&
+        _hasNextPage) {
+      _fetchPurchases(isLoadMore: true);
+    }
   }
 
   Future<void> _fetchPurchases({bool isLoadMore = false}) async {
