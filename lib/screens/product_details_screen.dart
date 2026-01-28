@@ -45,6 +45,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final Map<int, TextEditingController> _mfgDateControllers = {};
   final Map<int, TextEditingController> _expDateControllers = {};
   
+  // Product field controllers
+  final Map<int, TextEditingController> _hsnControllers = {};
+  final Map<int, TextEditingController> _quantityControllers = {};
+  final Map<int, TextEditingController> _costControllers = {};
+  final Map<int, TextEditingController> _mrpControllers = {};
+  final Map<int, TextEditingController> _sellControllers = {};
+  
   final _uuid = const Uuid();
 
   static const String storeId = 'd95069ca-839d-4469-8037-a5796633deb1';
@@ -85,6 +92,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             _linkedProductIds[productIndex] = productId;
             _linkedProductNames[productIndex] = linkedProductName;
             _linkedProductHsnCodes[productIndex] = hsnCode;
+            
+            // Update the HSN controller with the linked product's HSN code
+            if (_hsnControllers.containsKey(productIndex)) {
+              _hsnControllers[productIndex]!.text = hsnCode;
+            } else {
+              _hsnControllers[productIndex] = TextEditingController(text: hsnCode);
+            }
           });
         },
       ),
@@ -160,6 +174,23 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       // Add expiry date
       if (_expDateControllers.containsKey(i) && _expDateControllers[i]!.text.isNotEmpty) {
         product['expiry_date'] = _expDateControllers[i]!.text;
+      }
+      
+      // Add user-edited product fields
+      if (_hsnControllers.containsKey(i) && _hsnControllers[i]!.text.isNotEmpty) {
+        product['hsn_sac_code'] = _hsnControllers[i]!.text;
+      }
+      if (_quantityControllers.containsKey(i) && _quantityControllers[i]!.text.isNotEmpty) {
+        product['quantity'] = double.tryParse(_quantityControllers[i]!.text) ?? product['quantity'];
+      }
+      if (_costControllers.containsKey(i) && _costControllers[i]!.text.isNotEmpty) {
+        product['rate'] = double.tryParse(_costControllers[i]!.text) ?? product['rate'];
+      }
+      if (_mrpControllers.containsKey(i) && _mrpControllers[i]!.text.isNotEmpty) {
+        product['mrp'] = double.tryParse(_mrpControllers[i]!.text) ?? product['mrp'];
+      }
+      if (_sellControllers.containsKey(i) && _sellControllers[i]!.text.isNotEmpty) {
+        product['selling_price'] = double.tryParse(_sellControllers[i]!.text) ?? product['mrp'];
       }
       
       productsList[i] = product;
@@ -565,11 +596,23 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildFieldRow('HSN/SAC', hsn, 'Quantity', quantity),
+                  Row(
+                    children: [
+                      Expanded(child: _buildEditableField('HSN/SAC', hsn, index, 'hsn')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildEditableField('Quantity', quantity, index, 'quantity')),
+                    ],
+                  ),
                   const SizedBox(height: 16),
-                  _buildFieldRow('Cost (₹)', cost, 'MRP (₹)', mrp),
+                  Row(
+                    children: [
+                      Expanded(child: _buildEditableField('Cost (₹)', cost, index, 'cost')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildEditableField('MRP (₹)', mrp, index, 'mrp')),
+                    ],
+                  ),
                   const SizedBox(height: 16),
-                  _buildFieldRow('Sell (₹)', mrp, '', ''),
+                  _buildEditableField('Sell (₹)', mrp, index, 'sell'),
                   const SizedBox(height: 16),
                   
                   // Date fields with controllers
@@ -646,6 +689,79 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         const SizedBox(height: 6),
         TextField(
           controller: TextEditingController(text: value),
+          decoration: InputDecoration(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            isDense: true,
+          ),
+          style: const TextStyle(fontSize: 13),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditableField(String label, String initialValue, int productIndex, String type) {
+    // Get or create the controller for this field
+    TextEditingController? controller;
+    
+    switch (type) {
+      case 'hsn':
+        if (!_hsnControllers.containsKey(productIndex)) {
+          _hsnControllers[productIndex] = TextEditingController(text: initialValue);
+        }
+        controller = _hsnControllers[productIndex];
+        break;
+      case 'quantity':
+        if (!_quantityControllers.containsKey(productIndex)) {
+          _quantityControllers[productIndex] = TextEditingController(text: initialValue);
+        }
+        controller = _quantityControllers[productIndex];
+        break;
+      case 'cost':
+        if (!_costControllers.containsKey(productIndex)) {
+          _costControllers[productIndex] = TextEditingController(text: initialValue);
+        }
+        controller = _costControllers[productIndex];
+        break;
+      case 'mrp':
+        if (!_mrpControllers.containsKey(productIndex)) {
+          _mrpControllers[productIndex] = TextEditingController(text: initialValue);
+        }
+        controller = _mrpControllers[productIndex];
+        break;
+      case 'sell':
+        if (!_sellControllers.containsKey(productIndex)) {
+          _sellControllers[productIndex] = TextEditingController(text: initialValue);
+        }
+        controller = _sellControllers[productIndex];
+        break;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: type == 'hsn' ? TextInputType.text : TextInputType.number,
           decoration: InputDecoration(
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 12,

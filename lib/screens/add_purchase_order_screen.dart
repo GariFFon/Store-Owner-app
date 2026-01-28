@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:exanor/screens/supplier_details_screen.dart';
 import 'package:exanor/screens/product_details_screen.dart';
 
@@ -778,6 +779,29 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
     }
   }
 
+  Future<void> _takePhoto() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+
+      if (photo != null) {
+        setState(() {
+          _selectedFile = File(photo.path);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error taking photo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error accessing camera: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _analyzeWithAi() async {
     if (_selectedFile == null) return;
 
@@ -1004,15 +1028,34 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
                               size: 48,
                             ),
                             const SizedBox(height: 16),
-                            Text(
-                              _selectedFile!.path.split('/').last,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                _selectedFile!.path.split('/').last,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
                               ),
                             ),
-                            TextButton(
-                              onPressed: _pickFile,
-                              child: const Text("Change File"),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: _pickFile,
+                                  icon: const Icon(Icons.upload_file, size: 18),
+                                  label: const Text("Change File"),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton.icon(
+                                  onPressed: _takePhoto,
+                                  icon: const Icon(Icons.camera_alt, size: 18),
+                                  label: const Text("Retake Photo"),
+                                ),
+                              ],
                             ),
                           ] else ...[
                             const Icon(
@@ -1038,6 +1081,25 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
                       ),
                     ),
                   ),
+                  
+                  // Take Photo Button
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _takePhoto,
+                    icon: const Icon(Icons.camera_alt, color: Colors.black),
+                    label: const Text(
+                      'Take Photo',
+                      style: TextStyle(color: Colors.black),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      side: const BorderSide(color: Colors.black),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  
                   const SizedBox(height: 24),
 
                   // Footer Buttons
