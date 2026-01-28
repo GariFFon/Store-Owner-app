@@ -200,6 +200,13 @@ class FirebaseRemoteConfigService {
         "icon": "shopping_bag_outlined",
         "activeIcon": "shopping_bag",
         "index": 2
+      },
+      {
+        "id": "receipts",
+        "label": "Receipts",
+        "icon": "receipt_long_outlined",
+        "activeIcon": "receipt_long",
+        "index": 3
       }
     ]''',
   };

@@ -453,7 +453,8 @@ class StoreOwnerApiService {
       };
 
       // Add payment method if provided
-      if (paymentMethodStoreBankId != null && paymentMethodStoreBankId.isNotEmpty) {
+      if (paymentMethodStoreBankId != null &&
+          paymentMethodStoreBankId.isNotEmpty) {
         body['payment_method_store_bank_id'] = paymentMethodStoreBankId;
       }
 
@@ -469,6 +470,38 @@ class StoreOwnerApiService {
       return {};
     } catch (e) {
       throw Exception('Failed to create purchase entry: $e');
+    }
+  }
+
+  /// Fetch receipt entries
+  /// POST /list-receipts/
+  static Future<Map<String, dynamic>> getReceipts(
+    String storeId, {
+    int page = 1,
+    String? searchQuery,
+  }) async {
+    try {
+      final body = {'store_id': storeId, 'store_access': true, 'page': page};
+
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        body['search'] = searchQuery;
+      }
+
+      final response = await ApiService.post(
+        '/list-receipts/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          return Map<String, dynamic>.from(data);
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch receipts: $e');
     }
   }
 }
