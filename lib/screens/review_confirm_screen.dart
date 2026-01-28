@@ -7,12 +7,14 @@ class ReviewConfirmScreen extends StatefulWidget {
   final String paymentStatus;
   final String? transactionId;
   final String? dueDate;
+  final String storeId;
   final String? supplierStoreId;
 
   const ReviewConfirmScreen({
     super.key,
     required this.data,
     required this.paymentStatus,
+    required this.storeId,
     this.transactionId,
     this.dueDate,
     this.supplierStoreId,
@@ -61,13 +63,13 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
 
     // Try parsing various formats
     final formats = [
-      'dd-MMM-yyyy',  // 23-Jun-2020
-      'dd/MM/yyyy',   // 23/06/2020
-      'MM/dd/yyyy',   // 06/23/2020
-      'dd-MM-yyyy',   // 23-06-2020
-      'yyyy/MM/dd',   // 2020/06/23
+      'dd-MMM-yyyy', // 23-Jun-2020
+      'dd/MM/yyyy', // 23/06/2020
+      'MM/dd/yyyy', // 06/23/2020
+      'dd-MM-yyyy', // 23-06-2020
+      'yyyy/MM/dd', // 2020/06/23
       'MMM dd, yyyy', // Jun 23, 2020
-      'd-MMM-yyyy',   // 3-Jun-2020 (single digit day)
+      'd-MMM-yyyy', // 3-Jun-2020 (single digit day)
     ];
 
     for (var format in formats) {
@@ -93,8 +95,8 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
       final response = widget.data['response'] ?? {};
       final productsList = response['product_data'] as List<dynamic>? ?? [];
 
-      // Get store ID (you may need to pass this from previous screen)
-      const storeId = 'd95069ca-839d-4469-8037-a5796633deb1';
+      // Get store ID
+      final storeId = widget.storeId;
 
       // Get supplier store ID from the passed parameter
       final purchasedFromStoreId = widget.supplierStoreId ?? '';
@@ -109,21 +111,25 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
       // Build items array from product data
       final List<Map<String, dynamic>> items = [];
       for (var product in productsList) {
-        final quantity = double.tryParse(product['quantity']?.toString() ?? '0') ?? 0.0;
+        final quantity =
+            double.tryParse(product['quantity']?.toString() ?? '0') ?? 0.0;
         final rate = double.tryParse(product['rate']?.toString() ?? '0') ?? 0.0;
         final mrp = double.tryParse(product['mrp']?.toString() ?? '0') ?? rate;
 
         items.add({
-          'products_combination_template_id': product['products_combination_template_id']?.toString() ?? '',
+          'products_combination_template_id':
+              product['products_combination_template_id']?.toString() ?? '',
           'qty': quantity.toInt(),
           'cost_amount_including_tax': rate,
           'mrp': mrp,
-          'selling_price_including_tax': product['selling_price']?.toString() ?? mrp.toString(),
+          'selling_price_including_tax':
+              product['selling_price']?.toString() ?? mrp.toString(),
           'godown_id': product['godown_id']?.toString() ?? '',
           'rack_id': product['rack_id']?.toString() ?? '',
           'unit_id': product['unit_id']?.toString() ?? '',
           'barcode': product['barcode']?.toString() ?? '',
-          'manufactured_on_date': product['manufactured_on_date']?.toString() ?? '1999-01-01',
+          'manufactured_on_date':
+              product['manufactured_on_date']?.toString() ?? '1999-01-01',
           'expiry_date': product['expiry_date']?.toString() ?? '2050-01-01',
           'purchase_date': invoiceDate,
         });
@@ -169,7 +175,10 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
           // Show error
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['message']?.toString() ?? 'Failed to create purchase entry'),
+              content: Text(
+                result['message']?.toString() ??
+                    'Failed to create purchase entry',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -181,10 +190,7 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
         setState(() {
           _isSubmitting = false;
@@ -356,7 +362,9 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                         // Submit Button
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: _isSubmitting ? null : _submitPurchaseEntry,
+                            onPressed: _isSubmitting
+                                ? null
+                                : _submitPurchaseEntry,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
@@ -372,7 +380,9 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
                                     ),
                                   )
                                 : const Row(

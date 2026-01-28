@@ -262,22 +262,23 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
       final supplierResult = await Navigator.push<Map<String, dynamic>>(
         context,
         MaterialPageRoute(
-          builder: (context) => SupplierDetailsScreen(
-            data: result,
-            storeId: widget.storeId,
-          ),
+          builder: (context) =>
+              SupplierDetailsScreen(data: result, storeId: widget.storeId),
         ),
       );
 
       // If user clicked Continue on Supplier Details, show Product Details
-      if (supplierResult != null && supplierResult['continue'] == true && mounted) {
+      if (supplierResult != null &&
+          supplierResult['continue'] == true &&
+          mounted) {
         final supplierStoreId = supplierResult['supplierStoreId']?.toString();
-        
+
         final productContinue = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
             builder: (context) => ProductDetailsScreen(
               data: result,
+              storeId: widget.storeId,
               supplierStoreId: supplierStoreId,
             ),
           ),
@@ -795,9 +796,9 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
     } catch (e) {
       debugPrint('Error taking photo: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error accessing camera: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error accessing camera: $e')));
       }
     }
   }
@@ -1029,7 +1030,9 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
                             ),
                             const SizedBox(height: 16),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: Text(
                                 _selectedFile!.path.split('/').last,
                                 style: const TextStyle(
@@ -1081,7 +1084,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
                       ),
                     ),
                   ),
-                  
+
                   // Take Photo Button
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
@@ -1099,7 +1102,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
 
                   // Footer Buttons

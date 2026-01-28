@@ -4,11 +4,13 @@ import 'package:exanor/screens/review_confirm_screen.dart';
 
 class PaymentInformationScreen extends StatefulWidget {
   final Map<String, dynamic> data;
+  final String storeId;
   final String? supplierStoreId;
 
   const PaymentInformationScreen({
     super.key,
     required this.data,
+    required this.storeId,
     this.supplierStoreId,
   });
 
@@ -247,6 +249,7 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
                                 MaterialPageRoute(
                                   builder: (context) => ReviewConfirmScreen(
                                     data: widget.data,
+                                    storeId: widget.storeId,
                                     paymentStatus: _selectedPaymentStatus,
                                     transactionId:
                                         _transactionIdController.text,

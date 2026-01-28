@@ -7,10 +7,12 @@ import 'package:exanor/screens/payment_information_screen.dart';
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> data;
   final String? supplierStoreId;
+  final String storeId;
 
   const ProductDetailsScreen({
     super.key,
     required this.data,
+    required this.storeId,
     this.supplierStoreId,
   });
 
@@ -40,21 +42,19 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   // Barcode controllers for each product
   final Map<int, TextEditingController> _barcodeControllers = {};
-  
+
   // Date controllers for each product
   final Map<int, TextEditingController> _mfgDateControllers = {};
   final Map<int, TextEditingController> _expDateControllers = {};
-  
+
   // Product field controllers
   final Map<int, TextEditingController> _hsnControllers = {};
   final Map<int, TextEditingController> _quantityControllers = {};
   final Map<int, TextEditingController> _costControllers = {};
   final Map<int, TextEditingController> _mrpControllers = {};
   final Map<int, TextEditingController> _sellControllers = {};
-  
-  final _uuid = const Uuid();
 
-  static const String storeId = 'd95069ca-839d-4469-8037-a5796633deb1';
+  final _uuid = const Uuid();
 
   @override
   void initState() {
@@ -64,9 +64,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   Future<void> _fetchDropdownData() async {
     try {
-      final units = await StoreOwnerApiService.getUnits(storeId);
-      final godowns = await StoreOwnerApiService.getGodowns(storeId);
-      final racks = await StoreOwnerApiService.getRacks(storeId);
+      final units = await StoreOwnerApiService.getUnits(widget.storeId);
+      final godowns = await StoreOwnerApiService.getGodowns(widget.storeId);
+      final racks = await StoreOwnerApiService.getRacks(widget.storeId);
 
       setState(() {
         _units = units;
@@ -86,18 +86,21 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       builder: (context) => ProductSearchBottomSheet(
         productIndex: productIndex,
         productName: productName,
+        storeId: widget.storeId,
         onProductLinked: (productId, linkedProductName, hsnCode) {
           setState(() {
             _linkedProducts[productIndex] = true;
             _linkedProductIds[productIndex] = productId;
             _linkedProductNames[productIndex] = linkedProductName;
             _linkedProductHsnCodes[productIndex] = hsnCode;
-            
+
             // Update the HSN controller with the linked product's HSN code
             if (_hsnControllers.containsKey(productIndex)) {
               _hsnControllers[productIndex]!.text = hsnCode;
             } else {
-              _hsnControllers[productIndex] = TextEditingController(text: hsnCode);
+              _hsnControllers[productIndex] = TextEditingController(
+                text: hsnCode,
+              );
             }
           });
         },
@@ -120,88 +123,100 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     final updatedData = Map<String, dynamic>.from(widget.data);
     final response = Map<String, dynamic>.from(updatedData['response'] ?? {});
     final productsList = List<dynamic>.from(response['product_data'] ?? []);
-    
+
     // Default manufacturing date if not provided by AI
     const defaultMfgDate = '1999-01-01';
 
     // Update each product with linked IDs and selected values
     for (int i = 0; i < productsList.length; i++) {
       final product = Map<String, dynamic>.from(productsList[i]);
-      
+
       // Add linked product combination template ID and HSN code
       if (_linkedProductIds.containsKey(i)) {
         product['products_combination_template_id'] = _linkedProductIds[i];
       }
-      
+
       // Add linked HSN code if product is linked
       if (_linkedProductHsnCodes.containsKey(i)) {
         product['hsn_sac_code'] = _linkedProductHsnCodes[i];
       }
-      
+
       // Add selected unit ID - use first unit as default if not selected
       if (_selectedUnits.containsKey(i)) {
         product['unit_id'] = _selectedUnits[i];
       } else if (_units.isNotEmpty) {
         product['unit_id'] = _units[0]['id'];
       }
-      
+
       // Add selected godown ID - use first godown as default if not selected
       if (_selectedGodowns.containsKey(i)) {
         product['godown_id'] = _selectedGodowns[i];
       } else if (_godowns.isNotEmpty) {
         product['godown_id'] = _godowns[0]['id'];
       }
-      
+
       // Add selected rack ID - use first rack as default if not selected
       if (_selectedRacks.containsKey(i)) {
         product['rack_id'] = _selectedRacks[i];
       } else if (_racks.isNotEmpty) {
         product['rack_id'] = _racks[0]['id'];
       }
-      
+
       // Add barcode
       if (_barcodeControllers.containsKey(i)) {
         product['barcode'] = _barcodeControllers[i]!.text;
       }
-      
+
       // Add manufactured date - use today's date if not set
-      if (_mfgDateControllers.containsKey(i) && _mfgDateControllers[i]!.text.isNotEmpty) {
+      if (_mfgDateControllers.containsKey(i) &&
+          _mfgDateControllers[i]!.text.isNotEmpty) {
         product['manufactured_on_date'] = _mfgDateControllers[i]!.text;
       } else {
         product['manufactured_on_date'] = defaultMfgDate;
       }
-      
+
       // Add expiry date
       // Add expiry date - use 2050-01-01 as default if not set
-      if (_expDateControllers.containsKey(i) && _expDateControllers[i]!.text.isNotEmpty) {
+      if (_expDateControllers.containsKey(i) &&
+          _expDateControllers[i]!.text.isNotEmpty) {
         product['expiry_date'] = _expDateControllers[i]!.text;
       } else {
         product['expiry_date'] = '2050-01-01';
       }
-      
+
       // Add user-edited product fields
-      if (_hsnControllers.containsKey(i) && _hsnControllers[i]!.text.isNotEmpty) {
+      if (_hsnControllers.containsKey(i) &&
+          _hsnControllers[i]!.text.isNotEmpty) {
         product['hsn_sac_code'] = _hsnControllers[i]!.text;
       }
-      if (_quantityControllers.containsKey(i) && _quantityControllers[i]!.text.isNotEmpty) {
-        product['quantity'] = double.tryParse(_quantityControllers[i]!.text) ?? product['quantity'];
+      if (_quantityControllers.containsKey(i) &&
+          _quantityControllers[i]!.text.isNotEmpty) {
+        product['quantity'] =
+            double.tryParse(_quantityControllers[i]!.text) ??
+            product['quantity'];
       }
-      if (_costControllers.containsKey(i) && _costControllers[i]!.text.isNotEmpty) {
-        product['rate'] = double.tryParse(_costControllers[i]!.text) ?? product['rate'];
+      if (_costControllers.containsKey(i) &&
+          _costControllers[i]!.text.isNotEmpty) {
+        product['rate'] =
+            double.tryParse(_costControllers[i]!.text) ?? product['rate'];
       }
-      if (_mrpControllers.containsKey(i) && _mrpControllers[i]!.text.isNotEmpty) {
-        product['mrp'] = double.tryParse(_mrpControllers[i]!.text) ?? product['mrp'];
+      if (_mrpControllers.containsKey(i) &&
+          _mrpControllers[i]!.text.isNotEmpty) {
+        product['mrp'] =
+            double.tryParse(_mrpControllers[i]!.text) ?? product['mrp'];
       }
-      if (_sellControllers.containsKey(i) && _sellControllers[i]!.text.isNotEmpty) {
-        product['selling_price'] = double.tryParse(_sellControllers[i]!.text) ?? product['mrp'];
+      if (_sellControllers.containsKey(i) &&
+          _sellControllers[i]!.text.isNotEmpty) {
+        product['selling_price'] =
+            double.tryParse(_sellControllers[i]!.text) ?? product['mrp'];
       }
-      
+
       productsList[i] = product;
     }
 
     response['product_data'] = productsList;
     updatedData['response'] = response;
-    
+
     return updatedData;
   }
 
@@ -315,7 +330,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 final isLinked = _linkedProducts[index] ?? false;
 
                 // Use linked HSN code if product is linked, otherwise use original
-                final hsnCode = isLinked && _linkedProductHsnCodes.containsKey(index)
+                final hsnCode =
+                    isLinked && _linkedProductHsnCodes.containsKey(index)
                     ? _linkedProductHsnCodes[index]!
                     : (product['hsn_sac_code']?.toString() ?? '');
 
@@ -388,15 +404,15 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                       onPressed: () {
                         // Get updated data with linked product IDs and selections
                         final updatedData = _getUpdatedData();
-                        
+
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                PaymentInformationScreen(
-                                  data: updatedData,
-                                  supplierStoreId: widget.supplierStoreId,
-                                ),
+                            builder: (context) => PaymentInformationScreen(
+                              data: updatedData,
+                              storeId: widget.storeId,
+                              supplierStoreId: widget.supplierStoreId,
+                            ),
                           ),
                         );
                       },
@@ -601,29 +617,71 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: _buildEditableField('HSN/SAC', hsn, index, 'hsn')),
+                      Expanded(
+                        child: _buildEditableField(
+                          'HSN/SAC',
+                          hsn,
+                          index,
+                          'hsn',
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildEditableField('Quantity', quantity, index, 'quantity')),
+                      Expanded(
+                        child: _buildEditableField(
+                          'Quantity',
+                          quantity,
+                          index,
+                          'quantity',
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: _buildEditableField('Cost (₹)', cost, index, 'cost')),
+                      Expanded(
+                        child: _buildEditableField(
+                          'Cost (₹)',
+                          cost,
+                          index,
+                          'cost',
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildEditableField('MRP (₹)', mrp, index, 'mrp')),
+                      Expanded(
+                        child: _buildEditableField(
+                          'MRP (₹)',
+                          mrp,
+                          index,
+                          'mrp',
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   _buildEditableField('Sell (₹)', mrp, index, 'sell'),
                   const SizedBox(height: 16),
-                  
+
                   // Date fields with controllers
                   Row(
                     children: [
-                      Expanded(child: _buildDateField('MFG DATE', mfgDate, index, 'mfg')),
+                      Expanded(
+                        child: _buildDateField(
+                          'MFG DATE',
+                          mfgDate,
+                          index,
+                          'mfg',
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildDateField('EXP DATE', expDate, index, 'exp')),
+                      Expanded(
+                        child: _buildDateField(
+                          'EXP DATE',
+                          expDate,
+                          index,
+                          'exp',
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -713,38 +771,53 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildEditableField(String label, String initialValue, int productIndex, String type) {
+  Widget _buildEditableField(
+    String label,
+    String initialValue,
+    int productIndex,
+    String type,
+  ) {
     // Get or create the controller for this field
     TextEditingController? controller;
-    
+
     switch (type) {
       case 'hsn':
         if (!_hsnControllers.containsKey(productIndex)) {
-          _hsnControllers[productIndex] = TextEditingController(text: initialValue);
+          _hsnControllers[productIndex] = TextEditingController(
+            text: initialValue,
+          );
         }
         controller = _hsnControllers[productIndex];
         break;
       case 'quantity':
         if (!_quantityControllers.containsKey(productIndex)) {
-          _quantityControllers[productIndex] = TextEditingController(text: initialValue);
+          _quantityControllers[productIndex] = TextEditingController(
+            text: initialValue,
+          );
         }
         controller = _quantityControllers[productIndex];
         break;
       case 'cost':
         if (!_costControllers.containsKey(productIndex)) {
-          _costControllers[productIndex] = TextEditingController(text: initialValue);
+          _costControllers[productIndex] = TextEditingController(
+            text: initialValue,
+          );
         }
         controller = _costControllers[productIndex];
         break;
       case 'mrp':
         if (!_mrpControllers.containsKey(productIndex)) {
-          _mrpControllers[productIndex] = TextEditingController(text: initialValue);
+          _mrpControllers[productIndex] = TextEditingController(
+            text: initialValue,
+          );
         }
         controller = _mrpControllers[productIndex];
         break;
       case 'sell':
         if (!_sellControllers.containsKey(productIndex)) {
-          _sellControllers[productIndex] = TextEditingController(text: initialValue);
+          _sellControllers[productIndex] = TextEditingController(
+            text: initialValue,
+          );
         }
         controller = _sellControllers[productIndex];
         break;
@@ -764,7 +837,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
-          keyboardType: type == 'hsn' ? TextInputType.text : TextInputType.number,
+          keyboardType: type == 'hsn'
+              ? TextInputType.text
+              : TextInputType.number,
           decoration: InputDecoration(
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 12,
@@ -911,23 +986,33 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildDateField(String label, String initialValue, int productIndex, String type) {
+  Widget _buildDateField(
+    String label,
+    String initialValue,
+    int productIndex,
+    String type,
+  ) {
     // Default dates
     const defaultMfgDate = '1999-01-01';
     const defaultExpDate = '2050-01-01';
-    
+
     if (type == 'mfg' && !_mfgDateControllers.containsKey(productIndex)) {
       // Use 1999-01-01 as default if manufacturing date is empty
       final dateValue = initialValue.isNotEmpty ? initialValue : defaultMfgDate;
-      _mfgDateControllers[productIndex] = TextEditingController(text: dateValue);
-    } else if (type == 'exp' && !_expDateControllers.containsKey(productIndex)) {
+      _mfgDateControllers[productIndex] = TextEditingController(
+        text: dateValue,
+      );
+    } else if (type == 'exp' &&
+        !_expDateControllers.containsKey(productIndex)) {
       // Use 2050-01-01 as default if expiry date is empty
       final dateValue = initialValue.isNotEmpty ? initialValue : defaultExpDate;
-      _expDateControllers[productIndex] = TextEditingController(text: dateValue);
+      _expDateControllers[productIndex] = TextEditingController(
+        text: dateValue,
+      );
     }
 
-    final controller = type == 'mfg' 
-        ? _mfgDateControllers[productIndex] 
+    final controller = type == 'mfg'
+        ? _mfgDateControllers[productIndex]
         : _expDateControllers[productIndex];
 
     Future<void> selectDate() async {
@@ -962,7 +1047,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       );
 
       if (picked != null) {
-        final formattedDate = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+        final formattedDate =
+            '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
         controller!.text = formattedDate;
       }
     }
@@ -1000,7 +1086,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             isDense: true,
             suffixIcon: GestureDetector(
               onTap: selectDate,
-              child: Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+              child: Icon(
+                Icons.calendar_today,
+                size: 16,
+                color: Colors.grey[600],
+              ),
             ),
           ),
           style: const TextStyle(fontSize: 13),
@@ -1014,12 +1104,15 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 class ProductSearchBottomSheet extends StatefulWidget {
   final int productIndex;
   final String productName;
-  final Function(String productId, String linkedProductName, String hsnCode) onProductLinked;
+  final String storeId;
+  final Function(String productId, String linkedProductName, String hsnCode)
+  onProductLinked;
 
   const ProductSearchBottomSheet({
     super.key,
     required this.productIndex,
     required this.productName,
+    required this.storeId,
     required this.onProductLinked,
   });
 
@@ -1039,24 +1132,28 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
     super.initState();
     // Pre-fill search bar with product name
     _searchController.text = widget.productName;
-    // Trigger search with the pre-filled product name
-    _searchProducts(widget.productName);
+    // Debounce search
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _searchProducts(widget.productName);
+    });
+
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  void _onSearchChanged(String query) {
+  void _onSearchChanged() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (query.isNotEmpty) {
-        _searchProducts(query);
-      } else {
+      if (mounted && _searchController.text.isNotEmpty) {
+        _searchProducts(_searchController.text);
+      } else if (mounted) {
         setState(() {
           _searchResults = [];
         });
@@ -1073,7 +1170,7 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
       final result =
           await StoreOwnerApiService.searchProductCombinationTemplates(
             query: query,
-            storeId: _ProductDetailsScreenState.storeId,
+            storeId: widget.storeId,
           );
 
       if (result['status'] == 200 && result['response'] != null) {
@@ -1152,7 +1249,6 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
             padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchController,
-              onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Search products...',
                 hintStyle: TextStyle(color: Colors.grey[400]),
