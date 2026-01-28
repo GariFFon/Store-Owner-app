@@ -4,8 +4,13 @@ import 'package:exanor/screens/review_confirm_screen.dart';
 
 class PaymentInformationScreen extends StatefulWidget {
   final Map<String, dynamic> data;
+  final String? supplierStoreId;
 
-  const PaymentInformationScreen({super.key, required this.data});
+  const PaymentInformationScreen({
+    super.key,
+    required this.data,
+    this.supplierStoreId,
+  });
 
   @override
   State<PaymentInformationScreen> createState() =>
@@ -246,6 +251,7 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
                                     transactionId:
                                         _transactionIdController.text,
                                     dueDate: _dueDateController.text,
+                                    supplierStoreId: widget.supplierStoreId,
                                   ),
                                 ),
                               );

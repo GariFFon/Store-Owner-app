@@ -6,8 +6,13 @@ import 'package:exanor/screens/payment_information_screen.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> data;
+  final String? supplierStoreId;
 
-  const ProductDetailsScreen({super.key, required this.data});
+  const ProductDetailsScreen({
+    super.key,
+    required this.data,
+    this.supplierStoreId,
+  });
 
   @override
   State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
@@ -34,6 +39,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   // Barcode controllers for each product
   final Map<int, TextEditingController> _barcodeControllers = {};
+  
+  // Date controllers for each product
+  final Map<int, TextEditingController> _mfgDateControllers = {};
+  final Map<int, TextEditingController> _expDateControllers = {};
+  
   final _uuid = const Uuid();
 
   static const String storeId = 'd95069ca-839d-4469-8037-a5796633deb1';
@@ -84,9 +94,73 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       _linkedProducts[productIndex] = false;
       _linkedProductIds.remove(productIndex);
       _linkedProductNames.remove(productIndex);
-      // TODO: Call API to remove link from database
-      // You can add the API call here when the endpoint is ready
     });
+  }
+
+  /// Build updated data with linked product IDs, selected dropdowns, and barcodes
+  Map<String, dynamic> _getUpdatedData() {
+    // Deep copy the original data
+    final updatedData = Map<String, dynamic>.from(widget.data);
+    final response = Map<String, dynamic>.from(updatedData['response'] ?? {});
+    final productsList = List<dynamic>.from(response['product_data'] ?? []);
+    
+    // Default manufacturing date if not provided by AI
+    const defaultMfgDate = '1999-01-01';
+
+    // Update each product with linked IDs and selected values
+    for (int i = 0; i < productsList.length; i++) {
+      final product = Map<String, dynamic>.from(productsList[i]);
+      
+      // Add linked product combination template ID
+      if (_linkedProductIds.containsKey(i)) {
+        product['products_combination_template_id'] = _linkedProductIds[i];
+      }
+      
+      // Add selected unit ID - use first unit as default if not selected
+      if (_selectedUnits.containsKey(i)) {
+        product['unit_id'] = _selectedUnits[i];
+      } else if (_units.isNotEmpty) {
+        product['unit_id'] = _units[0]['id'];
+      }
+      
+      // Add selected godown ID - use first godown as default if not selected
+      if (_selectedGodowns.containsKey(i)) {
+        product['godown_id'] = _selectedGodowns[i];
+      } else if (_godowns.isNotEmpty) {
+        product['godown_id'] = _godowns[0]['id'];
+      }
+      
+      // Add selected rack ID - use first rack as default if not selected
+      if (_selectedRacks.containsKey(i)) {
+        product['rack_id'] = _selectedRacks[i];
+      } else if (_racks.isNotEmpty) {
+        product['rack_id'] = _racks[0]['id'];
+      }
+      
+      // Add barcode
+      if (_barcodeControllers.containsKey(i)) {
+        product['barcode'] = _barcodeControllers[i]!.text;
+      }
+      
+      // Add manufactured date - use today's date if not set
+      if (_mfgDateControllers.containsKey(i) && _mfgDateControllers[i]!.text.isNotEmpty) {
+        product['manufactured_on_date'] = _mfgDateControllers[i]!.text;
+      } else {
+        product['manufactured_on_date'] = defaultMfgDate;
+      }
+      
+      // Add expiry date
+      if (_expDateControllers.containsKey(i) && _expDateControllers[i]!.text.isNotEmpty) {
+        product['expiry_date'] = _expDateControllers[i]!.text;
+      }
+      
+      productsList[i] = product;
+    }
+
+    response['product_data'] = productsList;
+    updatedData['response'] = response;
+    
+    return updatedData;
   }
 
   @override
@@ -265,11 +339,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     flex: 2,
                     child: ElevatedButton(
                       onPressed: () {
+                        // Get updated data with linked product IDs and selections
+                        final updatedData = _getUpdatedData();
+                        
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) =>
-                                PaymentInformationScreen(data: widget.data),
+                                PaymentInformationScreen(
+                                  data: updatedData,
+                                  supplierStoreId: widget.supplierStoreId,
+                                ),
                           ),
                         );
                       },
@@ -476,14 +556,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   const SizedBox(height: 16),
                   _buildFieldRow('Cost (₹)', cost, 'MRP (₹)', mrp),
                   const SizedBox(height: 16),
-                  _buildFieldRow(
-                    'Sell (₹)',
-                    mrp,
-                    'MFG DATE',
-                    mfgDate,
-                  ), // Changed 'Sell' value to mrp
+                  _buildFieldRow('Sell (₹)', mrp, '', ''),
                   const SizedBox(height: 16),
-                  _buildFieldRow('EXP DATE', expDate, '', ''),
+                  
+                  // Date fields with controllers
+                  Row(
+                    children: [
+                      Expanded(child: _buildDateField('MFG DATE', mfgDate, index, 'mfg')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildDateField('EXP DATE', expDate, index, 'exp')),
+                    ],
+                  ),
                   const SizedBox(height: 16),
 
                   // Dropdowns
@@ -691,6 +774,61 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             isDense: true,
           ),
           style: const TextStyle(fontSize: 13, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateField(String label, String initialValue, int productIndex, String type) {
+    // Initialize controller if not exists
+    // Get today's date in YYYY-MM-DD format for default manufacturing date
+    // Default manufacturing date if not provided by AI
+    const defaultMfgDate = '1999-01-01';
+    
+    if (type == 'mfg' && !_mfgDateControllers.containsKey(productIndex)) {
+      // Use 1999-01-01 as default if manufacturing date is empty
+      final dateValue = initialValue.isNotEmpty ? initialValue : defaultMfgDate;
+      _mfgDateControllers[productIndex] = TextEditingController(text: dateValue);
+    } else if (type == 'exp' && !_expDateControllers.containsKey(productIndex)) {
+      _expDateControllers[productIndex] = TextEditingController(text: initialValue);
+    }
+
+    final controller = type == 'mfg' 
+        ? _mfgDateControllers[productIndex] 
+        : _expDateControllers[productIndex];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: 'YYYY-MM-DD',
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            isDense: true,
+            suffixIcon: Icon(Icons.calendar_today, size: 16, color: Colors.grey[400]),
+          ),
+          style: const TextStyle(fontSize: 13),
         ),
       ],
     );

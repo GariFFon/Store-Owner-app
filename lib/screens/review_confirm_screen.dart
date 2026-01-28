@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:exanor/screens/add_purchase_order_screen.dart';
+import 'package:exanor/services/store_owner_api_service.dart';
+import 'package:intl/intl.dart';
 
 class ReviewConfirmScreen extends StatefulWidget {
   final Map<String, dynamic> data;
   final String paymentStatus;
   final String? transactionId;
   final String? dueDate;
+  final String? supplierStoreId;
 
   const ReviewConfirmScreen({
     super.key,
@@ -13,6 +15,7 @@ class ReviewConfirmScreen extends StatefulWidget {
     required this.paymentStatus,
     this.transactionId,
     this.dueDate,
+    this.supplierStoreId,
   });
 
   @override
@@ -22,6 +25,7 @@ class ReviewConfirmScreen extends StatefulWidget {
 class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
   double _totalAmount = 0.0;
   int _totalProducts = 0;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -41,6 +45,114 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
           double.tryParse(product['quantity']?.toString() ?? '0') ?? 0.0;
       final rate = double.tryParse(product['rate']?.toString() ?? '0') ?? 0.0;
       _totalAmount += quantity * rate;
+    }
+  }
+
+  Future<void> _submitPurchaseEntry() async {
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final response = widget.data['response'] ?? {};
+      final productsList = response['product_data'] as List<dynamic>? ?? [];
+
+      // Get store ID (you may need to pass this from previous screen)
+      const storeId = 'd95069ca-839d-4469-8037-a5796633deb1';
+
+      // Get supplier store ID from the passed parameter
+      final purchasedFromStoreId = widget.supplierStoreId ?? '';
+
+      // Get invoice ID from response
+      final supplierInvoiceId = response['invoice_id']?.toString() ?? '';
+
+      // Get invoice date
+      final invoiceDate = response['invoice_date']?.toString() ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+      // Build items array from product data
+      final List<Map<String, dynamic>> items = [];
+      for (var product in productsList) {
+        final quantity = double.tryParse(product['quantity']?.toString() ?? '0') ?? 0.0;
+        final rate = double.tryParse(product['rate']?.toString() ?? '0') ?? 0.0;
+        final mrp = double.tryParse(product['mrp']?.toString() ?? '0') ?? rate;
+
+        items.add({
+          'products_combination_template_id': product['products_combination_template_id']?.toString() ?? '',
+          'qty': quantity.toInt(),
+          'cost_amount_including_tax': rate,
+          'mrp': mrp,
+          'selling_price_including_tax': mrp,
+          'godown_id': product['godown_id']?.toString() ?? '',
+          'rack_id': product['rack_id']?.toString() ?? '',
+          'unit_id': product['unit_id']?.toString() ?? '',
+          'barcode': product['barcode']?.toString() ?? '',
+          'manufactured_on_date': product['manufactured_on_date']?.toString() ?? '',
+          'expiry_date': product['expiry_date']?.toString() ?? '',
+          'purchase_date': invoiceDate,
+        });
+      }
+
+      // Map payment status to API format
+      String apiPaymentStatus;
+      switch (widget.paymentStatus.toLowerCase()) {
+        case 'paid':
+          apiPaymentStatus = 'PAID';
+          break;
+        case 'partially paid':
+          apiPaymentStatus = 'PARTIAL';
+          break;
+        default:
+          apiPaymentStatus = 'UNPAID';
+      }
+
+      // Call the API
+      final result = await StoreOwnerApiService.createPurchaseEntry(
+        storeId: storeId,
+        purchasedFromStoreId: purchasedFromStoreId,
+        supplierInvoiceId: supplierInvoiceId,
+        date: invoiceDate,
+        items: items,
+        paymentStatus: apiPaymentStatus,
+        amountPaid: apiPaymentStatus == 'PAID' ? _totalAmount : 0,
+      );
+
+      if (mounted) {
+        if (result.isNotEmpty && result['status'] == 200) {
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Purchase entry created successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Navigate back to the first screen (purchase list)
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        } else {
+          // Show error
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message']?.toString() ?? 'Failed to create purchase entry'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
@@ -207,25 +319,7 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                         // Submit Button
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
-                              // Navigate to AddPurchaseOrderScreen with AI data
-                              // Close this screen and all intermediate screens
-                              Navigator.of(context).popUntil(
-                                (route) => route.isFirst,
-                              ); // Pop until we reach the first route
-
-                              // Navigate to AddPurchaseOrderScreen with AI data
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => AddPurchaseOrderScreen(
-                                    storeId:
-                                        'd95069ca-839d-4469-8037-a5796633deb1',
-                                    aiData: widget.data,
-                                  ),
-                                ),
-                              );
-                            },
+                            onPressed: _isSubmitting ? null : _submitPurchaseEntry,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
@@ -235,20 +329,29 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                               ),
                               elevation: 0,
                             ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.auto_awesome, size: 16),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Submit',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.auto_awesome, size: 16),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Submit',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
                           ),
                         ),
                       ],

@@ -1,14 +1,156 @@
 import 'package:flutter/material.dart';
+import 'package:exanor/services/store_owner_api_service.dart';
 
-class SupplierDetailsScreen extends StatelessWidget {
+class SupplierDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> data;
+  final String storeId;
 
-  const SupplierDetailsScreen({super.key, required this.data});
+  const SupplierDetailsScreen({
+    super.key,
+    required this.data,
+    required this.storeId,
+  });
+
+  @override
+  State<SupplierDetailsScreen> createState() => _SupplierDetailsScreenState();
+}
+
+class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
+  bool _isCreatingSupplier = false;
+  bool _isSearchingSupplier = false;
+  String? _supplierStoreId;
+  bool _supplierCreated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndSearchSupplier();
+  }
+
+  Future<void> _checkAndSearchSupplier() async {
+    final response = widget.data['response'] ?? {};
+    final supplierDetails = response['supplier_details'] ?? {};
+    final bool supplierExists =
+        supplierDetails['supplier_already_exists'] ?? false;
+    final gstIn = supplierDetails['supplier_gst_in'] ?? '';
+
+    if (supplierExists && gstIn.isNotEmpty) {
+      setState(() {
+        _isSearchingSupplier = true;
+      });
+
+      try {
+        final stores = await StoreOwnerApiService.searchStore(gstIn);
+        if (stores.isNotEmpty && mounted) {
+          setState(() {
+            _supplierStoreId = stores[0]['id']?.toString();
+            _isSearchingSupplier = false;
+          });
+          debugPrint('Found supplier store ID: $_supplierStoreId');
+        } else {
+          setState(() {
+            _isSearchingSupplier = false;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error searching supplier: $e');
+        if (mounted) {
+          setState(() {
+            _isSearchingSupplier = false;
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _createSupplier() async {
+    final response = widget.data['response'] ?? {};
+    final supplierDetails = response['supplier_details'] ?? {};
+    final addressDetails = supplierDetails['supplier_address_details'] ?? {};
+
+    final supplierName = supplierDetails['supplier_name'] ?? '';
+    final legalName =
+        supplierDetails['supplier_legal_business_name'] ?? supplierName;
+    final gstIn = supplierDetails['supplier_gst_in'] ?? '';
+    final gstRegistrationType =
+        supplierDetails['supplier_gst_registration_type']
+            ?.toString()
+            .toLowerCase() ??
+        'regular';
+    final city = addressDetails['supplier_city'] ?? '';
+    final state = addressDetails['supplier_state'] ?? '';
+    final pincode =
+        int.tryParse(addressDetails['supplier_pincode']?.toString() ?? '0') ??
+        0;
+    final area = addressDetails['supplier_locality'] ?? '';
+    final phone = supplierDetails['supplier_phone_number'] ?? 0;
+
+    setState(() {
+      _isCreatingSupplier = true;
+    });
+
+    try {
+      final result = await StoreOwnerApiService.registerStore(
+        storeId: widget.storeId,
+        storeName: supplierName,
+        legalName: legalName,
+        city: city,
+        state: state,
+        pin: pincode,
+        isGstEnabled: gstIn.isNotEmpty,
+        gstIn: gstIn,
+        gstRegisteredState: state,
+        gstRegistrationType: gstRegistrationType,
+        area: area,
+      );
+
+      if (mounted) {
+        if (result.isNotEmpty && result['status'] == 200) {
+          final newStoreId = result['data']?['store_id']?.toString();
+          setState(() {
+            _supplierStoreId = newStoreId;
+            _supplierCreated = true;
+            _isCreatingSupplier = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Supplier created successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          setState(() {
+            _isCreatingSupplier = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  result['message']?.toString() ?? 'Failed to create supplier'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCreatingSupplier = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     // Parse the nested response structure
-    final response = data['response'] ?? {};
+    final response = widget.data['response'] ?? {};
     final supplierDetails = response['supplier_details'] ?? {};
     final addressDetails = supplierDetails['supplier_address_details'] ?? {};
     final bankDetails = supplierDetails['supplier_bank_details'] ?? {};
@@ -165,7 +307,7 @@ class SupplierDetailsScreen extends StatelessWidget {
                         const SizedBox(height: 16),
                         _buildDetailItem('Address', address),
                         const SizedBox(height: 16),
-                        _buildDetailItem('Phone', phone),
+                        _buildDetailItem('Phone', phone.toString()),
                         const SizedBox(height: 16),
 
                         const Text(
@@ -212,30 +354,41 @@ class SupplierDetailsScreen extends StatelessWidget {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: supplierExists
+                            color: (supplierExists || _supplierCreated)
                                 ? Colors.green.withOpacity(0.1)
                                 : Colors.orange.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
                             children: [
-                              Icon(
-                                supplierExists
-                                    ? Icons.check_circle
-                                    : Icons.info,
-                                color: supplierExists
-                                    ? Colors.green
-                                    : Colors.orange,
-                                size: 20,
-                              ),
+                              if (_isSearchingSupplier)
+                                const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              else
+                                Icon(
+                                  (supplierExists || _supplierCreated)
+                                      ? Icons.check_circle
+                                      : Icons.info,
+                                  color: (supplierExists || _supplierCreated)
+                                      ? Colors.green
+                                      : Colors.orange,
+                                  size: 20,
+                                ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  supplierExists
-                                      ? 'Supplier exists in your system'
-                                      : 'Supplier not found in your system',
+                                  _isSearchingSupplier
+                                      ? 'Searching for supplier...'
+                                      : (supplierExists || _supplierCreated)
+                                          ? 'Supplier exists in your system'
+                                          : 'Supplier not found in your system',
                                   style: TextStyle(
-                                    color: supplierExists
+                                    color: (supplierExists || _supplierCreated)
                                         ? Colors.green
                                         : Colors.orange[800],
                                     fontWeight: FontWeight.bold,
@@ -246,6 +399,48 @@ class SupplierDetailsScreen extends StatelessWidget {
                             ],
                           ),
                         ),
+
+                        // Create Supplier Button (only when supplier doesn't exist)
+                        if (!supplierExists && !_supplierCreated) ...[
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  _isCreatingSupplier ? null : _createSupplier,
+                              icon: _isCreatingSupplier
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Colors.white),
+                                      ),
+                                    )
+                                  : const Icon(Icons.add_business, size: 18),
+                              label: Text(
+                                _isCreatingSupplier
+                                    ? 'Creating Supplier...'
+                                    : 'Create Supplier',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -272,7 +467,11 @@ class SupplierDetailsScreen extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context, true);
+                    // Return the supplier store ID along with true
+                    Navigator.pop(context, {
+                      'continue': true,
+                      'supplierStoreId': _supplierStoreId,
+                    });
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,

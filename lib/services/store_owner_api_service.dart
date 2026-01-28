@@ -401,4 +401,74 @@ class StoreOwnerApiService {
       throw Exception('Failed to register store: $e');
     }
   }
+
+  /// Search for stores by GST number or query
+  /// POST /search-store/
+  static Future<List<Map<String, dynamic>>> searchStore(String query) async {
+    try {
+      final response = await ApiService.post(
+        '/search-store/',
+        body: {'query': query},
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return List<Map<String, dynamic>>.from(data['response']);
+        }
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to search store: $e');
+    }
+  }
+
+  /// Create a purchase entry
+  /// POST /create-purchase-entry/
+  static Future<Map<String, dynamic>> createPurchaseEntry({
+    required String storeId,
+    required String purchasedFromStoreId,
+    required String supplierInvoiceId,
+    required String date,
+    required List<Map<String, dynamic>> items,
+    required String paymentStatus,
+    required double amountPaid,
+    String? paymentMethodStoreBankId,
+    bool autoPost = true,
+    String status = 'PENDING',
+  }) async {
+    try {
+      final body = {
+        'store_id': storeId,
+        'store_access': true,
+        'purchased_from_store_id': purchasedFromStoreId,
+        'supplier_invoice_id': supplierInvoiceId,
+        'date': date,
+        'items': items,
+        'auto_post': autoPost,
+        'payment_status': paymentStatus,
+        'amount_paid': amountPaid,
+        'status': status,
+      };
+
+      // Add payment method if provided
+      if (paymentMethodStoreBankId != null && paymentMethodStoreBankId.isNotEmpty) {
+        body['payment_method_store_bank_id'] = paymentMethodStoreBankId;
+      }
+
+      final response = await ApiService.post(
+        '/create-purchase-entry/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to create purchase entry: $e');
+    }
+  }
 }

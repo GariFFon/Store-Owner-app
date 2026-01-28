@@ -258,19 +258,27 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
 
     if (result != null && result is Map<String, dynamic> && mounted) {
       // Navigate to Supplier Details Screen
-      final shouldContinue = await Navigator.push<bool>(
+      final supplierResult = await Navigator.push<Map<String, dynamic>>(
         context,
         MaterialPageRoute(
-          builder: (context) => SupplierDetailsScreen(data: result),
+          builder: (context) => SupplierDetailsScreen(
+            data: result,
+            storeId: widget.storeId,
+          ),
         ),
       );
 
       // If user clicked Continue on Supplier Details, show Product Details
-      if (shouldContinue == true && mounted) {
+      if (supplierResult != null && supplierResult['continue'] == true && mounted) {
+        final supplierStoreId = supplierResult['supplierStoreId']?.toString();
+        
         final productContinue = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
-            builder: (context) => ProductDetailsScreen(data: result),
+            builder: (context) => ProductDetailsScreen(
+              data: result,
+              supplierStoreId: supplierStoreId,
+            ),
           ),
         );
 
