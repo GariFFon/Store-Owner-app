@@ -36,6 +36,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final Map<int, bool> _linkedProducts = {};
   final Map<int, String> _linkedProductNames = {};
   final Map<int, String> _linkedProductIds = {};
+  final Map<int, String> _linkedProductHsnCodes = {};
 
   // Barcode controllers for each product
   final Map<int, TextEditingController> _barcodeControllers = {};
@@ -78,11 +79,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       builder: (context) => ProductSearchBottomSheet(
         productIndex: productIndex,
         productName: productName,
-        onProductLinked: (productId, linkedProductName) {
+        onProductLinked: (productId, linkedProductName, hsnCode) {
           setState(() {
             _linkedProducts[productIndex] = true;
             _linkedProductIds[productIndex] = productId;
             _linkedProductNames[productIndex] = linkedProductName;
+            _linkedProductHsnCodes[productIndex] = hsnCode;
           });
         },
       ),
@@ -94,6 +96,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       _linkedProducts[productIndex] = false;
       _linkedProductIds.remove(productIndex);
       _linkedProductNames.remove(productIndex);
+      _linkedProductHsnCodes.remove(productIndex);
     });
   }
 
@@ -111,9 +114,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     for (int i = 0; i < productsList.length; i++) {
       final product = Map<String, dynamic>.from(productsList[i]);
       
-      // Add linked product combination template ID
+      // Add linked product combination template ID and HSN code
       if (_linkedProductIds.containsKey(i)) {
         product['products_combination_template_id'] = _linkedProductIds[i];
+      }
+      
+      // Add linked HSN code if product is linked
+      if (_linkedProductHsnCodes.containsKey(i)) {
+        product['hsn_sac_code'] = _linkedProductHsnCodes[i];
       }
       
       // Add selected unit ID - use first unit as default if not selected
@@ -272,13 +280,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 final isExpanded = _expandedProducts.contains(index);
                 final isLinked = _linkedProducts[index] ?? false;
 
+                // Use linked HSN code if product is linked, otherwise use original
+                final hsnCode = isLinked && _linkedProductHsnCodes.containsKey(index)
+                    ? _linkedProductHsnCodes[index]!
+                    : (product['hsn_sac_code']?.toString() ?? '');
+
                 return _buildProductCard(
                   index,
                   product['product_name'] ?? 'Unknown Product',
                   product['quantity']?.toString() ?? '1',
                   product['rate']?.toString() ?? '',
                   product['mrp']?.toString() ?? '',
-                  product['hsn_sac_code']?.toString() ?? '',
+                  hsnCode,
                   product['unit'] ?? '',
                   product['manufacturing_date']?.toString() ?? '',
                   product['expiry_date']?.toString() ?? '',
@@ -839,7 +852,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 class ProductSearchBottomSheet extends StatefulWidget {
   final int productIndex;
   final String productName;
-  final Function(String productId, String linkedProductName) onProductLinked;
+  final Function(String productId, String linkedProductName, String hsnCode) onProductLinked;
 
   const ProductSearchBottomSheet({
     super.key,
@@ -1154,7 +1167,7 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
           // Link button
           InkWell(
             onTap: () {
-              widget.onProductLinked(product['id'], productName);
+              widget.onProductLinked(product['id'], productName, hsnCode);
               Navigator.pop(context);
             },
             child: Container(
