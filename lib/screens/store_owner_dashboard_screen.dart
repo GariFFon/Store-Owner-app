@@ -68,102 +68,151 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    Widget child;
+
     // If no tabs configured, fallback to just POS screen
     if (_tabs.isEmpty) {
-      return StoreOwnerPOSScreen(
+      child = StoreOwnerPOSScreen(
         storeId: widget.storeId,
         storeName: widget.storeName,
       );
+    } else {
+      // Build the screens based on tabs
+      // We use IndexedStack so screens preserve state
+      final screens = _tabs.map((tab) {
+        final id = tab['id'];
+        if (id == 'pos') {
+          return StoreOwnerPOSScreen(
+            storeId: widget.storeId,
+            storeName: widget.storeName,
+          );
+        } else if (id == 'orders') {
+          return OrdersListScreen(storeId: widget.storeId);
+        } else if (id == 'purchases') {
+          return PurchaseScreen(storeId: widget.storeId);
+        }
+        return Container(); // Fallback for unknown IDs
+      }).toList();
+
+      child = Scaffold(
+        body: IndexedStack(index: _currentIndex, children: screens),
+        bottomNavigationBar: __buildBottomNavigationBar(theme, _tabs),
+      );
     }
 
-    // Build the screens based on tabs
-    // We use IndexedStack so screens preserve state
-    final screens = _tabs.map((tab) {
-      final id = tab['id'];
-      if (id == 'pos') {
-        return StoreOwnerPOSScreen(
-          storeId: widget.storeId,
-          storeName: widget.storeName,
-        );
-      } else if (id == 'orders') {
-        return OrdersListScreen(storeId: widget.storeId);
-      } else if (id == 'purchases') {
-        return PurchaseScreen(storeId: widget.storeId);
-      }
-      return Container(); // Fallback for unknown IDs
-    }).toList();
-
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: screens),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          boxShadow: [
-            BoxShadow(
-              color: theme.shadowColor.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(_tabs.length, (index) {
-                final tab = _tabs[index];
-                final isSelected = _currentIndex == index;
-                final color = isSelected
-                    ? theme.primaryColor
-                    : theme.disabledColor;
-
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _currentIndex = index;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? theme.primaryColor.withOpacity(0.1)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _getIconData(
-                            isSelected
-                                ? (tab['activeIcon'] ?? tab['icon'])
-                                : tab['icon'],
-                          ),
-                          color: color,
-                        ),
-                        const SizedBox(height: 4),
-                        TranslatedText(
-                          tab['label'] ?? '',
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 12,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
+    return WillPopScope(
+      onWillPop: () async {
+        final shouldPop = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const TranslatedText('Exit App'),
+              content: const TranslatedText(
+                'Are you sure you want to close the app?',
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const TranslatedText(
+                    'NO',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const TranslatedText(
+                    'YES',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                );
-              }),
-            ),
+                ),
+              ],
+            );
+          },
+        );
+        return shouldPop ?? false;
+      },
+      child: child,
+    );
+  }
+
+  Widget __buildBottomNavigationBar(
+    ThemeData theme,
+    List<Map<String, dynamic>> tabs,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(tabs.length, (index) {
+              final tab = tabs[index];
+              final isSelected = _currentIndex == index;
+              final color = isSelected
+                  ? theme.primaryColor
+                  : theme.disabledColor;
+
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? theme.primaryColor.withOpacity(0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _getIconData(
+                          isSelected
+                              ? (tab['activeIcon'] ?? tab['icon'])
+                              : tab['icon'],
+                        ),
+                        color: color,
+                      ),
+                      const SizedBox(height: 4),
+                      TranslatedText(
+                        tab['label'] ?? '',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 12,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
           ),
         ),
       ),
