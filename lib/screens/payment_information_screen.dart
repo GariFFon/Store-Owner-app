@@ -194,11 +194,11 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
                                   color: Colors.black,
                                   size: 18,
                                 ),
-                                SizedBox(width: 8),
+                                SizedBox(width: 6),
                                 Text(
                                   'Back',
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.black,
                                   ),
@@ -207,25 +207,25 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 8),
                         // Center Text
                         Expanded(
                           flex: 2,
                           child: Column(
                             children: [
                               const Text(
-                                'Payment Details',
+                                'Payment',
                                 style: TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.blue,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
-                                'Enter payment information for $_totalProducts products',
+                                '$_totalProducts items',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   color: Colors.grey[600],
                                 ),
                               ),
@@ -262,17 +262,15 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
                             child: const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.auto_awesome, size: 18),
-                                SizedBox(width: 8),
+                                Icon(Icons.auto_awesome, size: 16),
+                                SizedBox(width: 4),
                                 Text(
                                   'Review',
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(width: 4),
-                                Icon(Icons.arrow_forward, size: 16),
                               ],
                             ),
                           ),

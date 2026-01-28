@@ -491,12 +491,14 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   children: [
                     Icon(Icons.auto_awesome, color: Colors.blue[700], size: 20),
                     const SizedBox(width: 8),
-                    Text(
-                      'AI Extracted Supplier Information',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[700],
+                    Expanded(
+                      child: Text(
+                        'AI Extracted Supplier Information',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[700],
+                        ),
                       ),
                     ),
                   ],
@@ -911,9 +913,12 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
     return Dialog(
       backgroundColor: Colors.black, // Dark theme as per screenshot
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Container(
-        width: 600, // Wide dialog
-        padding: const EdgeInsets.all(0),
+        constraints: BoxConstraints(
+          maxWidth: 600,
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

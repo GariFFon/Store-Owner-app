@@ -164,11 +164,11 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                                   color: Colors.black,
                                   size: 18,
                                 ),
-                                SizedBox(width: 8),
+                                SizedBox(width: 6),
                                 Text(
                                   'Back',
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.black,
                                   ),
@@ -177,7 +177,7 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 8),
                         // Center Text
                         Expanded(
                           flex: 2,
@@ -186,17 +186,17 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                               const Text(
                                 'Review & Confirm',
                                 style: TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.green,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
-                                'Verify all details before submitting your purchase order',
+                                'Verify details',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   color: Colors.grey[600],
                                 ),
                               ),
@@ -238,12 +238,12 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
                             child: const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.auto_awesome, size: 18),
-                                SizedBox(width: 8),
+                                Icon(Icons.auto_awesome, size: 16),
+                                SizedBox(width: 4),
                                 Text(
                                   'Submit',
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),

@@ -18,7 +18,7 @@ class ApiService {
       'https://development.api.exanor.com/api/v1';
   static const String _defaultBareBaseUrl =
       'https://development.api.exanor.com';
-  static const int _defaultTimeoutSeconds = 30;
+  static const int _defaultTimeoutSeconds = 120;
 
   // Cached values (initialized once)
   static String? _cachedBaseUrl;
