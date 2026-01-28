@@ -353,39 +353,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Exanor Intelligence Button
-              InkWell(
-                onTap: _showIntelligenceDialog,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'Fill Up with Exanor Intelligence',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.auto_awesome,
-                        color: Colors.white.withOpacity(0.8),
-                        size: 18,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
               // Form Content based on step
               if (_currentStep == 0) _buildStep1Form(theme),
               if (_currentStep == 1)
