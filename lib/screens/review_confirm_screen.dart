@@ -48,6 +48,42 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
     }
   }
 
+  /// Convert various date formats to ISO format (YYYY-MM-DD)
+  String _formatDateToISO(String dateStr) {
+    if (dateStr.isEmpty) {
+      return DateFormat('yyyy-MM-dd').format(DateTime.now());
+    }
+
+    // Already in ISO format
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateStr)) {
+      return dateStr;
+    }
+
+    // Try parsing various formats
+    final formats = [
+      'dd-MMM-yyyy',  // 23-Jun-2020
+      'dd/MM/yyyy',   // 23/06/2020
+      'MM/dd/yyyy',   // 06/23/2020
+      'dd-MM-yyyy',   // 23-06-2020
+      'yyyy/MM/dd',   // 2020/06/23
+      'MMM dd, yyyy', // Jun 23, 2020
+      'd-MMM-yyyy',   // 3-Jun-2020 (single digit day)
+    ];
+
+    for (var format in formats) {
+      try {
+        final date = DateFormat(format).parse(dateStr);
+        return DateFormat('yyyy-MM-dd').format(date);
+      } catch (e) {
+        // Try next format
+      }
+    }
+
+    // If all parsing fails, return today's date
+    debugPrint('⚠️ Could not parse date: $dateStr, using today\'s date');
+    return DateFormat('yyyy-MM-dd').format(DateTime.now());
+  }
+
   Future<void> _submitPurchaseEntry() async {
     setState(() {
       _isSubmitting = true;
@@ -66,8 +102,9 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
       // Get invoice ID from response
       final supplierInvoiceId = response['invoice_id']?.toString() ?? '';
 
-      // Get invoice date
-      final invoiceDate = response['invoice_date']?.toString() ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+      // Get invoice date and convert to ISO format
+      final rawInvoiceDate = response['invoice_date']?.toString() ?? '';
+      final invoiceDate = _formatDateToISO(rawInvoiceDate);
 
       // Build items array from product data
       final List<Map<String, dynamic>> items = [];
@@ -81,13 +118,13 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
           'qty': quantity.toInt(),
           'cost_amount_including_tax': rate,
           'mrp': mrp,
-          'selling_price_including_tax': mrp,
+          'selling_price_including_tax': product['selling_price']?.toString() ?? mrp.toString(),
           'godown_id': product['godown_id']?.toString() ?? '',
           'rack_id': product['rack_id']?.toString() ?? '',
           'unit_id': product['unit_id']?.toString() ?? '',
           'barcode': product['barcode']?.toString() ?? '',
-          'manufactured_on_date': product['manufactured_on_date']?.toString() ?? '',
-          'expiry_date': product['expiry_date']?.toString() ?? '',
+          'manufactured_on_date': product['manufactured_on_date']?.toString() ?? '1999-01-01',
+          'expiry_date': product['expiry_date']?.toString() ?? '2050-01-01',
           'purchase_date': invoiceDate,
         });
       }

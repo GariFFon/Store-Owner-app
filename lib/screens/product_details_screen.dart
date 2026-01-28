@@ -172,8 +172,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       }
       
       // Add expiry date
+      // Add expiry date - use 2050-01-01 as default if not set
       if (_expDateControllers.containsKey(i) && _expDateControllers[i]!.text.isNotEmpty) {
         product['expiry_date'] = _expDateControllers[i]!.text;
+      } else {
+        product['expiry_date'] = '2050-01-01';
       }
       
       // Add user-edited product fields
@@ -909,22 +912,60 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Widget _buildDateField(String label, String initialValue, int productIndex, String type) {
-    // Initialize controller if not exists
-    // Get today's date in YYYY-MM-DD format for default manufacturing date
-    // Default manufacturing date if not provided by AI
+    // Default dates
     const defaultMfgDate = '1999-01-01';
+    const defaultExpDate = '2050-01-01';
     
     if (type == 'mfg' && !_mfgDateControllers.containsKey(productIndex)) {
       // Use 1999-01-01 as default if manufacturing date is empty
       final dateValue = initialValue.isNotEmpty ? initialValue : defaultMfgDate;
       _mfgDateControllers[productIndex] = TextEditingController(text: dateValue);
     } else if (type == 'exp' && !_expDateControllers.containsKey(productIndex)) {
-      _expDateControllers[productIndex] = TextEditingController(text: initialValue);
+      // Use 2050-01-01 as default if expiry date is empty
+      final dateValue = initialValue.isNotEmpty ? initialValue : defaultExpDate;
+      _expDateControllers[productIndex] = TextEditingController(text: dateValue);
     }
 
     final controller = type == 'mfg' 
         ? _mfgDateControllers[productIndex] 
         : _expDateControllers[productIndex];
+
+    Future<void> selectDate() async {
+      // Parse current date from controller
+      DateTime initialDate = DateTime.now();
+      try {
+        if (controller!.text.isNotEmpty) {
+          initialDate = DateTime.parse(controller.text);
+        }
+      } catch (e) {
+        // Use current date if parsing fails
+      }
+
+      final DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: initialDate,
+        firstDate: DateTime(1990),
+        lastDate: DateTime(2100),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: Colors.black,
+                onPrimary: Colors.white,
+                surface: Colors.white,
+                onSurface: Colors.black,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (picked != null) {
+        final formattedDate = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+        controller!.text = formattedDate;
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -940,6 +981,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
+          readOnly: true,
+          onTap: selectDate,
           decoration: InputDecoration(
             hintText: 'YYYY-MM-DD',
             contentPadding: const EdgeInsets.symmetric(
@@ -955,7 +998,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             isDense: true,
-            suffixIcon: Icon(Icons.calendar_today, size: 16, color: Colors.grey[400]),
+            suffixIcon: GestureDetector(
+              onTap: selectDate,
+              child: Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+            ),
           ),
           style: const TextStyle(fontSize: 13),
         ),
