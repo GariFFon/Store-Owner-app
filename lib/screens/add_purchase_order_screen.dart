@@ -1177,14 +1177,16 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                       border: Border.all(color: Colors.grey.shade200),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child:
-                        item['product_images'] != null &&
-                            (item['product_images'] as List).isNotEmpty
+                    child: item['image'] != null
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Image.network(
-                              item['product_images'][0],
+                              item['image'],
                               fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.image_not_supported,
+                                color: Colors.grey,
+                              ),
                             ),
                           )
                         : const Icon(
@@ -1210,7 +1212,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                           ),
                         ),
                         Text(
-                          'Godown: ${_godowns.firstWhere((g) => g['godown_id'] == item['godown_id'], orElse: () => {})['godown_name'] ?? '-'}  •  Rack: ${_racks.firstWhere((r) => r['rack_id'] == item['rack_id'], orElse: () => {})['rack_name'] ?? '-'}',
+                          'Godown: ${_godowns.firstWhere((g) => g['id'].toString() == item['godown_id'].toString(), orElse: () => {})['name'] ?? '-'}  •  Rack: ${_racks.firstWhere((r) => r['id'].toString() == item['rack_id'].toString(), orElse: () => {})['name'] ?? '-'}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
@@ -1227,7 +1229,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                       Text(
-                        'Sale: ₹${item['sales_price'] ?? 0}',
+                        'Sale: ₹${item['selling_price'] ?? 0}',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -2298,8 +2300,10 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                       Expanded(
                         child: _buildTextField(
                           label: 'MRP (₹) * *',
-                          onChanged: (v) {},
+                          onChanged: (v) => product['mrp'] = v,
                           keyboardType: TextInputType.number,
+                          initialValue: product['mrp']
+                              ?.toString(), // Ensure initial value if editing
                         ),
                       ),
                       const SizedBox(width: 12),
