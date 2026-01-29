@@ -1151,13 +1151,36 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                 color: Colors.blue[50],
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: Text(
-                                'GST: ${product['gst_rate'] ?? 0}%',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue[700],
-                                ),
+                              child: Builder(
+                                builder: (context) {
+                                  // Extract GST info
+                                  var gstPercent = 0.0;
+                                  final gstData = product['gst_data'];
+                                  if (gstData != null && gstData is Map) {
+                                    gstPercent =
+                                        double.tryParse(
+                                          gstData['igst_percent']?.toString() ??
+                                              '0',
+                                        ) ??
+                                        0.0;
+                                  } else {
+                                    gstPercent =
+                                        double.tryParse(
+                                          product['gst_rate']?.toString() ??
+                                              '0',
+                                        ) ??
+                                        0.0;
+                                  }
+
+                                  return Text(
+                                    'GST: ${gstPercent.toStringAsFixed(0)}%',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue[700],
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ],
