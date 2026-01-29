@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class CreateStoreDialog extends StatefulWidget {
   final String storeId;
@@ -13,6 +15,7 @@ class CreateStoreDialog extends StatefulWidget {
 class _CreateStoreDialogState extends State<CreateStoreDialog> {
   int _currentStep = 0;
   bool _isLoading = false;
+  bool _isFetchingLocation = false;
 
   // Controllers
   final _storeNameController = TextEditingController();
@@ -88,6 +91,63 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
     _websiteController.dispose();
     _gstController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchLocationFromPincode(String pincode) async {
+    if (pincode.length != 6) return;
+
+    setState(() {
+      _isFetchingLocation = true;
+    });
+
+    try {
+      final url = Uri.parse('https://api.postalpincode.in/pincode/$pincode');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        if (data.isNotEmpty && data[0]['Status'] == 'Success') {
+          final postOffices = data[0]['PostOffice'] as List<dynamic>;
+          if (postOffices.isNotEmpty) {
+            final firstOffice = postOffices[0];
+            final district = firstOffice['District'];
+            final state = firstOffice['State'];
+
+            if (mounted) {
+              setState(() {
+                _cityController.text = district;
+
+                // Try to match state with our list
+                // Basic normalization for common differences if needed, but direct match first
+                // API usually returns standard names like "Odisha", "Maharashtra"
+                try {
+                  final matchingState = _indianStates.firstWhere(
+                    (s) => s.toLowerCase() == state.toString().toLowerCase(),
+                    orElse: () => '',
+                  );
+                  if (matchingState.isNotEmpty) {
+                    _selectedState = matchingState;
+                    if (_isGstEnabled && _selectedGstState == null) {
+                      _selectedGstState = matchingState;
+                    }
+                  }
+                } catch (e) {
+                  // Ignore if not found
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching location: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingLocation = false;
+        });
+      }
+    }
   }
 
   Future<void> _submit() async {
@@ -714,6 +774,10 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
           onChanged: (val) {
             // For generic validation updates
             if (required) setState(() {});
+            // Handle Pincode Change
+            if (controller == _pincodeController && val.length == 6) {
+              _fetchLocationFromPincode(val);
+            }
           },
           decoration: InputDecoration(
             hintText: hint,
@@ -737,6 +801,13 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red),
             ),
+            suffixIcon:
+                (controller == _pincodeController && _isFetchingLocation)
+                ? Transform.scale(
+                    scale: 0.5,
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
           ),
         ),
         if (required &&
