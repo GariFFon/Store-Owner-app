@@ -591,64 +591,49 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildSectionHeader(Icons.payment, 'Payment Status'),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDropdown(
-                      label: 'Payment Status * *',
-                      value: _paymentStatus,
-                      items: ['Paid', 'Credit', 'Partial Payment']
-                          .map(
-                            (s) => DropdownMenuItem(value: s, child: Text(s)),
-                          )
-                          .toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          _paymentStatus = val;
-                          if (val == 'Paid') {
-                            _amountPaidController.text = _calculateTotalAmount()
-                                .toStringAsFixed(2);
-                          } else if (val == 'Credit') {
-                            _amountPaidController.clear();
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildTextField(
-                      label: 'Transaction ID (Optional)',
-                      onChanged: (val) {}, // Controller used directly
-                      controller: _transactionIdController,
-                    ),
-                  ),
-                ],
+              // Payment Status Dropdown
+              _buildDropdown(
+                label: 'Payment Status * *',
+                value: _paymentStatus,
+                items: ['Paid', 'Credit', 'Partial Payment']
+                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                    .toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _paymentStatus = val;
+                    if (val == 'Paid') {
+                      _amountPaidController.text = _calculateTotalAmount()
+                          .toStringAsFixed(2);
+                    } else if (val == 'Credit') {
+                      _amountPaidController.clear();
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Transaction ID
+              _buildTextField(
+                label: 'Transaction ID (Optional)',
+                onChanged: (val) {}, // Controller used directly
+                controller: _transactionIdController,
               ),
 
               if (_paymentStatus == 'Partial Payment' ||
                   _paymentStatus == 'Paid') ...[
                 const SizedBox(height: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: MediaQuery.of(context).size.width * 0.4,
-                      child: _buildTextField(
-                        label: 'Amount Paid (₹) * *',
-                        onChanged: (v) {
-                          setState(() {}); // refresh to update calculations
-                        },
-                        keyboardType: TextInputType.number,
-                        controller: _amountPaidController,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Total: ₹${_calculateTotalAmount().toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                  ],
+                _buildTextField(
+                  label: 'Amount Paid (₹) * *',
+                  onChanged: (v) {
+                    setState(() {}); // refresh to update calculations
+                  },
+                  keyboardType: TextInputType.number,
+                  controller: _amountPaidController,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Total: ₹${_calculateTotalAmount().toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],
             ],
@@ -687,98 +672,80 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: InkWell(
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now().add(
-                              const Duration(days: 30),
-                            ),
-                            firstDate:
-                                DateTime.now(), // Due date can't be in past
-                            lastDate: DateTime(2100),
-                          );
-                          if (picked != null) {
-                            setState(() {
-                              _paymentDueDate = picked;
-                              _paymentDueDateController.text = DateFormat(
-                                'yyyy-MM-dd',
-                              ).format(picked);
-                            });
-                          }
-                        },
-                        child: IgnorePointer(
-                          child: _buildTextField(
-                            label: 'Payment Due Date * *',
-                            onChanged: (v) {},
-                            controller: _paymentDueDateController,
-                          ),
-                        ),
-                      ),
+
+                // Payment Due Date
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now().add(const Duration(days: 30)),
+                      firstDate: DateTime.now(), // Due date can't be in past
+                      lastDate: DateTime(2100),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _paymentDueDate = picked;
+                        _paymentDueDateController.text = DateFormat(
+                          'yyyy-MM-dd',
+                        ).format(picked);
+                      });
+                    }
+                  },
+                  child: IgnorePointer(
+                    child: _buildTextField(
+                      label: 'Payment Due Date * *',
+                      onChanged: (v) {},
+                      controller: _paymentDueDateController,
                     ),
-                    if (_paymentStatus == 'Partial Payment' ||
-                        _paymentStatus == 'Credit') ...[
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 5,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFE0B2).withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.orange.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Amount Due (₹)',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.calculate,
-                                    size: 16,
-                                    color: Colors.orange,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '₹ ${_calculateDueAmount().toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.orange[800],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Auto-calculated: Total - Amount Paid',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
+
+                if (_paymentStatus == 'Partial Payment' ||
+                    _paymentStatus == 'Credit') ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE0B2).withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Amount Due (₹)',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.calculate,
+                              size: 16,
+                              color: Colors.orange,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '₹ ${_calculateDueAmount().toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[800],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Auto-calculated: Total - Amount Paid',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
