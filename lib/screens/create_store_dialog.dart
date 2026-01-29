@@ -475,6 +475,14 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
         return Column(
           children: [
             _buildTextField(
+              controller: _pincodeController,
+              label: 'PIN Code',
+              hint: 'E.g., 400001',
+              keyboardType: TextInputType.number,
+              required: true,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
               controller: _cityController,
               label: 'City',
               required: true,
@@ -520,14 +528,6 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _pincodeController,
-              label: 'PIN Code',
-              hint: 'E.g., 400001',
-              keyboardType: TextInputType.number,
-              required: true,
             ),
           ],
         );
