@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:exanor/screens/create_store_dialog.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:exanor/screens/simple_scanner_screen.dart';
+import 'package:uuid/uuid.dart';
 import 'package:geolocator/geolocator.dart';
 
 class AddPurchaseOrderScreen extends StatefulWidget {
@@ -42,7 +44,12 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   // Data from APIs
   List<Map<String, dynamic>> _units = [];
   List<Map<String, dynamic>> _godowns = [];
+
   List<Map<String, dynamic>> _racks = [];
+  String? _defaultUnitId; // Store default unit ID
+
+  // Controllers for products
+  final List<TextEditingController> _barcodeControllers = [];
 
   // Form Data
   String? _selectedSupplier;
@@ -168,13 +175,19 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           productTemplate['img_url'] ??
           productTemplate['product_combination_template_image'];
 
+      // Auto-generate barcode if not present
+      final String barcode =
+          productTemplate['barcode'] ??
+          'AG-${const Uuid().v4().substring(0, 8).toUpperCase()}';
+
       _selectedProducts.add({
         ...productTemplate,
         'product_name': name,
         'category_name': category,
         'image': image,
         'quantity': 1, // Default quantity
-        'unit_id': _units.isNotEmpty ? _units.first['id'] : null,
+        'unit_id':
+            _defaultUnitId ?? (_units.isNotEmpty ? _units.first['id'] : null),
         'cost_price': 0.0,
         'selling_price': 0.0,
         'tax_inclusive': false,
@@ -182,9 +195,11 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         'expiry_date': null,
         'godown_id': null,
         'rack_id': null,
-        'barcode': '',
+        'barcode': barcode,
         'is_expanded': true,
       });
+      _barcodeControllers.add(TextEditingController(text: barcode));
+
       _productSearchController.clear();
       _productSearchResults = [];
     });
@@ -193,6 +208,8 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   void _removeProduct(int index) {
     setState(() {
       _selectedProducts.removeAt(index);
+      _barcodeControllers[index].dispose();
+      _barcodeControllers.removeAt(index);
     });
   }
 
@@ -253,6 +270,22 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           _units = results[0];
           _godowns = results[1];
           _racks = results[2];
+
+          debugPrint('Fetched Units: $_units');
+          debugPrint('Fetched Godowns: $_godowns');
+          debugPrint('Fetched Racks: $_racks');
+
+          // Set default unit to PCS/Pieces if available
+          if (_units.isNotEmpty) {
+            final defaultUnit = _units.firstWhere((u) {
+              final name = (u['name']?.toString() ?? '').toLowerCase();
+              return name.contains('pcs') ||
+                  name.contains('pieces') ||
+                  name.contains('piece');
+            }, orElse: () => _units.first);
+            _defaultUnitId = defaultUnit['id'];
+          }
+
           _isLoading = false;
         });
       }
@@ -1162,37 +1195,91 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 children: [
                   // Quantity Section
                   _buildSectionHeader(Icons.bar_chart, 'Quantity'),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: _buildTextField(
-                          label: 'Quantity * *',
-                          onChanged: (val) => product['quantity'] = val,
-                          keyboardType: TextInputType.number,
-                          initialValue: product['quantity']?.toString(),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 1,
-                        child: _buildDropdown(
-                          label: 'Unit * *',
-                          value: product['unit_id'],
-                          items: _units
-                              .map(
-                                (u) => DropdownMenuItem(
-                                  value: u['id'],
-                                  child: Text(u['name'] ?? ''),
+                  _buildTextField(
+                    label: 'Quantity * *',
+                    onChanged: (val) => product['quantity'] = val,
+                    keyboardType: TextInputType.number,
+                    initialValue: product['quantity']?.toString(),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildDropdown(
+                    label: 'Unit * *',
+                    value: product['unit_id'],
+                    items: _units.isEmpty
+                        ? [
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text(
+                                'No units found',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ]
+                        : _units.map((u) {
+                            final name = u['name']?.toString() ?? '';
+                            final shortName =
+                                u['short_name']?.toString() ??
+                                u['code']?.toString() ??
+                                u['symbol']?.toString() ??
+                                name;
+                            return DropdownMenuItem(
+                              value: u['id'],
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
                                 ),
-                              )
-                              .toList(),
-                          onChanged: (val) {
-                            setState(() => product['unit_id'] = val);
-                          },
-                        ),
-                      ),
-                    ],
+                                alignment: Alignment.centerLeft,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      shortName,
+                                      style: const TextStyle(
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    if (shortName.toLowerCase() !=
+                                        name.toLowerCase())
+                                      Text(
+                                        name,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                    selectedItemBuilder: (BuildContext context) {
+                      return _units.map<Widget>((u) {
+                        final name = u['name']?.toString() ?? '';
+                        final shortName =
+                            u['short_name']?.toString() ??
+                            u['code']?.toString() ??
+                            u['symbol']?.toString() ??
+                            name;
+                        return Text(
+                          '$shortName - $name',
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w500,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList();
+                    },
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => product['unit_id'] = val);
+                      }
+                    },
                   ),
                   const SizedBox(height: 24),
 
@@ -1291,16 +1378,33 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                         child: _buildDropdown(
                           label: 'Select Godown * *',
                           value: product['godown_id'],
-                          items: _godowns
-                              .map(
-                                (g) => DropdownMenuItem(
-                                  value: g['id'],
-                                  child: Text(g['name'] ?? ''),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (val) =>
-                              setState(() => product['godown_id'] = val),
+                          items: _godowns.isEmpty
+                              ? [
+                                  const DropdownMenuItem(
+                                    value: null,
+                                    child: Text(
+                                      'No godowns found',
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  ),
+                                ]
+                              : _godowns
+                                    .map(
+                                      (g) => DropdownMenuItem(
+                                        value: g['id'],
+                                        child: Text(
+                                          g['name'] ?? '',
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                          onChanged: (val) {
+                            if (val != null)
+                              setState(() => product['godown_id'] = val);
+                          },
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -1308,16 +1412,33 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                         child: _buildDropdown(
                           label: 'Select Rack (Optional)',
                           value: product['rack_id'],
-                          items: _racks
-                              .map(
-                                (r) => DropdownMenuItem(
-                                  value: r['id'],
-                                  child: Text(r['name'] ?? ''),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (val) =>
-                              setState(() => product['rack_id'] = val),
+                          items: _racks.isEmpty
+                              ? [
+                                  const DropdownMenuItem(
+                                    value: null,
+                                    child: Text(
+                                      'No racks found',
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  ),
+                                ]
+                              : _racks
+                                    .map(
+                                      (r) => DropdownMenuItem(
+                                        value: r['id'],
+                                        child: Text(
+                                          r['name'] ?? '',
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                          onChanged: (val) {
+                            if (val != null)
+                              setState(() => product['rack_id'] = val);
+                          },
                         ),
                       ),
                     ],
@@ -1328,15 +1449,19 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   // Barcode
                   _buildSectionHeader(Icons.qr_code, 'Barcode'),
                   TextField(
+                    controller: _barcodeControllers[index],
                     decoration: InputDecoration(
                       hintText: 'Barcode',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
-                      suffixIcon: const Icon(
-                        Icons.add_circle_outline,
-                        color: Colors.grey,
+                      suffixIcon: IconButton(
+                        icon: const Icon(
+                          Icons.qr_code_scanner,
+                          color: Colors.blue,
+                        ),
+                        onPressed: () => _scanBarcode(index),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -1351,6 +1476,22 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _scanBarcode(int index) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SimpleScannerScreen()),
+    );
+
+    if (result != null && result is String) {
+      if (mounted) {
+        setState(() {
+          _barcodeControllers[index].text = result;
+          _selectedProducts[index]['barcode'] = result;
+        });
+      }
+    }
   }
 
   Widget _buildSectionHeader(IconData icon, String title) {
@@ -1406,12 +1547,20 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     required dynamic value,
     required List<DropdownMenuItem<dynamic>> items,
     required Function(dynamic) onChanged,
+    List<Widget> Function(BuildContext)? selectedItemBuilder, // Add this
   }) {
     return DropdownButtonFormField(
       value: value,
       items: items,
+      selectedItemBuilder: selectedItemBuilder, // Pass it here
       onChanged: onChanged,
       isExpanded: true,
+      isDense: true,
+      // itemHeight: null, // Let it be null for flexible height
+      dropdownColor: Colors.white, // Ensure white background
+      style: const TextStyle(
+        color: Colors.black,
+      ), // Ensure selected item text is black
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.grey),
