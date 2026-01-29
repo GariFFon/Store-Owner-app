@@ -71,12 +71,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   List<Map<String, dynamic>> _storeBankAccounts = [];
   File? _invoiceFile;
 
-  final List<String> _steps = [
-    'Basic information',
-    'Add products',
-    'Add payment data',
-    'Confirmation',
-  ];
+  final List<String> _steps = ['Supplier', 'Products', 'Payment', 'Summary'];
 
   @override
   void initState() {
@@ -510,6 +505,8 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                     _buildStep2AddProducts(theme)
                   else if (_currentStep == 2)
                     _buildStep3PaymentData(theme)
+                  else if (_currentStep == 3)
+                    _buildStep4Summary(theme)
                   else
                     const SizedBox.shrink(),
 
@@ -1012,6 +1009,449 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     final total = _calculateTotalAmount();
     final paid = double.tryParse(_amountPaidController.text) ?? 0.0;
     return (total - paid).clamp(0.0, double.infinity);
+  }
+
+  Widget _buildStep4Summary(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Confirmation',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.blue,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Review Purchase Order',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Please verify all details before submitting',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Supplier Info
+        _buildSummaryCard(
+          title: 'Supplier Information',
+          icon: Icons.person_outline,
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSummaryField(
+                'Supplier Name',
+                _selectedSupplier ?? _supplierSearchController.text,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildSummaryField(
+                      'Invoice ID',
+                      _invoiceIdController.text,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildSummaryField(
+                      'Purchase Date',
+                      _dateController.text,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          onEdit: () => setState(() => _currentStep = 0),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Payment Details
+        _buildSummaryCard(
+          title: 'Payment Details',
+          icon: Icons.payment_outlined,
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildSummaryField(
+                      'Payment Status',
+                      _paymentStatus,
+                      isBadge: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildSummaryField(
+                      'Payment Method',
+                      _getPaymentMethodName(),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  if (_transactionIdController.text.isNotEmpty)
+                    Expanded(
+                      child: _buildSummaryField(
+                        'Transaction ID',
+                        _transactionIdController.text,
+                      ),
+                    ),
+                  if (_transactionIdController.text.isNotEmpty)
+                    const SizedBox(width: 16),
+                  if (_amountPaidController.text.isNotEmpty)
+                    Expanded(
+                      child: _buildSummaryField(
+                        'Amount Paid',
+                        '₹${_amountPaidController.text}',
+                        ishighlight: true,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          onEdit: () => setState(() => _currentStep = 2),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Products
+        _buildSummaryCard(
+          title: 'Products (${_selectedProducts.length})',
+          icon: Icons.inventory_2_outlined,
+          content: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _selectedProducts.length,
+            separatorBuilder: (c, i) => const Divider(height: 24),
+            itemBuilder: (context, index) {
+              final item = _selectedProducts[index];
+              return Row(
+                children: [
+                  Container(
+                    height: 50,
+                    width: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.grey.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child:
+                        item['product_images'] != null &&
+                            (item['product_images'] as List).isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              item['product_images'][0],
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.grey,
+                          ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item['product_name'] ?? 'Unknown Item',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Qty: ${item['quantity'] ?? 0} ${item['unit'] ?? ''}  •  Cost: ₹${item['cost_price'] ?? 0} (excl. tax)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        Text(
+                          'Godown: ${_godowns.firstWhere((g) => g['godown_id'] == item['godown_id'], orElse: () => {})['godown_name'] ?? '-'}  •  Rack: ${_racks.firstWhere((r) => r['rack_id'] == item['rack_id'], orElse: () => {})['rack_name'] ?? '-'}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'MRP: ₹${item['mrp'] ?? 0}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                      Text(
+                        'Sale: ₹${item['sales_price'] ?? 0}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+          onEdit: () => setState(() => _currentStep = 1),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Final Summary
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.blue[100]!),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Order Summary',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildSummaryRow(
+                'Total Products',
+                _selectedProducts.length.toString(),
+              ),
+              const SizedBox(height: 12),
+              _buildSummaryRow(
+                'Total Amount',
+                '₹${_calculateTotalAmount().toStringAsFixed(2)}',
+                isBold: true,
+                color: Colors.blue,
+              ),
+              const Divider(height: 32),
+              _buildSummaryRow('Payment Status', _paymentStatus, isBadge: true),
+              const SizedBox(height: 12),
+              _buildSummaryRow(
+                'Amount Paid',
+                '₹${double.tryParse(_amountPaidController.text)?.toStringAsFixed(2) ?? "0.00"}',
+                isBold: true,
+                color: Colors.green,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard({
+    required String title,
+    required IconData icon,
+    required Widget content,
+    VoidCallback? onEdit,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 20, color: Colors.black87),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (onEdit != null)
+                IconButton(
+                  onPressed: onEdit,
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          content,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryField(
+    String label,
+    String value, {
+    bool isBadge = false,
+    bool ishighlight = false,
+  }) {
+    if (isBadge) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: value == 'Paid' ? Colors.green[50] : Colors.orange[50],
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: value == 'Paid' ? Colors.green : Colors.orange,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: ishighlight ? Colors.green : Colors.black87,
+          ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 2,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? color,
+    bool isBadge = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(color: Colors.grey[700], fontSize: 14)),
+        if (isBadge)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: value == 'Paid' ? Colors.green[50] : Colors.orange[50],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: value == 'Paid' ? Colors.green : Colors.orange,
+              ),
+            ),
+          )
+        else
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              fontSize: 16,
+              color: color ?? Colors.black87,
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _getPaymentMethodName() {
+    // Logic for cash in hand
+    if (_paymentMethodStoreBankId == null) {
+      return 'CASH-IN-HAND';
+    }
+    // Find bank name
+    final bank = _storeBankAccounts.firstWhere(
+      (b) => b['id'] == _paymentMethodStoreBankId,
+      orElse: () => {},
+    );
+    if (bank.isNotEmpty) {
+      if (bank['account_number_or_upi_id'] == 'CASH-IN-HAND')
+        return 'CASH-IN-HAND';
+      return bank['bank_name'] ?? 'Top-up Wallet';
+    }
+    return 'Detailed';
   }
 
   Widget _buildStep1Form(ThemeData theme) {
