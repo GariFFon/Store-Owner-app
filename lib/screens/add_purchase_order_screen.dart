@@ -6,10 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:exanor/screens/create_store_dialog.dart';
-import 'package:exanor/screens/product_details_screen.dart';
-import 'package:exanor/screens/supplier_details_screen.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 
 class AddPurchaseOrderScreen extends StatefulWidget {
   final String storeId;
@@ -415,23 +413,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     );
   }
 
-  void _populateFormFromAi(Map<String, dynamic> data) {
-    setState(() {
-      if (data.containsKey('invoice_id')) {
-        _invoiceIdController.text = data['invoice_id'].toString();
-      }
-      if (data.containsKey('invoice_date')) {
-        try {
-          final dateStr = data['invoice_date'].toString();
-          _dateController.text = dateStr;
-          _purchaseDate = DateTime.tryParse(dateStr);
-        } catch (e) {
-          debugPrint('Error parsing date: $e');
-        }
-      }
-    });
-  }
-
   Widget _buildCurrentStepContent(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,70 +432,75 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_currentStep == 0) _buildStep1Form(theme),
-              if (_currentStep == 1) _buildStep2AddProducts(theme),
-
-              const SizedBox(height: 32),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (_currentStep > 0)
-                    TextButton(
-                      onPressed: () => setState(() => _currentStep--),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
-                      ),
-                      child: const Text('Previous'),
-                    ),
-                  const SizedBox(width: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (_currentStep < _steps.length - 1) {
-                        setState(() => _currentStep++);
-                      } else {
-                        // Submit logic
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      _currentStep == _steps.length - 1 ? 'Submit' : 'Next',
-                    ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isSmallScreen = constraints.maxWidth < 600;
+            return Container(
+              padding: EdgeInsets.all(isSmallScreen ? 16 : 32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-            ],
-          ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_currentStep == 0) _buildStep1Form(theme),
+                  if (_currentStep == 1) _buildStep2AddProducts(theme),
+
+                  const SizedBox(height: 32),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (_currentStep > 0)
+                        TextButton(
+                          onPressed: () => setState(() => _currentStep--),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 16,
+                            ),
+                          ),
+                          child: const Text('Previous'),
+                        ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (_currentStep < _steps.length - 1) {
+                            setState(() => _currentStep++);
+                          } else {
+                            // Submit logic
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          _currentStep == _steps.length - 1 ? 'Submit' : 'Next',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
@@ -1101,7 +1087,9 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -1121,7 +1109,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
@@ -1424,6 +1411,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
       value: value,
       items: items,
       onChanged: onChanged,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.grey),
