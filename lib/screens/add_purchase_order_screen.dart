@@ -62,6 +62,11 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   String _paymentStatus = 'Paid';
   final TextEditingController _transactionIdController =
       TextEditingController();
+  final TextEditingController _amountPaidController =
+      TextEditingController(); // For Partial
+  final TextEditingController _paymentDueDateController =
+      TextEditingController(); // For Credit/Partial
+  DateTime? _paymentDueDate;
   String? _paymentMethodStoreBankId;
   List<Map<String, dynamic>> _storeBankAccounts = [];
   File? _invoiceFile;
@@ -597,7 +602,17 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                             (s) => DropdownMenuItem(value: s, child: Text(s)),
                           )
                           .toList(),
-                      onChanged: (val) => setState(() => _paymentStatus = val),
+                      onChanged: (val) {
+                        setState(() {
+                          _paymentStatus = val;
+                          if (val == 'Paid') {
+                            _amountPaidController.text = _calculateTotalAmount()
+                                .toStringAsFixed(2);
+                          } else if (val == 'Credit') {
+                            _amountPaidController.clear();
+                          }
+                        });
+                      },
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -610,9 +625,164 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   ),
                 ],
               ),
+
+              if (_paymentStatus == 'Partial Payment' ||
+                  _paymentStatus == 'Paid') ...[
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: MediaQuery.of(context).size.width * 0.4,
+                      child: _buildTextField(
+                        label: 'Amount Paid (₹) * *',
+                        onChanged: (v) {
+                          setState(() {}); // refresh to update calculations
+                        },
+                        keyboardType: TextInputType.number,
+                        controller: _amountPaidController,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Total: ₹${_calculateTotalAmount().toStringAsFixed(2)}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
+
+        if (_paymentStatus == 'Credit' ||
+            _paymentStatus == 'Partial Payment') ...[
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8F0), // Light orange bg like in image
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFE0B2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.access_time_filled,
+                      color: Colors.orange,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Credit Payment Details',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[800],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now().add(
+                              const Duration(days: 30),
+                            ),
+                            firstDate:
+                                DateTime.now(), // Due date can't be in past
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              _paymentDueDate = picked;
+                              _paymentDueDateController.text = DateFormat(
+                                'yyyy-MM-dd',
+                              ).format(picked);
+                            });
+                          }
+                        },
+                        child: IgnorePointer(
+                          child: _buildTextField(
+                            label: 'Payment Due Date * *',
+                            onChanged: (v) {},
+                            controller: _paymentDueDateController,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_paymentStatus == 'Partial Payment' ||
+                        _paymentStatus == 'Credit') ...[
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 5,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE0B2).withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.orange.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Amount Due (₹)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.calculate,
+                                    size: 16,
+                                    color: Colors.orange,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '₹ ${_calculateDueAmount().toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange[800],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Auto-calculated: Total - Amount Paid',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
 
         const SizedBox(height: 24),
 
@@ -831,6 +1001,50 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     } catch (e) {
       debugPrint('Error picking invoice file: $e');
     }
+  }
+
+  double _calculateTotalAmount() {
+    double total = 0.0;
+    for (var product in _selectedProducts) {
+      // Parse buying price (cost_price)
+      final price =
+          double.tryParse(product['cost_price']?.toString() ?? '0') ?? 0.0;
+      final qty =
+          double.tryParse(product['quantity']?.toString() ?? '0') ?? 0.0;
+
+      // Handle tax
+      final taxIncluded = product['tax_inclusive'] ?? false;
+      double gstPercent = 0.0;
+
+      // Logic copied from product card display
+      final gstData = product['gst_data'];
+      if (gstData != null && gstData is Map) {
+        gstPercent =
+            double.tryParse(gstData['igst_percent']?.toString() ?? '0') ?? 0.0;
+      } else {
+        gstPercent =
+            double.tryParse(product['gst_rate']?.toString() ?? '0') ?? 0.0;
+      }
+
+      double lineTotal = price * qty;
+
+      // If tax is NOT included in the price input, we add it to the total
+      // If tax IS included, the price input is the final price, so no modification needed for total pay
+      // Wait, usually "Price including tax" means the entered price is final.
+      // "Amount excludes tax" means we need to add tax.
+      if (!taxIncluded) {
+        lineTotal += (lineTotal * gstPercent / 100);
+      }
+
+      total += lineTotal;
+    }
+    return total;
+  }
+
+  double _calculateDueAmount() {
+    final total = _calculateTotalAmount();
+    final paid = double.tryParse(_amountPaidController.text) ?? 0.0;
+    return (total - paid).clamp(0.0, double.infinity);
   }
 
   Widget _buildStep1Form(ThemeData theme) {
