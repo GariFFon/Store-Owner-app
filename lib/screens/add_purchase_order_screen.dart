@@ -33,6 +33,14 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   Timer? _debounce;
   String? _selectedSupplierStoreId;
 
+  // Product Search
+  final TextEditingController _productSearchController =
+      TextEditingController();
+  List<Map<String, dynamic>> _productSearchResults = [];
+  bool _isSearchingProduct = false;
+  Timer? _productSearchDebounce;
+  List<Map<String, dynamic>> _selectedProducts = [];
+
   // Data from APIs
   List<Map<String, dynamic>> _units = [];
   List<Map<String, dynamic>> _godowns = [];
@@ -61,7 +69,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   void _searchSuppliers(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
 
-    // Reset results if empty
     if (query.isEmpty) {
       if (mounted) {
         setState(() {
@@ -97,6 +104,100 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     });
   }
 
+  void _searchProducts(String query) {
+    if (_productSearchDebounce?.isActive ?? false)
+      _productSearchDebounce!.cancel();
+
+    if (query.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _productSearchResults = [];
+          _isSearchingProduct = false;
+        });
+      }
+      return;
+    }
+
+    _productSearchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      setState(() {
+        _isSearchingProduct = true;
+      });
+
+      try {
+        final result =
+            await StoreOwnerApiService.searchProductCombinationTemplates(
+              query: query,
+              storeId: widget.storeId,
+            );
+
+        if (mounted) {
+          setState(() {
+            // Assuming the structure is result['response'] is the list
+            if (result['response'] != null) {
+              _productSearchResults = List<Map<String, dynamic>>.from(
+                result['response'],
+              );
+            } else {
+              _productSearchResults = [];
+            }
+            _isSearchingProduct = false;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error searching products: $e');
+        if (mounted) {
+          setState(() {
+            _isSearchingProduct = false;
+            _productSearchResults = [];
+          });
+        }
+      }
+    });
+  }
+
+  void _addProduct(Map<String, dynamic> productTemplate) {
+    setState(() {
+      // Normalize data
+      final String name =
+          productTemplate['product_combination_template_name'] ??
+          productTemplate['product_name'] ??
+          productTemplate['name'] ??
+          'Product Name';
+      final String category = productTemplate['category_name'] ?? 'Category';
+      final String? image =
+          productTemplate['product_image'] ??
+          productTemplate['image'] ??
+          productTemplate['img_url'] ??
+          productTemplate['product_combination_template_image'];
+
+      _selectedProducts.add({
+        ...productTemplate,
+        'product_name': name,
+        'category_name': category,
+        'image': image,
+        'quantity': 1, // Default quantity
+        'unit_id': _units.isNotEmpty ? _units.first['id'] : null,
+        'cost_price': 0.0,
+        'selling_price': 0.0,
+        'tax_inclusive': false,
+        'mfg_date': null,
+        'expiry_date': null,
+        'godown_id': null,
+        'rack_id': null,
+        'barcode': '',
+        'is_expanded': true,
+      });
+      _productSearchController.clear();
+      _productSearchResults = [];
+    });
+  }
+
+  void _removeProduct(int index) {
+    setState(() {
+      _selectedProducts.removeAt(index);
+    });
+  }
+
   Future<void> _openCreateStoreDialog() async {
     final result = await showDialog(
       context: context,
@@ -113,9 +214,9 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
               ? '$name ($gst)'
               : name;
 
-          _supplierSearchController.text = name; // Or label?
+          _supplierSearchController.text = name;
           _selectedSupplier = label;
-          _searchResults = []; // Clear results
+          _searchResults = [];
         });
       }
     }
@@ -125,16 +226,13 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     if (widget.aiData != null) {
       final response = widget.aiData!['response'] ?? {};
 
-      // Auto-fill invoice ID
       if (response['invoice_id'] != null) {
         _invoiceIdController.text = response['invoice_id'].toString();
       }
 
-      // Auto-fill invoice date
       if (response['invoice_date'] != null) {
         try {
           final dateStr = response['invoice_date'].toString();
-          // Try to parse the date
           _dateController.text = dateStr;
           _purchaseDate = DateTime.tryParse(dateStr);
         } catch (e) {
@@ -191,6 +289,10 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   void dispose() {
     _invoiceIdController.dispose();
     _dateController.dispose();
+    _supplierSearchController.dispose();
+    _productSearchController.dispose();
+    _debounce?.cancel();
+    _productSearchDebounce?.cancel();
     super.dispose();
   }
 
@@ -199,9 +301,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF8F9FD,
-      ), // Light background like in image
+      backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
         leading: BackButton(onPressed: () => Navigator.pop(context)),
         title: const TranslatedText(
@@ -217,15 +317,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           ? const Center(child: CircularProgressIndicator())
           : LayoutBuilder(
               builder: (context, constraints) {
-                // Responsive layout:
-                // formatted for mobile/tablet where we might stack or use Row
-                // The image shows side-by-side, which implies wide screen.
-                // Assuming mobile first, we might just put steps on top or use a distinct design.
-                // However, let's try to match the "Two column" feel if space permits,
-                // or just put the stepper at top for mobile.
-
                 final isWide = constraints.maxWidth > 800;
-
                 return SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
                   child: isWide
@@ -308,7 +400,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 child: Text(
                   _steps[index],
                   style: TextStyle(
-                    fontSize: 12, // Smaller font for horizontal layout
+                    fontSize: 12,
                     fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                     color: isActive ? Colors.blue : theme.colorScheme.onSurface,
                   ),
@@ -323,71 +415,20 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     );
   }
 
-  Future<void> _showIntelligenceDialog() async {
-    final result = await showDialog(
-      context: context,
-      barrierDismissible: false, // Prevent dismissing while analyzing
-      builder: (context) => IntelligenceUploadDialog(storeId: widget.storeId),
-    );
-
-    if (result != null && result is Map<String, dynamic> && mounted) {
-      // Navigate to Supplier Details Screen
-      final supplierResult = await Navigator.push<Map<String, dynamic>>(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              SupplierDetailsScreen(data: result, storeId: widget.storeId),
-        ),
-      );
-
-      // If user clicked Continue on Supplier Details, show Product Details
-      if (supplierResult != null &&
-          supplierResult['continue'] == true &&
-          mounted) {
-        final supplierStoreId = supplierResult['supplierStoreId']?.toString();
-
-        final productContinue = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProductDetailsScreen(
-              data: result,
-              storeId: widget.storeId,
-              supplierStoreId: supplierStoreId,
-            ),
-          ),
-        );
-
-        // If user clicked Continue on Product Details, populate the form
-        if (productContinue == true && mounted) {
-          _populateFormFromAi(result);
-        }
-      }
-    }
-  }
-
   void _populateFormFromAi(Map<String, dynamic> data) {
     setState(() {
-      // Map fields
       if (data.containsKey('invoice_id')) {
         _invoiceIdController.text = data['invoice_id'].toString();
       }
-
       if (data.containsKey('invoice_date')) {
-        // Parse date if possible
         try {
           final dateStr = data['invoice_date'].toString();
-          // Assuming date format, might need adjustment based on API
-          // If API returns yyyy-MM-dd, great.
           _dateController.text = dateStr;
           _purchaseDate = DateTime.tryParse(dateStr);
         } catch (e) {
           debugPrint('Error parsing date: $e');
         }
       }
-
-      // Handle supplier selection if specific logic exists
-      // For now we just log
-      debugPrint('Populating from AI: $data');
     });
   }
 
@@ -426,18 +467,11 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Form Content based on step
               if (_currentStep == 0) _buildStep1Form(theme),
-              if (_currentStep == 1)
-                Center(
-                  child: Text(
-                    "Product Selection Here (Units: ${_units.length}, Godowns: ${_godowns.length}, Racks: ${_racks.length})",
-                  ),
-                ),
+              if (_currentStep == 1) _buildStep2AddProducts(theme),
 
               const SizedBox(height: 32),
 
-              // Navigation Buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -458,7 +492,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                       if (_currentStep < _steps.length - 1) {
                         setState(() => _currentStep++);
                       } else {
-                        // Submit
+                        // Submit logic
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -487,7 +521,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   }
 
   Widget _buildStep1Form(ThemeData theme) {
-    // Extract AI data if available
+    // Keep existing implementation for Step 1
     final response = widget.aiData?['response'] ?? {};
     final supplierDetails = response['supplier_details'] ?? {};
     final addressDetails = supplierDetails['supplier_address_details'] ?? {};
@@ -498,23 +532,14 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     final legalName =
         supplierDetails['supplier_legal_business_name'] ?? supplierName;
 
-    // Build address
-    final addressLine1 = addressDetails['supplier_address_line_1'] ?? '';
-    final addressLine2 = addressDetails['supplier_address_line_2'] ?? '';
-    final locality = addressDetails['supplier_locality'] ?? '';
-    final city = addressDetails['supplier_city'] ?? '';
-    final state = addressDetails['supplier_state'] ?? '';
-    final pincode = addressDetails['supplier_pincode']?.toString() ?? '';
-
     final addressParts = [
-      if (addressLine1.isNotEmpty) addressLine1,
-      if (addressLine2.isNotEmpty) addressLine2,
-      if (locality.isNotEmpty) locality,
-      if (city.isNotEmpty) city,
-      if (state.isNotEmpty) state,
-      if (pincode.isNotEmpty) pincode,
-    ];
-    final fullAddress = addressParts.join(', ');
+      addressDetails['supplier_address_line_1'],
+      addressDetails['supplier_address_line_2'],
+      addressDetails['supplier_locality'],
+      addressDetails['supplier_city'],
+      addressDetails['supplier_state'],
+      addressDetails['supplier_pincode']?.toString(),
+    ].where((e) => e != null && e.isNotEmpty).join(', ');
 
     final gstRegistrationType =
         supplierDetails['supplier_gst_registration_type']
@@ -525,7 +550,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // AI-Extracted Supplier Information Section
         if (hasAiData) ...[
           Container(
             padding: const EdgeInsets.all(20),
@@ -554,8 +578,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // Supplier Name
                 const Text(
                   'Supplier Name',
                   style: TextStyle(
@@ -564,7 +586,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                     color: Colors.black54,
                   ),
                 ),
-                const SizedBox(height: 4),
                 Text(
                   supplierName,
                   style: const TextStyle(
@@ -573,8 +594,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // GST IN
                 const Text(
                   'GST IN',
                   style: TextStyle(
@@ -583,7 +602,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                     color: Colors.black54,
                   ),
                 ),
-                const SizedBox(height: 4),
                 Text(
                   supplierGst,
                   style: const TextStyle(
@@ -592,9 +610,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Address
-                if (fullAddress.isNotEmpty) ...[
+                if (addressParts.isNotEmpty) ...[
                   const Text(
                     'Address',
                     style: TextStyle(
@@ -603,53 +619,51 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                       color: Colors.black54,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(fullAddress, style: const TextStyle(fontSize: 14)),
+                  Text(addressParts, style: const TextStyle(fontSize: 14)),
                   const SizedBox(height: 16),
                 ],
-
-                // Create Supplier Button
                 ElevatedButton.icon(
                   onPressed: () async {
-                    // Show loading
+                    // Copied creation logic
                     showDialog(
                       context: context,
                       barrierDismissible: false,
                       builder: (context) =>
                           const Center(child: CircularProgressIndicator()),
                     );
-
                     try {
-                      final int pin = int.tryParse(pincode) ?? 0;
+                      final pin =
+                          int.tryParse(
+                            addressDetails['supplier_pincode']?.toString() ??
+                                '',
+                          ) ??
+                          0;
 
                       final result = await StoreOwnerApiService.registerStore(
                         storeId: widget.storeId,
                         storeName: supplierName,
                         legalName: legalName,
-                        city: city,
-                        state: state,
+                        city: addressDetails['supplier_city'] ?? '',
+                        state: addressDetails['supplier_state'] ?? '',
                         pin: pin,
                         isGstEnabled: supplierGst.isNotEmpty,
                         gstIn: supplierGst,
-                        gstRegisteredState: state,
+                        gstRegisteredState:
+                            addressDetails['supplier_state'] ?? '',
                         gstRegistrationType: gstRegistrationType,
-                        area: locality,
+                        area: addressDetails['supplier_locality'] ?? '',
                       );
 
                       if (mounted) {
-                        Navigator.pop(context); // Close loading dialog
-
+                        Navigator.pop(context);
                         if (result.isNotEmpty && result['status'] == 200) {
-                          // Auto-select the newly created supplier in the dropdown
                           setState(() {
                             _selectedSupplier = '$supplierName ($supplierGst)';
                           });
-
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                result['message'] ??
-                                    'Supplier created successfully!',
+                                result['message'] ?? 'Supplier created!',
                               ),
                               backgroundColor: Colors.green,
                             ),
@@ -665,7 +679,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                       }
                     } catch (e) {
                       if (mounted) {
-                        Navigator.pop(context); // Close loading dialog
+                        Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Error: $e'),
@@ -680,13 +694,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
                   ),
                 ),
               ],
@@ -695,9 +702,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           const SizedBox(height: 24),
         ],
 
-        // Supplier Dropdown
-        // Supplier Search Field
-        // Supplier Search Field
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -710,15 +714,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 floatingLabelBehavior: FloatingLabelBehavior.always,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: theme.dividerColor),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: theme.dividerColor),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
                 ),
                 suffixIcon: const Icon(
                   Icons.arrow_drop_down,
@@ -726,10 +721,8 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 ),
               ),
             ),
-
-            // Search Results & "Add New" Dropdown
             if (_searchResults.isNotEmpty ||
-                (_isSearchingSupplier) ||
+                _isSearchingSupplier ||
                 (!_isSearchingSupplier &&
                     _supplierSearchController.text.isNotEmpty &&
                     _searchResults.isEmpty &&
@@ -753,10 +746,9 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                   children: [
                     if (_isSearchingSupplier)
                       const Padding(
-                        padding: EdgeInsets.all(16.0),
+                        padding: EdgeInsets.all(16),
                         child: Center(child: LinearProgressIndicator()),
                       ),
-
                     if (_searchResults.isNotEmpty)
                       Container(
                         constraints: const BoxConstraints(maxHeight: 200),
@@ -768,32 +760,24 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                               const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final store = _searchResults[index];
-                            final name = store['store_name'] ?? 'Unknown';
-                            final gst = store['gst_in'] ?? 'No GST';
-                            final city = store['city'] ?? '';
-                            final area = store['area'] ?? '';
-                            final location = [
-                              area,
-                              city,
-                            ].where((e) => e.toString().isNotEmpty).join(', ');
-
                             return ListTile(
                               dense: true,
                               title: Text(
-                                name,
+                                store['store_name'] ?? 'Unknown',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               subtitle: Text(
-                                '$gst • $location',
+                                '${store['gst_in'] ?? 'No GST'} • ${store['city'] ?? ''}',
                                 style: const TextStyle(fontSize: 11),
                               ),
                               onTap: () {
                                 setState(() {
                                   _selectedSupplierStoreId = store['store_id'];
-                                  _supplierSearchController.text = name;
-                                  _selectedSupplier = name;
+                                  _supplierSearchController.text =
+                                      store['store_name'];
+                                  _selectedSupplier = store['store_name'];
                                   _searchResults = [];
                                 });
                               },
@@ -801,39 +785,29 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                           },
                         ),
                       ),
-
                     if (!_isSearchingSupplier &&
                         _supplierSearchController.text.isNotEmpty &&
                         _searchResults.isEmpty &&
                         _selectedSupplier != _supplierSearchController.text)
                       Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'No suppliers found',
-                                style: TextStyle(color: Colors.grey),
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'No suppliers found',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: _openCreateStoreDialog,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue[700],
+                                foregroundColor: Colors.white,
                               ),
-                              const SizedBox(height: 12),
-                              ElevatedButton(
-                                onPressed: _openCreateStoreDialog,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue[700],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                ),
-                                child: const Text('+ Add New Store'),
-                              ),
-                            ],
-                          ),
+                              child: const Text('+ Add New Store'),
+                            ),
+                          ],
                         ),
                       ),
                   ],
@@ -841,9 +815,8 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
               ),
           ],
         ),
-        const SizedBox(height: 24),
 
-        // Purchase Date
+        const SizedBox(height: 24),
         InkWell(
           onTap: _selectDate,
           child: IgnorePointer(
@@ -853,11 +826,45 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 labelText: 'Purchase Date *',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: theme.dividerColor),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _invoiceIdController,
+          decoration: InputDecoration(
+            labelText: 'Supplier Invoice Id *',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Step 2: Add Products Implementation ---
+
+  Widget _buildStep2AddProducts(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search Bar
+        Column(
+          children: [
+            TextField(
+              controller: _productSearchController,
+              onChanged: _searchProducts,
+              decoration: InputDecoration(
+                hintText: 'Search products',
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: theme.dividerColor),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -865,30 +872,610 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 24),
+            // Search Results Overlay
+            if (_productSearchResults.isNotEmpty || _isSearchingProduct)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: _isSearchingProduct
+                    ? const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: _productSearchResults.length,
+                        separatorBuilder: (ctx, i) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final product = _productSearchResults[index];
 
-        // Supplier Invoice Id
-        TextField(
-          controller: _invoiceIdController,
-          decoration: InputDecoration(
-            labelText: 'Supplier Invoice Id *',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: theme.dividerColor),
+                          // Correctly map the fields based on API response
+                          final name =
+                              product['product_combination_template_name'] ??
+                              product['product_name'] ??
+                              product['name'] ??
+                              'Product Name';
+                          final category =
+                              product['category_name'] ?? 'Category';
+                          final image =
+                              product['product_image'] ??
+                              product['image'] ??
+                              product['img_url'] ??
+                              product['product_combination_template_image'];
+
+                          return ListTile(
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: image != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        image,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            const Icon(
+                                              Icons.image_not_supported,
+                                              size: 20,
+                                              color: Colors.grey,
+                                            ),
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.image,
+                                      size: 20,
+                                      color: Colors.grey,
+                                    ),
+                            ),
+                            title: Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text(category),
+                            trailing: const Icon(
+                              Icons.add_circle,
+                              color: Colors.blue,
+                            ),
+                            onTap: () => _addProduct(product),
+                          );
+                        },
+                      ),
+              ),
+          ],
+        ),
+
+        const SizedBox(height: 32),
+
+        if (_selectedProducts.isEmpty)
+          _buildEmptyProductState()
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Selected Products (${_selectedProducts.length})',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+              const SizedBox(height: 16),
+              ..._selectedProducts.asMap().entries.map((entry) {
+                return _buildProductCard(entry.key, entry.value, theme);
+              }).toList(),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyProductState() {
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(48),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F9FD),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          children: [
+            Text(
+              'No products added yet',
+              style: TextStyle(fontSize: 18, color: Colors.grey[700]),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: theme.dividerColor),
+            const SizedBox(height: 8),
+            Text(
+              'Search and add products to start building your purchase order',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductCard(
+    int index,
+    Map<String, dynamic> product,
+    ThemeData theme,
+  ) {
+    // Determine card state (expanded or not)
+    final bool isExpanded = product['is_expanded'] ?? false;
+    final String name =
+        product['product_name'] ?? product['name'] ?? 'Product Name';
+    final String category = product['category_name'] ?? 'Category';
+    // Mock image for now or use network image if available
+    final String? imageUrl = product['image'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header (Always Visible)
+          InkWell(
+            onTap: () {
+              setState(() {
+                product['is_expanded'] = !isExpanded;
+              });
+            },
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(12),
+              bottom: Radius.circular(isExpanded ? 0 : 12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: imageUrl != null && imageUrl.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.image_not_supported,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.image, color: Colors.grey),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          category,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'MRP: N/A',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'GST: ${product['gst_rate'] ?? 0}%',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.redAccent),
+                    onPressed: () => _removeProduct(index),
+                  ),
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
             ),
           ),
+
+          if (isExpanded) ...[
+            const Divider(height: 1),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F9FD).withOpacity(0.5),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(12),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Quantity Section
+                  _buildSectionHeader(Icons.bar_chart, 'Quantity'),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: _buildTextField(
+                          label: 'Quantity * *',
+                          onChanged: (val) => product['quantity'] = val,
+                          keyboardType: TextInputType.number,
+                          initialValue: product['quantity']?.toString(),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 1,
+                        child: _buildDropdown(
+                          label: 'Unit * *',
+                          value: product['unit_id'],
+                          items: _units
+                              .map(
+                                (u) => DropdownMenuItem(
+                                  value: u['id'],
+                                  child: Text(u['name'] ?? ''),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) {
+                            setState(() => product['unit_id'] = val);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Pricing Section
+                  _buildSectionHeader(
+                    Icons.monetization_on_outlined,
+                    'Pricing',
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          label: 'MRP (₹) * *',
+                          onChanged: (v) {},
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildTextField(
+                          label: 'Cost Price (₹)...',
+                          onChanged: (v) => product['cost_price'] = v,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildTextField(
+                          label: 'Selling Price (...',
+                          onChanged: (v) => product['selling_price'] = v,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Tax Toggle
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Switch(
+                        value: product['tax_inclusive'] ?? false,
+                        onChanged: (val) =>
+                            setState(() => product['tax_inclusive'] = val),
+                        activeColor: Colors.blue,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        (product['tax_inclusive'] ?? false)
+                            ? 'Price including tax'
+                            : 'Amount excludes tax',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Dates
+                  _buildSectionHeader(Icons.calendar_today, 'Dates'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDateField(
+                          label: 'Manufacturing Date',
+                          value: product['mfg_date'],
+                          onSelect: (d) =>
+                              setState(() => product['mfg_date'] = d),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildDateField(
+                          label: 'Expiry Date',
+                          value: product['expiry_date'],
+                          onSelect: (d) =>
+                              setState(() => product['expiry_date'] = d),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Storage Location
+                  _buildSectionHeader(
+                    Icons.inventory_2_outlined,
+                    'Storage Location',
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDropdown(
+                          label: 'Select Godown * *',
+                          value: product['godown_id'],
+                          items: _godowns
+                              .map(
+                                (g) => DropdownMenuItem(
+                                  value: g['id'],
+                                  child: Text(g['name'] ?? ''),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) =>
+                              setState(() => product['godown_id'] = val),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildDropdown(
+                          label: 'Select Rack (Optional)',
+                          value: product['rack_id'],
+                          items: _racks
+                              .map(
+                                (r) => DropdownMenuItem(
+                                  value: r['id'],
+                                  child: Text(r['name'] ?? ''),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) =>
+                              setState(() => product['rack_id'] = val),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Barcode
+                  _buildSectionHeader(Icons.qr_code, 'Barcode'),
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Barcode',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      suffixIcon: const Icon(
+                        Icons.add_circle_outline,
+                        color: Colors.grey,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
+                    ),
+                    onChanged: (val) => product['barcode'] = val,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(IconData icon, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey[600]),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required String label,
+    required Function(String) onChanged,
+    TextInputType? keyboardType,
+    String? initialValue,
+  }) {
+    return TextFormField(
+      initialValue: initialValue,
+      onChanged: onChanged,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.grey),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
         ),
-      ],
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required dynamic value,
+    required List<DropdownMenuItem<dynamic>> items,
+    required Function(dynamic) onChanged,
+  }) {
+    return DropdownButtonFormField(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.grey),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
+      ),
+      icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+    );
+  }
+
+  Widget _buildDateField({
+    required String label,
+    required DateTime? value,
+    required Function(DateTime) onSelect,
+  }) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: value ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
+        if (picked != null) onSelect(picked);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
+          ),
+        ),
+        child: Text(
+          value != null ? DateFormat('yyyy-MM-dd').format(value) : '',
+          style: const TextStyle(fontSize: 14),
+        ),
+      ),
     );
   }
 }
@@ -905,9 +1492,6 @@ class IntelligenceUploadDialog extends StatefulWidget {
 class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
   File? _selectedFile;
   bool _isAnalyzing = false;
-
-  // To store the response if needed or just handle navigation
-  // dynamic _analysisResult;
 
   Future<void> _pickFile() async {
     try {
@@ -957,8 +1541,6 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
     });
 
     try {
-      // Get Location
-      // Get Location
       Position? position;
       try {
         bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -975,10 +1557,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
           } else if (permission == LocationPermission.deniedForever) {
             debugPrint('Location permissions are permanently denied');
           } else {
-            // Try last known position first for speed
             position = await Geolocator.getLastKnownPosition();
-
-            // If no last known position, get current
             position ??= await Geolocator.getCurrentPosition(
               desiredAccuracy: LocationAccuracy.medium,
               timeLimit: const Duration(seconds: 5),
@@ -992,14 +1571,6 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
       final lat = position?.latitude ?? 0.0;
       final lng = position?.longitude ?? 0.0;
 
-      debugPrint('📍 Location found: $lat, $lng');
-      debugPrint('📤 Sending Payload to /purchase-entry-intelligence/:');
-      debugPrint('   - store_id: ${widget.storeId}');
-      debugPrint('   - store_access: true');
-      debugPrint('   - file: (binary) ${_selectedFile!.path.split('/').last}');
-      debugPrint('   - lat: $lat');
-      debugPrint('   - lng: $lng');
-
       final result = await StoreOwnerApiService.uploadPurchaseInvoice(
         widget.storeId,
         _selectedFile!,
@@ -1008,7 +1579,6 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
       );
 
       if (mounted) {
-        // Close the dialog and return result
         Navigator.pop(context, result);
       }
     } catch (e) {
@@ -1090,7 +1660,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
     }
 
     return Dialog(
-      backgroundColor: Colors.black, // Dark theme as per screenshot
+      backgroundColor: Colors.black,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Container(
@@ -1101,7 +1671,6 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
@@ -1132,148 +1701,150 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog> {
                 ],
               ),
             ),
-            Container(color: Colors.white, height: 1), // Divider
-            // Body
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Upload Invoice',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Upload a PDF, JPG, or PNG file of your purchase invoice',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Upload Area
-                  GestureDetector(
-                    onTap: _pickFile,
-                    child: Container(
-                      height: 200,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.grey[300]!,
-                          style: BorderStyle.solid,
-                        ), // Should be dashed ideally
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.grey[50], // Light background
+            Container(color: Colors.white, height: 1),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Upload Invoice',
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (_selectedFile != null) ...[
-                            const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 48,
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Upload a PDF, JPG, or PNG file of your purchase invoice',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      GestureDetector(
+                        onTap: _pickFile,
+                        child: Container(
+                          height: 200,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.grey[300]!,
+                              style: BorderStyle.solid,
                             ),
-                            const SizedBox(height: 16),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: Text(
-                                _selectedFile!.path.split('/').last,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.grey[50],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (_selectedFile != null) ...[
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: 48,
                                 ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 2,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                TextButton.icon(
-                                  onPressed: _pickFile,
-                                  icon: const Icon(Icons.upload_file, size: 18),
-                                  label: const Text("Change File"),
+                                const SizedBox(height: 16),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: Text(
+                                    _selectedFile!.path.split('/').last,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 2,
+                                  ),
                                 ),
-                                const SizedBox(width: 8),
-                                TextButton.icon(
-                                  onPressed: _takePhoto,
-                                  icon: const Icon(Icons.camera_alt, size: 18),
-                                  label: const Text("Retake Photo"),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    TextButton.icon(
+                                      onPressed: _pickFile,
+                                      icon: const Icon(
+                                        Icons.upload_file,
+                                        size: 18,
+                                      ),
+                                      label: const Text("Change File"),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    TextButton.icon(
+                                      onPressed: _takePhoto,
+                                      icon: const Icon(
+                                        Icons.camera_alt,
+                                        size: 18,
+                                      ),
+                                      label: const Text("Retake Photo"),
+                                    ),
+                                  ],
+                                ),
+                              ] else ...[
+                                const Icon(
+                                  Icons.cloud_upload,
+                                  color: Colors.grey,
+                                  size: 48,
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Click to upload or drag and drop',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'PDF, JPG, or PNG (Max 10MB)',
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ],
-                            ),
-                          ] else ...[
-                            const Icon(
-                              Icons.cloud_upload,
-                              color: Colors.grey,
-                              size: 48,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Click to upload or drag and drop',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'PDF, JPG, or PNG (Max 10MB)',
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Take Photo Button
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: _takePhoto,
-                    icon: const Icon(Icons.camera_alt, color: Colors.black),
-                    label: const Text(
-                      'Take Photo',
-                      style: TextStyle(color: Colors.black),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      side: const BorderSide(color: Colors.black),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Footer Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('CANCEL'),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton.icon(
-                        onPressed: _selectedFile != null
-                            ? _analyzeWithAi
-                            : null,
-                        icon: const Icon(Icons.auto_awesome, size: 16),
-                        label: const Text('Analyze with AI'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black, // Dark button
-                          foregroundColor: Colors.white,
+                            ],
+                          ),
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: _takePhoto,
+                        icon: const Icon(Icons.camera_alt, color: Colors.black),
+                        label: const Text(
+                          'Take Photo',
+                          style: TextStyle(color: Colors.black),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 48),
+                          side: const BorderSide(color: Colors.black),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('CANCEL'),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton.icon(
+                            onPressed: _selectedFile != null
+                                ? _analyzeWithAi
+                                : null,
+                            icon: const Icon(Icons.auto_awesome, size: 16),
+                            label: const Text('Analyze with AI'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ],
