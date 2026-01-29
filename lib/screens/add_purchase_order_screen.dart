@@ -1,13 +1,15 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:exanor/screens/create_store_dialog.dart';
+import 'package:exanor/screens/product_details_screen.dart';
+import 'package:exanor/screens/supplier_details_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:exanor/screens/supplier_details_screen.dart';
-import 'package:exanor/screens/product_details_screen.dart';
 
 class AddPurchaseOrderScreen extends StatefulWidget {
   final String storeId;
@@ -22,6 +24,14 @@ class AddPurchaseOrderScreen extends StatefulWidget {
 class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   bool _isLoading = true;
   int _currentStep = 0;
+
+  // Supplier Search
+  final TextEditingController _supplierSearchController =
+      TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearchingSupplier = false;
+  Timer? _debounce;
+  String? _selectedSupplierStoreId;
 
   // Data from APIs
   List<Map<String, dynamic>> _units = [];
@@ -46,6 +56,69 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     super.initState();
     _fetchInitialData();
     _populateFromAiData();
+  }
+
+  void _searchSuppliers(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    // Reset results if empty
+    if (query.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearchingSupplier = false;
+        });
+      }
+      return;
+    }
+
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      setState(() {
+        _isSearchingSupplier = true;
+      });
+
+      try {
+        final results = await StoreOwnerApiService.searchStore(query);
+        if (mounted) {
+          setState(() {
+            _searchResults = results;
+            _isSearchingSupplier = false;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error searching supplier: $e');
+        if (mounted) {
+          setState(() {
+            _isSearchingSupplier = false;
+            _searchResults = [];
+          });
+        }
+      }
+    });
+  }
+
+  Future<void> _openCreateStoreDialog() async {
+    final result = await showDialog(
+      context: context,
+      builder: (context) => CreateStoreDialog(storeId: widget.storeId),
+    );
+
+    if (result != null && result is Map<String, dynamic>) {
+      if (mounted) {
+        setState(() {
+          _selectedSupplierStoreId = result['id'];
+          final name = result['name'];
+          final gst = result['gst_in'];
+          final label = gst != null && gst.toString().isNotEmpty
+              ? '$name ($gst)'
+              : name;
+
+          _supplierSearchController.text = name; // Or label?
+          _selectedSupplier = label;
+          _searchResults = []; // Clear results
+        });
+      }
+    }
   }
 
   void _populateFromAiData() {
@@ -623,44 +696,150 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         ],
 
         // Supplier Dropdown
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            border: Border.all(color: theme.dividerColor),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedSupplier,
-              hint: const Text('Pick a supplier'),
-              isExpanded: true,
-              items: [
-                // If we have a selected supplier that's not in the default list, add it
-                if (_selectedSupplier != null &&
-                    ![
-                      'Supplier A',
-                      'Supplier B',
-                      'Other',
-                    ].contains(_selectedSupplier))
-                  DropdownMenuItem<String>(
-                    value: _selectedSupplier,
-                    child: Text(_selectedSupplier!),
-                  ),
-                // Default options
-                ...['Supplier A', 'Supplier B', 'Other'].map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-              ],
-              onChanged: (newValue) {
-                setState(() {
-                  _selectedSupplier = newValue;
-                });
-              },
+        // Supplier Search Field
+        // Supplier Search Field
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _supplierSearchController,
+              onChanged: _searchSuppliers,
+              decoration: InputDecoration(
+                labelText: 'Pick a supplier',
+                hintText: _selectedSupplier,
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.dividerColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: theme.dividerColor),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
+                suffixIcon: const Icon(
+                  Icons.arrow_drop_down,
+                  color: Colors.grey,
+                ),
+              ),
             ),
-          ),
+
+            // Search Results & "Add New" Dropdown
+            if (_searchResults.isNotEmpty ||
+                (_isSearchingSupplier) ||
+                (!_isSearchingSupplier &&
+                    _supplierSearchController.text.isNotEmpty &&
+                    _searchResults.isEmpty &&
+                    _selectedSupplier != _supplierSearchController.text))
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSearchingSupplier)
+                      const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Center(child: LinearProgressIndicator()),
+                      ),
+
+                    if (_searchResults.isNotEmpty)
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 200),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          itemCount: _searchResults.length,
+                          separatorBuilder: (ctx, i) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final store = _searchResults[index];
+                            final name = store['store_name'] ?? 'Unknown';
+                            final gst = store['gst_in'] ?? 'No GST';
+                            final city = store['city'] ?? '';
+                            final area = store['area'] ?? '';
+                            final location = [
+                              area,
+                              city,
+                            ].where((e) => e.toString().isNotEmpty).join(', ');
+
+                            return ListTile(
+                              dense: true,
+                              title: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '$gst • $location',
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              onTap: () {
+                                setState(() {
+                                  _selectedSupplierStoreId = store['store_id'];
+                                  _supplierSearchController.text = name;
+                                  _selectedSupplier = name;
+                                  _searchResults = [];
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+
+                    if (!_isSearchingSupplier &&
+                        _supplierSearchController.text.isNotEmpty &&
+                        _searchResults.isEmpty &&
+                        _selectedSupplier != _supplierSearchController.text)
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'No suppliers found',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: _openCreateStoreDialog,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue[700],
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                ),
+                                child: const Text('+ Add New Store'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 24),
 

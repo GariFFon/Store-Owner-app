@@ -372,6 +372,9 @@ class StoreOwnerApiService {
     required String gstRegisteredState,
     required String gstRegistrationType,
     String area = '',
+    String? phoneNumber,
+    String? email,
+    String? websiteUrl,
   }) async {
     try {
       final response = await ApiService.post(
@@ -389,6 +392,9 @@ class StoreOwnerApiService {
           'gst_in': gstIn,
           'gst_registered_state': gstRegisteredState,
           'gst_registration_type': gstRegistrationType,
+          if (phoneNumber != null) 'phone_number': phoneNumber,
+          if (email != null) 'email': email,
+          if (websiteUrl != null) 'website_url': websiteUrl,
         },
         useBearerToken: true,
       );
