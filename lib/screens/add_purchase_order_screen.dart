@@ -55,7 +55,16 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   String? _selectedSupplier;
   DateTime? _purchaseDate;
   final TextEditingController _invoiceIdController = TextEditingController();
+
   final TextEditingController _dateController = TextEditingController();
+
+  // Payment Data
+  String _paymentStatus = 'Paid';
+  final TextEditingController _transactionIdController =
+      TextEditingController();
+  String? _paymentMethodStoreBankId;
+  List<Map<String, dynamic>> _storeBankAccounts = [];
+  File? _invoiceFile;
 
   final List<String> _steps = [
     'Basic information',
@@ -263,6 +272,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         StoreOwnerApiService.getUnits(widget.storeId),
         StoreOwnerApiService.getGodowns(widget.storeId),
         StoreOwnerApiService.getRacks(widget.storeId),
+        StoreOwnerApiService.getStoreBankDetails(widget.storeId),
       ]);
 
       if (mounted) {
@@ -270,10 +280,12 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           _units = results[0];
           _godowns = results[1];
           _racks = results[2];
+          _storeBankAccounts = results[3];
 
           debugPrint('Fetched Units: $_units');
           debugPrint('Fetched Godowns: $_godowns');
           debugPrint('Fetched Racks: $_racks');
+          debugPrint('Fetched Bank Accounts: $_storeBankAccounts');
 
           // Set default unit to PCS/Pieces if available
           if (_units.isNotEmpty) {
@@ -321,7 +333,9 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     _invoiceIdController.dispose();
     _dateController.dispose();
     _supplierSearchController.dispose();
+    _supplierSearchController.dispose();
     _productSearchController.dispose();
+    _transactionIdController.dispose();
     _debounce?.cancel();
     _productSearchDebounce?.cancel();
     super.dispose();
@@ -484,8 +498,15 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_currentStep == 0) _buildStep1Form(theme),
-                  if (_currentStep == 1) _buildStep2AddProducts(theme),
+                  // Build content based on current step
+                  if (_currentStep == 0)
+                    _buildStep1Form(theme)
+                  else if (_currentStep == 1)
+                    _buildStep2AddProducts(theme)
+                  else if (_currentStep == 2)
+                    _buildStep3PaymentData(theme)
+                  else
+                    const SizedBox.shrink(),
 
                   const SizedBox(height: 32),
 
@@ -537,6 +558,279 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildStep3PaymentData(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Add payment data',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Payment Status & Transaction ID
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader(Icons.payment, 'Payment Status'),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDropdown(
+                      label: 'Payment Status * *',
+                      value: _paymentStatus,
+                      items: ['Paid', 'Credit', 'Partial Payment']
+                          .map(
+                            (s) => DropdownMenuItem(value: s, child: Text(s)),
+                          )
+                          .toList(),
+                      onChanged: (val) => setState(() => _paymentStatus = val),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(
+                      label: 'Transaction ID (Optional)',
+                      onChanged: (val) {}, // Controller used directly
+                      controller: _transactionIdController,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Payment Method
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader(
+                Icons.account_balance,
+                'Select Payment Method',
+              ),
+              _buildDropdown(
+                label: 'Payment Method * *',
+                value: _paymentMethodStoreBankId,
+                items: _storeBankAccounts.map((bank) {
+                  final isCash =
+                      bank['account_number_or_upi_id'] == 'CASH-IN-HAND';
+                  return DropdownMenuItem(
+                    value: bank['id'],
+                    child: Row(
+                      children: [
+                        Icon(
+                          isCash
+                              ? Icons.account_balance_wallet_outlined
+                              : Icons.account_balance,
+                          size: 20,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 12),
+                        if (isCash) ...[
+                          const Text('CASH-IN-HAND'),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Default',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                bank['bank_name'] ?? 'Bank',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (bank['account_number'] != null)
+                                Text(
+                                  bank['account_number'].toString(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }).toList(),
+                selectedItemBuilder: (context) {
+                  return _storeBankAccounts.map<Widget>((bank) {
+                    final isCash =
+                        bank['account_number_or_upi_id'] == 'CASH-IN-HAND';
+                    return Row(
+                      children: [
+                        Text(
+                          isCash
+                              ? 'CASH-IN-HAND'
+                              : (bank['bank_name'] ?? 'Bank'),
+                          style: const TextStyle(color: Colors.black),
+                        ),
+                        if (isCash) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Default',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  }).toList();
+                },
+                onChanged: (val) =>
+                    setState(() => _paymentMethodStoreBankId = val),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Invoice Document
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader(Icons.description, 'Invoice Document'),
+              InkWell(
+                onTap: _pickInvoiceFile,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300, width: 2),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_invoiceFile != null) ...[
+                        const Icon(
+                          Icons.check_circle,
+                          size: 48,
+                          color: Colors.green,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _invoiceFile!.path.split('/').last,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ] else ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.upload_file,
+                            size: 24,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Click to upload invoice',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Supports: PNG, JPG, PDF (Max 10MB)',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickInvoiceFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _invoiceFile = File(result.files.single.path!);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking invoice file: $e');
+    }
   }
 
   Widget _buildStep1Form(ThemeData theme) {
@@ -1608,9 +1902,13 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     required Function(String) onChanged,
     TextInputType? keyboardType,
     String? initialValue,
+    TextEditingController? controller, // Add this
   }) {
     return TextFormField(
-      initialValue: initialValue,
+      controller: controller, // Use it
+      initialValue: controller != null
+          ? null
+          : initialValue, // initialValue and controller cannot be both set
       onChanged: onChanged,
       keyboardType: keyboardType,
       decoration: InputDecoration(

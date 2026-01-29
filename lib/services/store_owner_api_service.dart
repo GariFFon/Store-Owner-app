@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/models/category_model.dart';
 
@@ -290,6 +291,45 @@ class StoreOwnerApiService {
       return [];
     } catch (e) {
       throw Exception('Failed to fetch racks: $e');
+    }
+  }
+
+  /// Fetch store bank details
+  /// POST /store-bank-details/
+  static Future<List<Map<String, dynamic>>> getStoreBankDetails(
+    String storeId,
+  ) async {
+    try {
+      final body = {
+        'store_id': storeId,
+        'store_access': true,
+        'create': false,
+        'order_by': 'bank_name',
+        'limit': 50,
+      };
+
+      debugPrint('Fetching bank details with body: $body');
+
+      final response = await ApiService.post(
+        '/store-bank-details/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      debugPrint('Bank Details Response: $response');
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          final list = List<Map<String, dynamic>>.from(data['response']);
+          debugPrint('Parsed Bank Details List: $list');
+          return list;
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching bank details: $e');
+      throw Exception('Failed to fetch store bank details: $e');
     }
   }
 
