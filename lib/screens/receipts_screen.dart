@@ -16,6 +16,7 @@ class ReceiptsScreen extends StatefulWidget {
 class _ReceiptsScreenState extends State<ReceiptsScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   List<dynamic> _receipts = [];
   bool _isLoading = true;
@@ -39,6 +40,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
   void dispose() {
     _scrollController.dispose();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     // _debounce?.cancel();
     super.dispose();
   }
@@ -180,6 +182,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
 
                     // Search Bar
                     TextField(
+                      focusNode: _searchFocusNode,
                       controller: _searchController,
                       onSubmitted: (_) {
                         _fetchReceipts();
@@ -298,7 +301,16 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
         border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
       ),
       child: InkWell(
-        onTap: () {
+        onTap: () async {
+          // Unfocus keyboard if open to prevent it from popping up when returning
+          _searchFocusNode.unfocus();
+          FocusScope.of(context).unfocus();
+          await Future.delayed(
+            const Duration(milliseconds: 100),
+          ); // Allow keyboard to hide
+
+          if (!mounted) return;
+
           Navigator.push(
             context,
             MaterialPageRoute(
