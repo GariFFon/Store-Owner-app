@@ -919,6 +919,9 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                         separatorBuilder: (ctx, i) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final product = _productSearchResults[index];
+                          debugPrint(
+                            'Product Search Result Item: $product',
+                          ); // DEBUG PRINT
 
                           // Correctly map the fields based on API response
                           final name =
@@ -968,7 +971,71 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            subtitle: Text(category),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Text(
+                                  'quantity: ${product['quantity'] ?? '1'} ${product['unit_name'] ?? product['unit'] ?? 'Pc'}',
+                                  style: const TextStyle(
+                                    color: Colors.blue,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: [
+                                    Builder(
+                                      builder: (context) {
+                                        final parentName =
+                                            product['parent_category_name'] ??
+                                            product['parent_category'] ??
+                                            product['parent_cat_name'];
+                                        final childName =
+                                            product['child_category_name'] ??
+                                            product['child_category'] ??
+                                            product['child_cat_name'];
+
+                                        final chips = <Widget>[];
+
+                                        if (parentName != null &&
+                                            parentName.toString().isNotEmpty) {
+                                          chips.add(
+                                            _buildCategoryChip(
+                                              parentName.toString(),
+                                            ),
+                                          );
+                                        }
+                                        if (childName != null &&
+                                            childName.toString().isNotEmpty) {
+                                          chips.add(
+                                            _buildCategoryChip(
+                                              childName.toString(),
+                                            ),
+                                          );
+                                        }
+
+                                        // Fallback to generic category if no specific ones found
+                                        if (chips.isEmpty &&
+                                            category != 'Category') {
+                                          chips.add(
+                                            _buildCategoryChip(category),
+                                          );
+                                        }
+
+                                        return Wrap(
+                                          spacing: 8,
+                                          runSpacing: 4,
+                                          children: chips,
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                             trailing: const Icon(
                               Icons.add_circle,
                               color: Colors.blue,
@@ -1601,6 +1668,24 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         ),
       ),
       icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+    );
+  }
+
+  Widget _buildCategoryChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Colors.blue[700],
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     );
   }
 
