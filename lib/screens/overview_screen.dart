@@ -455,9 +455,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
     required bool isCurrency,
     required String comparisonText,
   }) {
-    final isPositive = growth >= 0;
-    final growthColor = isPositive ? Colors.green : Colors.red;
-    final arrow = isPositive ? '↑' : '↓';
+    // Growth variables removed as per request to remove hardcoded data
+    // final isPositive = growth >= 0;
+    // final growthColor = isPositive ? Colors.green : Colors.red;
+    // final arrow = isPositive ? '↑' : '↓';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -503,7 +504,8 @@ class _OverviewScreenState extends State<OverviewScreen> {
             spacing: 8,
             runSpacing: 4,
             children: [
-              Container(
+              // Growth Percentage Removed as per request (Hardcoded data)
+              /*Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: growthColor.withOpacity(0.1),
@@ -517,7 +519,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
+              ),*/
               Text(
                 comparisonText,
                 style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),

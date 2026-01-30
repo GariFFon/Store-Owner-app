@@ -13,6 +13,7 @@ import 'package:exanor/screens/orders_list_screen.dart';
 import 'package:exanor/screens/purchase_screen.dart';
 import 'package:exanor/screens/receipts_screen.dart';
 import 'package:exanor/screens/overview_screen.dart';
+import 'package:exanor/screens/store_selection_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1676,6 +1677,30 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 children: [
                   _buildDrawerItem(
                     theme,
+                    icon: Icons.store_mall_directory_outlined,
+                    title: 'Change Store',
+                    textColor: Colors.red.shade700,
+                    iconColor: Colors.red.shade700,
+                    isBold: true,
+                    onTap: () async {
+                      // Clear selected store preference to force store selection logic to run correctly
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove('selected_store_id');
+                      await prefs.remove('selected_store_name');
+
+                      if (context.mounted) {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const StoreSelectionScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      }
+                    },
+                  ),
+                  _buildDrawerItem(
+                    theme,
                     icon: Icons.speed,
                     title: 'Overview',
                     onTap: () {
@@ -1899,20 +1924,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                   ),
 
                   const SizedBox(height: 20),
-
-                  const Divider(height: 32),
-
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.logout,
-                    title: 'Change Store',
-                    textColor: Colors.red,
-                    iconColor: Colors.red,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _logout();
-                    },
-                  ),
 
                   const SizedBox(height: 20),
                 ],
