@@ -9,6 +9,9 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:exanor/screens/review_order_screen.dart';
+import 'package:exanor/screens/orders_list_screen.dart';
+import 'package:exanor/screens/purchase_screen.dart';
+import 'package:exanor/screens/receipts_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -25,6 +28,7 @@ class StoreOwnerPOSScreen extends StatefulWidget {
 }
 
 class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   // Categories
   List<Map<String, dynamic>> _categories = [];
   String? _selectedCategoryId;
@@ -1622,6 +1626,309 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
+  Widget _buildDrawer(ThemeData theme) {
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Close Button or Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                children: [
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.speed,
+                    title: 'Overview',
+                    onTap: () {},
+                  ),
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.point_of_sale,
+                    title: 'Sales Panel',
+                    isBold: true,
+                    prefixText: 'POS',
+                    onTap: () => Navigator.pop(context), // Already here
+                  ),
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.inventory_2_outlined,
+                    title: 'Products',
+                    onTap: () {},
+                  ),
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.warehouse_outlined,
+                    title: 'Inventory',
+                    onTap: () {},
+                  ),
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.local_shipping_outlined,
+                    title: 'Orders',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              OrdersListScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.confirmation_number_outlined,
+                    title: 'Coupons',
+                    iconColor: Colors.pinkAccent,
+                    backgroundColor: Colors.blue.withOpacity(0.05),
+                    textColor: Colors.blue,
+                    onTap: () {},
+                  ),
+
+                  // Accounting Expansion Tile
+                  Theme(
+                    data: theme.copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      leading: Icon(
+                        Icons.account_balance_wallet_outlined,
+                        color: Colors.grey[700],
+                      ),
+                      title: Text(
+                        'Accounting',
+                        style: TextStyle(
+                          color: Colors.grey[800],
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      childrenPadding: const EdgeInsets.only(left: 16),
+                      initiallyExpanded: true,
+                      children: [
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.shopping_bag_outlined,
+                          title: 'Purchases',
+                          small: true,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    PurchaseScreen(storeId: widget.storeId),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.receipt_long_outlined,
+                          title: 'Sales',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.storefront_outlined,
+                          title: 'Suppliers',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.people_outline,
+                          title: 'Customers',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.payment,
+                          title: 'Payments',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.receipt,
+                          title: 'Receipts',
+                          small: true,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    ReceiptsScreen(storeId: widget.storeId),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.menu_book_outlined,
+                          title: 'Ledger',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.description_outlined,
+                          title: 'Invoices',
+                          small: true,
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.insert_chart_outlined,
+                    title: 'Reports',
+                    onTap: () {},
+                  ),
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.calendar_month_outlined,
+                    title: 'Financial Years',
+                    onTap: () {},
+                  ),
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.percent,
+                    title: 'GST Rates',
+                    onTap: () {},
+                  ),
+
+                  // Reports Expansion Tile (Second one in image list)
+                  Theme(
+                    data: theme.copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      leading: Icon(
+                        Icons.analytics_outlined,
+                        color: Colors.grey[700],
+                      ),
+                      title: Text(
+                        'Reports',
+                        style: TextStyle(
+                          color: Colors.grey[800],
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      childrenPadding: const EdgeInsets.only(left: 16),
+                      children: [
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.bar_chart,
+                          title: 'Sales Report',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        // Add more sub-reports as needed
+                      ],
+                    ),
+                  ),
+
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.manage_accounts_outlined,
+                    title: 'Staff Management',
+                    onTap: () {},
+                  ),
+
+                  const Divider(height: 32),
+
+                  _buildDrawerItem(
+                    theme,
+                    icon: Icons.settings_outlined,
+                    title: 'Settings',
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem(
+    ThemeData theme, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool isBold = false,
+    String? prefixText,
+    Color? iconColor,
+    Color? textColor,
+    Color? backgroundColor,
+    bool small = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor ?? Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ListTile(
+        dense: small,
+        visualDensity: small ? VisualDensity.compact : null,
+        onTap: onTap,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (prefixText != null) ...[
+              Text(
+                prefixText,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+            Icon(
+              icon,
+              color: iconColor ?? Colors.grey[700],
+              size: small ? 20 : 24,
+            ),
+          ],
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: textColor ?? Colors.grey[800],
+            fontSize: small ? 14 : 16,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _onSearchChanged(String value) {
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 500), () {
@@ -1868,6 +2175,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildDrawer(theme),
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
@@ -2096,6 +2405,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       ),
       child: Row(
         children: [
+          // Menu Button
+          IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () {
+              _scaffoldKey.currentState?.openDrawer();
+            },
+          ),
+          const SizedBox(width: 8),
+
           // Customer Profile Button
           InkWell(
             onTap: _showCustomerProfileDialog,
