@@ -1351,7 +1351,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Qty: ${item['quantity'] ?? 0} ${item['unit'] ?? ''}  •  Cost: ₹${item['cost_price'] ?? 0} (excl. tax)',
+                          'Qty: ${item['quantity'] ?? 0} ${item['unit'] ?? ''}  •  Cost: ₹${item['cost_price'] ?? 0} (${(item['tax_inclusive'] ?? false) ? 'incl. tax' : 'excl. tax'})',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
