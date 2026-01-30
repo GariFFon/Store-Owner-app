@@ -518,7 +518,10 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
                                 Expanded(
                                   flex: 2,
                                   child: Text(
-                                    item['hsn_code'] ?? '-',
+                                    item['hsn_code'] ??
+                                        item['inventory']?['hsn_code'] ??
+                                        item['product']?['hsn_code'] ??
+                                        '-',
                                     style: theme.textTheme.bodyMedium,
                                   ),
                                 ),
