@@ -388,23 +388,60 @@ class _OverviewScreenState extends State<OverviewScreen> {
   }
 
   Widget _buildSummaryCards() {
+    String revenueTitle;
+    String ordersTitle;
+    String comparisonText;
+
+    switch (_selectedFilter) {
+      case 'Weekly':
+        revenueTitle = "This Week's Revenue";
+        ordersTitle = "This Week's Orders";
+        comparisonText = "vs last week";
+        break;
+      case 'Monthly':
+        final monthName = DateFormat('MMMM').format(_startDate);
+        revenueTitle = "$monthName Revenue";
+        ordersTitle = "$monthName Orders";
+        comparisonText = "vs last month";
+        break;
+      case 'Yearly':
+        final year = DateFormat('yyyy').format(_startDate);
+        revenueTitle = "$year Revenue";
+        ordersTitle = "$year Orders";
+        comparisonText = "vs last year";
+        break;
+      case 'Custom':
+        revenueTitle = "Custom Revenue";
+        ordersTitle = "Custom Orders";
+        comparisonText = "vs previous period";
+        break;
+      case 'Daily':
+      default:
+        revenueTitle = "Today's Revenue";
+        ordersTitle = "Today's Orders";
+        comparisonText = "vs yesterday";
+        break;
+    }
+
     return Row(
       children: [
         Expanded(
           child: _buildSummaryCard(
-            title: "Today's Revenue",
+            title: revenueTitle,
             value: NumberFormat.currency(symbol: '₹').format(_totalRevenue),
             growth: _revenueGrowth,
             isCurrency: true,
+            comparisonText: comparisonText,
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: _buildSummaryCard(
-            title: "Today's Orders",
+            title: ordersTitle,
             value: _totalOrders.toString(),
             growth: _ordersGrowth,
             isCurrency: false,
+            comparisonText: comparisonText,
           ),
         ),
       ],
@@ -416,6 +453,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
     required String value,
     required double growth,
     required bool isCurrency,
+    required String comparisonText,
   }) {
     final isPositive = growth >= 0;
     final growthColor = isPositive ? Colors.green : Colors.red;
@@ -480,9 +518,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   ),
                 ),
               ),
-              const Text(
-                'vs yesterday',
-                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              Text(
+                comparisonText,
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
               ),
             ],
           ),
