@@ -2608,6 +2608,62 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     );
   }
 
+  Future<void> _syncCategories() async {
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final response = await ApiService.post(
+        '/sync-product-categories-with-stores/',
+        body: {'store_id': widget.storeId},
+        useBearerToken: true,
+      );
+
+      if (mounted) Navigator.pop(context); // Close loading dialog
+
+      if (response['statusCode'] == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: TranslatedText(
+                'Product categories synced successfully.',
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _fetchCategories(); // Refresh categories
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: TranslatedText(
+                response['message'] ?? 'Failed to sync categories',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // Close dialog if open
+      print('Error syncing categories: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: TranslatedText(
+              'An error occurred while syncing categories',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildCategoriesSidebar(ThemeData theme) {
     // Premium Sidebar Design
     const width = 85.0; // Slightly wider for comfort
@@ -2639,75 +2695,106 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         color: Colors.white,
         border: Border(right: BorderSide(color: Colors.grey[200]!)),
       ),
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        itemCount: _categories.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 16),
-        itemBuilder: (context, index) {
-          final category = _categories[index];
-          final isSelected = category['id'] == _selectedCategoryId;
-
-          return InkWell(
-            onTap: () {
-              setState(() {
-                _selectedCategoryId = category['id'];
-                _searchController.clear();
-              });
-              _fetchProductsByCategory(category['id']);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? theme.primaryColor.withOpacity(0.1)
-                        : Colors.transparent,
-                    shape: BoxShape.circle,
-                    border: isSelected
-                        ? Border.all(color: theme.primaryColor, width: 1.5)
-                        : null,
-                  ),
-                  child: category['category_icon'] != null
-                      ? ClipOval(
-                          child: CustomCachedNetworkImage(
-                            imgUrl: category['category_icon'],
-                            width: 28,
-                            height: 28,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : Icon(
-                          Icons.grid_view,
-                          size: 28,
-                          color: isSelected
-                              ? theme.primaryColor
-                              : Colors.grey[400],
-                        ),
+      child: Column(
+        children: [
+          // Sync Button
+          Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            child: InkWell(
+              onTap: _syncCategories,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.grey[300]!),
                 ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: TranslatedText(
-                    _capitalizeCategoryName(category['category_name'] ?? ''),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 10,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.w500,
-                      color: isSelected ? theme.primaryColor : Colors.grey[600],
-                    ),
-                  ),
-                ),
-              ],
+                child: const Icon(Icons.sync, size: 20, color: Colors.black87),
+              ),
             ),
-          );
-        },
+          ),
+
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.only(bottom: 16, top: 8),
+              itemCount: _categories.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                final category = _categories[index];
+                final isSelected = category['id'] == _selectedCategoryId;
+
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedCategoryId = category['id'];
+                      _searchController.clear();
+                    });
+                    _fetchProductsByCategory(category['id']);
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? theme.primaryColor.withOpacity(0.1)
+                              : Colors.transparent,
+                          shape: BoxShape.circle,
+                          border: isSelected
+                              ? Border.all(
+                                  color: theme.primaryColor,
+                                  width: 1.5,
+                                )
+                              : null,
+                        ),
+                        child: category['category_icon'] != null
+                            ? ClipOval(
+                                child: CustomCachedNetworkImage(
+                                  imgUrl: category['category_icon'],
+                                  width: 28,
+                                  height: 28,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Icon(
+                                Icons.grid_view,
+                                size: 28,
+                                color: isSelected
+                                    ? theme.primaryColor
+                                    : Colors.grey[400],
+                              ),
+                      ),
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: TranslatedText(
+                          _capitalizeCategoryName(
+                            category['category_name'] ?? '',
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 10,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? theme.primaryColor
+                                : Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
