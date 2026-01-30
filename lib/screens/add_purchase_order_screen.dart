@@ -657,7 +657,15 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                 }
 
                                 if (_currentStep < _steps.length - 1) {
-                                  setState(() => _currentStep++);
+                                  setState(() {
+                                    _currentStep++;
+                                    if (_currentStep == 2 &&
+                                        _paymentStatus == 'Paid') {
+                                      _amountPaidController.text =
+                                          _calculateTotalAmount()
+                                              .toStringAsFixed(2);
+                                    }
+                                  });
                                 } else {
                                   _submitPurchaseOrder();
                                 }
@@ -2802,4 +2810,3 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     );
   }
 }
-
