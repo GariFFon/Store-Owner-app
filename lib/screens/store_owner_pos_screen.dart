@@ -87,9 +87,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   Map<String, dynamic>? _selectedOrderMethod;
   bool _isOrderMethodsLoading = false;
 
+  String? _ownerName;
+
   @override
   void initState() {
     super.initState();
+    _fetchOwnerName();
     _initializeSpeech();
     _fetchCategories();
     _setupScrollListener();
@@ -114,6 +117,36 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     _speech.stop();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchOwnerName() async {
+    try {
+      final response = await ApiService.post(
+        '/view-user-data/',
+        body: {},
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          final userData = data['response'];
+          final firstName = userData['first_name'] ?? '';
+          final lastName = userData['last_name'] ?? '';
+
+          if (mounted) {
+            setState(() {
+              _ownerName = '$firstName $lastName'.trim();
+              if (_ownerName!.isEmpty) {
+                _ownerName = 'Store Owner';
+              }
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching owner name: $e');
+    }
   }
 
   void _setupScrollListener() {
@@ -1663,7 +1696,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         MaterialPageRoute(
                           builder: (context) => OverviewScreen(
                             storeId: widget.storeId,
-                            ownerName: 'Store Owner',
+                            ownerName: _ownerName ?? 'Store Owner',
                           ),
                         ),
                       );

@@ -24,6 +24,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
 
+  // Custom Date Range
+  DateTime _customStartDate = DateTime.now();
+  DateTime _customEndDate = DateTime.now();
+
   // Data Holders
   double _totalRevenue = 0.0;
   double _revenueGrowth = 0.0;
@@ -65,8 +69,26 @@ class _OverviewScreenState extends State<OverviewScreen> {
         _endDate = DateTime(now.year, 12, 31);
         break;
       case 'Custom':
-        // Handle custom date picker logic later
+        // Do not update main start/end dates yet, wait for Apply button
         break;
+    }
+  }
+
+  Future<void> _selectCustomDate(BuildContext context, bool isStart) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isStart ? _customStartDate : _customEndDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _customStartDate = picked;
+        } else {
+          _customEndDate = picked;
+        }
+      });
     }
   }
 
@@ -156,6 +178,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(),
+              if (_selectedFilter == 'Custom') ...[
+                const SizedBox(height: 16),
+                _buildCustomDateSelector(),
+              ],
               const SizedBox(height: 32),
               _buildSummaryCards(),
               const SizedBox(height: 24),
@@ -173,28 +199,152 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   Widget _buildHeader() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Hello, ${widget.ownerName}',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now()),
-              style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-            ),
-          ],
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          style: IconButton.styleFrom(
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Hello, ${widget.ownerName}',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now()),
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
         _buildFilterDropdown(),
       ],
+    );
+  }
+
+  Widget _buildCustomDateSelector() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Select Date Range',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => _selectCustomDate(context, true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          DateFormat('MMM dd, yyyy').format(_customStartDate),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        const Icon(
+                          Icons.calendar_today,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _selectCustomDate(context, false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          DateFormat('MMM dd, yyyy').format(_customEndDate),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        const Icon(
+                          Icons.calendar_today,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _startDate = _customStartDate;
+                  _endDate = _customEndDate;
+                });
+                _fetchAllData();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E293B),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('Apply'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -221,8 +371,14 @@ class _OverviewScreenState extends State<OverviewScreen> {
             if (value != null) {
               setState(() {
                 _selectedFilter = value;
-                _updateDateRange();
-                _fetchAllData();
+                if (value != 'Custom') {
+                  _updateDateRange();
+                  _fetchAllData();
+                } else {
+                  // Initialize custom dates with current dates if triggering custom for first time
+                  _customStartDate = DateTime.now();
+                  _customEndDate = DateTime.now();
+                }
               });
             }
           },
