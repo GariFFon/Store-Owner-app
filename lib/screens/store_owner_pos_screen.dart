@@ -121,28 +121,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
   Future<void> _fetchOwnerName() async {
     try {
-      final response = await ApiService.post(
-        '/view-user-data/',
-        body: {},
-        useBearerToken: true,
-      );
+      final prefs = await SharedPreferences.getInstance();
+      final firstName = prefs.getString('first_name') ?? '';
+      final lastName = prefs.getString('last_name') ?? '';
 
-      if (response['statusCode'] == 200 && response['data'] != null) {
-        final data = response['data'];
-        if (data['status'] == 200 && data['response'] != null) {
-          final userData = data['response'];
-          final firstName = userData['first_name'] ?? '';
-          final lastName = userData['last_name'] ?? '';
-
-          if (mounted) {
-            setState(() {
-              _ownerName = '$firstName $lastName'.trim();
-              if (_ownerName!.isEmpty) {
-                _ownerName = 'Store Owner';
-              }
-            });
+      if (mounted) {
+        setState(() {
+          _ownerName = '$firstName $lastName'.trim();
+          if (_ownerName!.isEmpty) {
+            _ownerName = 'Store Owner';
           }
-        }
+        });
       }
     } catch (e) {
       debugPrint('Error fetching owner name: $e');
