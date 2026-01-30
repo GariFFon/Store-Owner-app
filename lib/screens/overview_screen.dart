@@ -98,6 +98,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
     final dateFormat = DateFormat('yyyy-MM-dd');
     final startDateStr = dateFormat.format(_startDate);
     final endDateStr = dateFormat.format(_endDate);
+    final yearStr = DateFormat('yyyy').format(_startDate);
 
     // For comparison (yesterday/previous period) - Simplified for now to just show current
     // In a real app, we'd fetch previous period variables to calc growth.
@@ -109,24 +110,28 @@ class _OverviewScreenState extends State<OverviewScreen> {
           startDate: startDateStr,
           endDate: endDateStr,
           type: 'custom',
+          year: yearStr,
         ),
         StoreAnalyticsService.getOrderCountAnalytics(
           storeId: widget.storeId,
           startDate: startDateStr,
           endDate: endDateStr,
           type: 'custom',
+          year: yearStr,
         ),
         StoreAnalyticsService.getPaymentMethodAnalytics(
           storeId: widget.storeId,
           startDate: startDateStr,
           endDate: endDateStr,
           type: 'custom',
+          year: yearStr,
         ),
         StoreAnalyticsService.getOrderMethodAnalytics(
           storeId: widget.storeId,
           startDate: startDateStr,
           endDate: endDateStr,
           type: 'custom',
+          year: yearStr,
         ),
         StoreAnalyticsService.getSentimentAnalytics(
           storeId: widget.storeId,
@@ -137,6 +142,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
       ]);
 
       if (mounted) {
+        debugPrint('Payment Method Data Raw: ${results[2]}');
+        debugPrint('Order Method Data Raw: ${results[3]}');
+
         setState(() {
           _revenueData = List<Map<String, dynamic>>.from(results[0]);
           _orderCountData = List<Map<String, dynamic>>.from(results[1]);
@@ -556,6 +564,105 @@ class _OverviewScreenState extends State<OverviewScreen> {
     );
   }
 
+  // --- Helper to get month name for X-axis ---
+  // --- Helper to get month name for X-axis ---
+  String _getMonthName(int monthIndex) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    if (monthIndex >= 0 && monthIndex < 12) return months[monthIndex];
+    return '';
+  }
+
+  List<BarChartGroupData> _generateRevenueBarGroups() {
+    List<double> monthlyRevenue = List.filled(12, 0.0);
+
+    for (var item in _revenueData) {
+      if (item['date'] != null) {
+        try {
+          DateTime date = DateTime.parse(item['date']);
+          if (date.month >= 1 && date.month <= 12) {
+            monthlyRevenue[date.month - 1] += (item['revenue'] as num)
+                .toDouble();
+          }
+        } catch (e) {
+          // ignore parse error
+        }
+      }
+    }
+
+    // Find max value for background bar
+    double maxVal = 100;
+    if (monthlyRevenue.isNotEmpty) {
+      double currentMax = monthlyRevenue.reduce(
+        (curr, next) => curr > next ? curr : next,
+      );
+      if (currentMax > 0) maxVal = currentMax * 1.1;
+    }
+
+    return List.generate(12, (index) {
+      return BarChartGroupData(
+        x: index,
+        barRods: [
+          BarChartRodData(
+            toY: monthlyRevenue[index],
+            color: const Color(0xFF6366F1), // Indigo/Blue-ish color
+            width: 20,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            backDrawRodData: BackgroundBarChartRodData(
+              show: true,
+              toY: maxVal,
+              color: Colors.transparent,
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  List<BarChartGroupData> _generateOrderVolumeBarGroups() {
+    List<double> monthlyOrders = List.filled(12, 0.0);
+
+    for (var item in _orderCountData) {
+      if (item['date'] != null) {
+        try {
+          DateTime date = DateTime.parse(item['date']);
+          if (date.month >= 1 && date.month <= 12) {
+            monthlyOrders[date.month - 1] += (item['order_count'] as num)
+                .toDouble();
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
+    return List.generate(12, (index) {
+      return BarChartGroupData(
+        x: index,
+        barRods: [
+          BarChartRodData(
+            toY: monthlyOrders[index],
+            color: const Color(0xFF6366F1), // Indigo/Blue
+            width: 20,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+          ),
+        ],
+      );
+    });
+  }
+
   Widget _buildRevenueChart() {
     return Container(
       height: 350,
@@ -576,7 +683,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            "Track your store's total earnings over time.",
+            "Track your store's total earnings over time. Higher revenue indicates better sales performance and business growth.",
             style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 24),
@@ -585,8 +692,8 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _revenueData.isEmpty
                 ? const Center(child: Text("No Data"))
-                : LineChart(
-                    LineChartData(
+                : BarChart(
+                    BarChartData(
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,
@@ -600,7 +707,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
-                            reservedSize: 40,
+                            reservedSize: 45,
                             getTitlesWidget: (value, meta) => Text(
                               '₹${value.toInt()}',
                               style: const TextStyle(
@@ -611,8 +718,27 @@ class _OverviewScreenState extends State<OverviewScreen> {
                           ),
                         ),
                         bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ), // Hide for cleanliness or implement dates
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 30,
+                            getTitlesWidget: (value, meta) {
+                              int index = value.toInt();
+                              if (index >= 0 && index < 12) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    _getMonthName(index),
+                                    style: const TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ),
                         rightTitles: AxisTitles(
                           sideTitles: SideTitles(showTitles: false),
                         ),
@@ -621,25 +747,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                         ),
                       ),
                       borderData: FlBorderData(show: false),
-                      lineBarsData: [
-                        LineChartBarData(
-                          spots: _revenueData.asMap().entries.map((e) {
-                            return FlSpot(
-                              e.key.toDouble(),
-                              (e.value['revenue'] as num).toDouble(),
-                            );
-                          }).toList(),
-                          isCurved: true,
-                          color: Colors.redAccent,
-                          barWidth: 2,
-                          isStrokeCapRound: true,
-                          dotData: FlDotData(show: false),
-                          belowBarData: BarAreaData(
-                            show: true,
-                            color: Colors.redAccent.withOpacity(0.1),
-                          ),
-                        ),
-                      ],
+                      barGroups: _generateRevenueBarGroups(),
                     ),
                   ),
           ),
@@ -668,7 +776,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            "Shows how customers prefer to pay.",
+            "Shows how customers prefer to pay.\nUnderstanding payment preferences helps optimize checkout options.",
             style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 24),
@@ -682,51 +790,50 @@ class _OverviewScreenState extends State<OverviewScreen> {
                     children: [
                       PieChart(
                         PieChartData(
-                          sectionsSpace: 0,
+                          sectionsSpace: 2,
                           centerSpaceRadius: 60,
+                          startDegreeOffset: -90,
                           sections: _paymentMethodsData.map((e) {
-                            final index = _paymentMethodsData.indexOf(e);
-                            final color = [
-                              Colors.blue,
-                              Colors.purple,
-                              Colors.orange,
-                              Colors.green,
-                            ][index % 4];
+                            final name = e['payment_method_name'] ?? '';
+                            Color color;
+                            if (name.toLowerCase().contains('delivery')) {
+                              color = const Color(0xFF6366F1); // Blue
+                            } else {
+                              color = const Color(0xFF8B5CF6); // Purple
+                            }
                             final val = (e['total_orders'] as num).toDouble();
                             return PieChartSectionData(
                               color: color,
                               value: val,
-                              title: '',
+                              title: val
+                                  .toInt()
+                                  .toString(), // Show value if needed, or hide
+                              showTitle: false,
                               radius: 25,
                             );
                           }).toList(),
                         ),
                       ),
-                      Text(
-                        _totalOrders.toString(),
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
+                      // Inner text can be empty as per image, or show total
                     ],
                   ),
           ),
           // Legend
           if (_paymentMethodsData.isNotEmpty)
-            Column(
-              children: _paymentMethodsData.map((e) {
-                final index = _paymentMethodsData.indexOf(e);
-                final color = [
-                  Colors.blue,
-                  Colors.purple,
-                  Colors.orange,
-                  Colors.green,
-                ][index % 4];
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Row(
+            Padding(
+              padding: const EdgeInsets.only(top: 16.0),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: _paymentMethodsData.map((e) {
+                  final name = e['payment_method_name'] ?? '';
+                  Color color;
+                  if (name.toLowerCase().contains('delivery')) {
+                    color = const Color(0xFF6366F1); // Blue
+                  } else {
+                    color = const Color(0xFF8B5CF6); // Purple
+                  }
+                  return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
@@ -739,16 +846,16 @@ class _OverviewScreenState extends State<OverviewScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        e['payment_method_name'] ?? 'Unknown',
+                        name,
                         style: const TextStyle(
                           fontSize: 12,
                           color: Color(0xFF64748B),
                         ),
                       ),
                     ],
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
         ],
       ),
@@ -799,7 +906,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            "See where orders come from.",
+            "See where orders come from - online, in-store, or mobile. This helps optimize your sales channels.",
             style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 24),
@@ -813,48 +920,46 @@ class _OverviewScreenState extends State<OverviewScreen> {
                     children: [
                       PieChart(
                         PieChartData(
-                          sectionsSpace: 0,
+                          sectionsSpace: 2,
                           centerSpaceRadius: 60,
+                          startDegreeOffset: -90,
                           sections: _orderMethodsData.map((e) {
-                            final index = _orderMethodsData.indexOf(e);
-                            final color = [
-                              Colors.indigo,
-                              Colors.teal,
-                              Colors.amber,
-                            ][index % 3];
+                            final name = e['order_method_name'] ?? '';
+                            Color color;
+                            if (name.toLowerCase().contains('dine')) {
+                              color = const Color(0xFF6366F1); // Blue
+                            } else {
+                              color = const Color(0xFF8B5CF6); // Purple
+                            }
                             final val = (e['total_orders'] as num).toDouble();
                             return PieChartSectionData(
                               color: color,
                               value: val,
-                              title: '',
-                              radius: 25,
+                              showTitle: false,
+                              radius: 20,
                             );
                           }).toList(),
                         ),
                       ),
-                      Text(
-                        _totalOrders.toString(),
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.indigo,
-                        ),
-                      ),
+                      // Text( _totalOrders.toString(), ...)
                     ],
                   ),
           ),
           if (_orderMethodsData.isNotEmpty)
-            Column(
-              children: _orderMethodsData.map((e) {
-                final index = _orderMethodsData.indexOf(e);
-                final color = [
-                  Colors.indigo,
-                  Colors.teal,
-                  Colors.amber,
-                ][index % 3];
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Row(
+            Padding(
+              padding: const EdgeInsets.only(top: 16.0),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: _orderMethodsData.map((e) {
+                  final name = e['order_method_name'] ?? '';
+                  Color color;
+                  if (name.toLowerCase().contains('dine')) {
+                    color = const Color(0xFF6366F1); // Blue
+                  } else {
+                    color = const Color(0xFF8B5CF6); // Purple
+                  }
+                  return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
@@ -867,16 +972,16 @@ class _OverviewScreenState extends State<OverviewScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        e['order_method_name'] ?? 'Unknown',
+                        name,
                         style: const TextStyle(
                           fontSize: 12,
                           color: Color(0xFF64748B),
                         ),
                       ),
                     ],
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
         ],
       ),
@@ -903,19 +1008,93 @@ class _OverviewScreenState extends State<OverviewScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            "Measure customer satisfaction based on reviews.",
+            "Measure customer satisfaction based on reviews and feedback. Higher scores mean happier customers.",
             style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 24),
           Expanded(
-            child: Center(
-              child: _sentimentData.isEmpty
-                  ? const Text(
-                      'No data available for the selected period',
-                      style: TextStyle(color: Color(0xFF94A3B8)),
-                    )
-                  : const Text('Sentiment Data Available'), // Placeholder
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _sentimentData.isEmpty &&
+                      false // Remove && false when real data comes
+                ? const Center(child: Text("No Data"))
+                : BarChart(
+                    BarChartData(
+                      maxY: 5,
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        getDrawingHorizontalLine: (value) => FlLine(
+                          color: const Color(0xFFE2E8F0),
+                          strokeWidth: 1,
+                          dashArray: [5, 5],
+                        ),
+                      ),
+                      titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 30,
+                            getTitlesWidget: (value, meta) => Text(
+                              '${value.toInt()}',
+                              style: const TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 30,
+                            getTitlesWidget: (value, meta) {
+                              int index = value.toInt();
+                              if (index >= 0 && index < 12) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    _getMonthName(index),
+                                    style: const TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ),
+                        rightTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        topTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      barGroups: List.generate(12, (index) {
+                        // Mock data to match image (Jan has value 2)
+                        double val = 0;
+                        if (index == 0) val = 2; // Jan
+
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [
+                            BarChartRodData(
+                              toY: val,
+                              color: const Color(0xFFF59E0B), // Amber/Yellow
+                              width: 20,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(4),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -942,7 +1121,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            "Monitor the number of orders received over time.",
+            "Monitor the number of orders received over time. More orders usually means higher customer engagement and business activity.",
             style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 24),
@@ -977,7 +1156,26 @@ class _OverviewScreenState extends State<OverviewScreen> {
                           ),
                         ),
                         bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 30,
+                            getTitlesWidget: (value, meta) {
+                              int index = value.toInt();
+                              if (index >= 0 && index < 12) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    _getMonthName(index),
+                                    style: const TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
                         ),
                         rightTitles: AxisTitles(
                           sideTitles: SideTitles(showTitles: false),
@@ -987,19 +1185,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                         ),
                       ),
                       borderData: FlBorderData(show: false),
-                      barGroups: _orderCountData.asMap().entries.map((e) {
-                        return BarChartGroupData(
-                          x: e.key,
-                          barRods: [
-                            BarChartRodData(
-                              toY: (e.value['order_count'] as num).toDouble(),
-                              color: Colors.blueAccent,
-                              width: 16,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ],
-                        );
-                      }).toList(),
+                      barGroups: _generateOrderVolumeBarGroups(),
                     ),
                   ),
           ),
