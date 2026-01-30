@@ -3,6 +3,7 @@ import 'package:exanor/screens/orders_list_screen.dart';
 import 'package:exanor/screens/purchase_screen.dart';
 import 'package:exanor/screens/receipts_screen.dart';
 import 'package:exanor/screens/store_owner_pos_screen.dart';
+
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'package:flutter/material.dart';
 

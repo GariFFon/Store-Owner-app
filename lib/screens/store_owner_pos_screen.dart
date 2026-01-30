@@ -12,6 +12,7 @@ import 'package:exanor/screens/review_order_screen.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
 import 'package:exanor/screens/purchase_screen.dart';
 import 'package:exanor/screens/receipts_screen.dart';
+import 'package:exanor/screens/overview_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1655,7 +1656,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.speed,
                     title: 'Overview',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => OverviewScreen(
+                            storeId: widget.storeId,
+                            ownerName: 'Store Owner',
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   _buildDrawerItem(
                     theme,
