@@ -23,6 +23,7 @@ class AddPurchaseOrderScreen extends StatefulWidget {
 
 class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   bool _isLoading = true;
+  bool _isSubmitting = false;
   int _currentStep = 0;
 
   // Supplier Search
@@ -262,6 +263,116 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         } catch (e) {
           debugPrint('Error parsing invoice date: $e');
         }
+      }
+    }
+  }
+
+  Future<void> _submitPurchaseOrder() async {
+    if (_selectedSupplierStoreId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Supplier not selected. Please go back to Step 1 and select a supplier.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      // Auto-navigate back to step 1 to help the user
+      setState(() {
+        _currentStep = 0;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final items = _selectedProducts.map((product) {
+        final taxInclusive = product['tax_inclusive'] ?? false;
+        final rate =
+            double.tryParse(product['cost_price']?.toString() ?? '0') ?? 0.0;
+
+        final itemMap = {
+          'products_combination_template_id':
+              product['id'] ?? product['products_combination_template_id'],
+          'qty': double.tryParse(product['quantity']?.toString() ?? '0') ?? 0,
+          'mrp': double.tryParse(product['mrp']?.toString() ?? '0') ?? 0.0,
+          'selling_price_including_tax':
+              double.tryParse(product['selling_price']?.toString() ?? '0') ??
+              0.0,
+          'godown_id': product['godown_id'],
+          'rack_id': product['rack_id'],
+          'unit_id': product['unit_id'],
+          'barcode': product['barcode'],
+          'manufactured_on_date': product['mfg_date'] is DateTime
+              ? DateFormat('yyyy-MM-dd').format(product['mfg_date'])
+              : product['mfg_date'] ?? '1999-01-01',
+          'expiry_date': product['expiry_date'] is DateTime
+              ? DateFormat('yyyy-MM-dd').format(product['expiry_date'])
+              : product['expiry_date'] ?? '2050-01-01',
+          'purchase_date': _dateController.text,
+        };
+
+        if (taxInclusive) {
+          itemMap['cost_amount_including_tax'] = rate;
+        } else {
+          itemMap['cost_amount_excluding_tax'] = rate;
+        }
+
+        return itemMap;
+      }).toList();
+
+      String apiPaymentStatus = 'UNPAID';
+      if (_paymentStatus == 'Paid') {
+        apiPaymentStatus = 'PAID';
+      } else if (_paymentStatus == 'Partial Payment') {
+        apiPaymentStatus = 'PARTIAL';
+      }
+
+      final amountPaid = double.tryParse(_amountPaidController.text) ?? 0.0;
+
+      final result = await StoreOwnerApiService.createPurchaseEntry(
+        storeId: widget.storeId,
+        purchasedFromStoreId: _selectedSupplierStoreId!,
+        supplierInvoiceId: _invoiceIdController.text,
+        date: _dateController.text,
+        items: items,
+        paymentStatus: apiPaymentStatus,
+        amountPaid: amountPaid,
+        paymentMethodStoreBankId: _paymentMethodStoreBankId,
+      );
+
+      if (mounted) {
+        if (result['status'] == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Purchase Order Created Successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Failed to create order'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
       }
     }
   }
@@ -528,13 +639,30 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                         ),
                       const SizedBox(width: 16),
                       ElevatedButton(
-                        onPressed: () {
-                          if (_currentStep < _steps.length - 1) {
-                            setState(() => _currentStep++);
-                          } else {
-                            // Submit logic
-                          }
-                        },
+                        onPressed: _isSubmitting
+                            ? null
+                            : () {
+                                // Validate Supplier Step
+                                if (_currentStep == 0) {
+                                  if (_selectedSupplierStoreId == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Please select a supplier from the list or create a new one.',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                }
+
+                                if (_currentStep < _steps.length - 1) {
+                                  setState(() => _currentStep++);
+                                } else {
+                                  _submitPurchaseOrder();
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
@@ -547,9 +675,20 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                           ),
                           elevation: 0,
                         ),
-                        child: Text(
-                          _currentStep == _steps.length - 1 ? 'Submit' : 'Next',
-                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                _currentStep == _steps.length - 1
+                                    ? 'Submit'
+                                    : 'Next',
+                              ),
                       ),
                     ],
                   ),
@@ -1594,7 +1733,15 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                         Navigator.pop(context);
                         if (result.isNotEmpty && result['status'] == 200) {
                           setState(() {
+                            final newStoreId = result['data']?['store_id']
+                                ?.toString();
+                            if (newStoreId != null) {
+                              _selectedSupplierStoreId = newStoreId;
+                            }
                             _selectedSupplier = '$supplierName ($supplierGst)';
+                            _supplierSearchController.text = supplierName;
+                            // Clear search results just in case
+                            _searchResults = [];
                           });
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -1710,10 +1857,19 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                               ),
                               onTap: () {
                                 setState(() {
-                                  _selectedSupplierStoreId = store['store_id'];
+                                  _selectedSupplierStoreId =
+                                      store['store_id'] ?? store['id'];
+                                  debugPrint(
+                                    'Selected Supplier ID: $_selectedSupplierStoreId',
+                                  ); // Debug
                                   _supplierSearchController.text =
-                                      store['store_name'];
-                                  _selectedSupplier = store['store_name'];
+                                      store['store_name'] ??
+                                      store['name'] ??
+                                      '';
+                                  _selectedSupplier =
+                                      store['store_name'] ??
+                                      store['name'] ??
+                                      '';
                                   _searchResults = [];
                                 });
                               },
