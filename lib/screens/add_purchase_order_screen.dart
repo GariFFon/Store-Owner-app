@@ -1432,6 +1432,16 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 isBold: true,
                 color: Colors.green,
               ),
+              if (_paymentStatus == 'Partial Payment' ||
+                  _paymentStatus == 'Credit') ...[
+                const SizedBox(height: 12),
+                _buildSummaryRow(
+                  'Amount Due',
+                  '₹${_calculateDueAmount().toStringAsFixed(2)}',
+                  isBold: true,
+                  color: Colors.red,
+                ),
+              ],
             ],
           ),
         ),
