@@ -4,6 +4,7 @@ import 'package:exanor/screens/product_details_screen.dart';
 import 'package:exanor/screens/purchase_details_screen.dart';
 import 'package:exanor/screens/supplier_details_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
+import 'package:exanor/screens/intelligence_upload_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
