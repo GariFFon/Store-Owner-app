@@ -16,6 +16,7 @@ import 'package:exanor/screens/overview_screen.dart';
 import 'package:exanor/screens/sales_screen.dart';
 import 'package:exanor/screens/payment_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
+import 'package:exanor/screens/gst_rates_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1894,7 +1895,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.percent,
                     title: 'GST Rates',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              GstRatesScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
 
                   // Reports Expansion Tile (Second one in image list)
