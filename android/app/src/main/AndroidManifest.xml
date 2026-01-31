@@ -35,7 +35,7 @@
     <uses-permission android:name="com.android.vending.BILLING"/>
 
     <application
-        android:label="Exanor"
+        android:label="Exanor Store"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
         android:largeHeap="true"

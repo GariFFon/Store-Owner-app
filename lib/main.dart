@@ -17,7 +17,7 @@ import 'package:exanor/screens/saved_addresses_screen.dart';
 import 'package:exanor/screens/remote_config_debug_screen.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
-// REMOVED: Deleted screens (chat, subscription, profiles, refer & earn, feed, taxi)
+// REMOVED: Deleted screens (chat, subscription, profiles, refer & earn, feed, taxi)I wan
 
 import 'package:exanor/config/theme_config.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
