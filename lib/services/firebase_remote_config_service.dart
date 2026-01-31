@@ -52,6 +52,13 @@ class FirebaseRemoteConfigService {
   static const String _storeOwnerBottomNavTabsKey =
       'store_owner_bottom_nav_tabs';
 
+  // Splash Screen Colors
+  static const String _splashScreenLineColorKey = 'splashScreenLineColor';
+  static const String _splashScreenColorKey = 'splashScreenColor';
+
+  // Refer & Earn Data
+  static const String _referAndEarnDataKey = 'refer_and_earn_screen_data';
+
   // Default values
   static const Map<String, dynamic> _defaults = {
     _baseUrlKey: 'https://development.api.exanor.com/api/v1',
@@ -209,6 +216,12 @@ class FirebaseRemoteConfigService {
         "index": 3
       }
     ]''',
+    // Splash Screen Colors
+    _splashScreenLineColorKey: '#2962FF',
+    _splashScreenColorKey: '#2962FF',
+
+    // Refer & Earn Data Default (Empty JSON, parser handles defaults)
+    _referAndEarnDataKey: '{}',
   };
 
   /// Initialize Firebase Remote Config
@@ -1099,6 +1112,12 @@ class FirebaseRemoteConfigService {
         'is_initialized': _isInitialized,
         'last_fetch_status': _remoteConfig?.lastFetchStatus.toString(),
         'last_fetch_time': _remoteConfig?.lastFetchTime.toString(),
+        // Splash Screen Colors
+        _splashScreenLineColorKey: '#2962FF',
+        _splashScreenColorKey: '#2962FF',
+
+        // Refer & Earn Data Default (Empty JSON, parser handles defaults)
+        _referAndEarnDataKey: '{}',
       };
 
       developer.log(
@@ -1168,6 +1187,58 @@ class FirebaseRemoteConfigService {
         name: 'RemoteConfig',
       );
       return false;
+    }
+  }
+
+  /// Get Splash Screen Line Color
+  static String getSplashScreenLineColor() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        developer.log(
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default splash screen line color',
+          name: 'RemoteConfig',
+        );
+        return _defaults[_splashScreenLineColorKey] as String;
+      }
+
+      final value = _remoteConfig!.getString(_splashScreenLineColorKey);
+      developer.log(
+        '🎨 FirebaseRemoteConfig: Retrieved splash screen line color: $value',
+        name: 'RemoteConfig',
+      );
+      return value;
+    } catch (e) {
+      developer.log(
+        '❌ FirebaseRemoteConfig: Error getting splash screen line color: $e, returning default',
+        name: 'RemoteConfig',
+      );
+      return _defaults[_splashScreenLineColorKey] as String;
+    }
+  }
+
+  /// Get Splash Screen Color
+  static String getSplashScreenColor() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        developer.log(
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default splash screen color',
+          name: 'RemoteConfig',
+        );
+        return _defaults[_splashScreenColorKey] as String;
+      }
+
+      final value = _remoteConfig!.getString(_splashScreenColorKey);
+      developer.log(
+        '🎨 FirebaseRemoteConfig: Retrieved splash screen color: $value',
+        name: 'RemoteConfig',
+      );
+      return value;
+    } catch (e) {
+      developer.log(
+        '❌ FirebaseRemoteConfig: Error getting splash screen color: $e, returning default',
+        name: 'RemoteConfig',
+      );
+      return _defaults[_splashScreenColorKey] as String;
     }
   }
 }

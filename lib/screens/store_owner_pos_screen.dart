@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:exanor/components/translation_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -54,6 +55,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   // Search
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
+  bool _isSearchExpanded = false;
 
   // Voice Search
   late stt.SpeechToText _speech;
@@ -2082,124 +2084,490 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
-  // Customer Phone Dialog
+  // Customer Phone Bottom Sheet
   void _showCustomerPhoneDialog() {
     final TextEditingController phoneController = TextEditingController();
     CountryCode selectedCountry = CountryCode.fromCountryCode('IN');
     bool isLoading = false;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return AlertDialog(
-              title: const TranslatedText('Enter Customer Phone'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      labelText: 'Phone Number',
-                      prefixIcon: CountryCodePicker(
-                        onChanged: (CountryCode countryCode) {
-                          setState(() {
-                            selectedCountry = countryCode;
-                          });
-                        },
-                        initialSelection: 'IN',
-                        favorite: const ['+91', 'IN'],
-                        showCountryOnly: false,
-                        showOnlyCountryWhenClosed: false,
-                        alignLeft: false,
-                      ),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner),
-                        onPressed: () async {
-                          // Open QR scanner
-                          final scannedCode = await Navigator.push<String>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => _QRScannerDialog(),
-                            ),
-                          );
-                          if (scannedCode != null) {
-                            phoneController.text = scannedCode;
-                          }
-                        },
-                      ),
-                      border: const OutlineInputBorder(),
-                    ),
+            // Calculate keyboard height to prevent overflow
+            final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+
+            return Container(
+              height:
+                  600 +
+                  bottomPadding, // Allow height expansion but keep it controlled
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.of(context).size.height * 0.9, // Max 90% screen
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 40,
+                    offset: Offset(0, -10),
                   ),
-                  if (isLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16.0),
-                      child: CircularProgressIndicator(),
-                    ),
                 ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: isLoading
-                      ? null
-                      : () {
-                          Navigator.of(dialogContext).pop();
-                        },
-                  child: const TranslatedText('Cancel'),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(32),
                 ),
-                ElevatedButton(
-                  onPressed: isLoading
-                      ? null
-                      : () async {
-                          final phone = phoneController.text.trim();
-                          if (phone.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: TranslatedText(
-                                  'Please enter a phone number',
+                child: Stack(
+                  children: [
+                    // Decorative Gradient Blob 1
+                    Positioned(
+                      top: -100,
+                      right: -50,
+                      child: Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).primaryColor.withOpacity(0.05),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    // Decorative Gradient Blob 2
+                    Positioned(
+                      top: 50,
+                      left: -80,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.05),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+
+                    // Main Scrollable Content
+                    SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        24,
+                        24,
+                        bottomPadding + 24,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Handle Bar
+                          Center(
+                            child: Container(
+                              width: 48,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(2.5),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Header Icon
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.storefront_rounded,
+                                size: 40,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Title & Subtitle
+                          const Center(
+                            child: TranslatedText(
+                              'New Sale Session',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black87,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // "Why" Section (Integrated)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0F9FF), // Light blue tint
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFBAE6FD).withOpacity(0.5),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.tips_and_updates_rounded,
+                                    size: 20,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const TranslatedText(
+                                        'Why link a customer?',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: Color(0xFF0C4A6E),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      TranslatedText(
+                                        'Linking enables loyalty rewards, purchase tracking, and personalized offers.',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.blueGrey[700],
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+
+                          // Phone Input Field
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey[300]!),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[50],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: CountryCodePicker(
+                                    onChanged: (CountryCode countryCode) {
+                                      setState(() {
+                                        selectedCountry = countryCode;
+                                      });
+                                    },
+                                    initialSelection: 'IN',
+                                    favorite: const ['+91', 'IN'],
+                                    showCountryOnly: false,
+                                    showOnlyCountryWhenClosed: false,
+                                    alignLeft: false,
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextField(
+                                    controller: phoneController,
+                                    keyboardType: TextInputType.phone,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: 'Phone Number',
+                                      hintStyle: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 16,
+                                      ),
+                                      border: InputBorder.none,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // OR Divider
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Divider(
+                                  color: Colors.grey[200],
+                                  thickness: 1,
                                 ),
                               ),
-                            );
-                            return;
-                          }
-
-                          setState(() {
-                            isLoading = true;
-                          });
-
-                          // Get country code
-                          final countryCode =
-                              selectedCountry.dialCode?.replaceAll('+', '') ??
-                              '91';
-                          final fullPhoneNumber = '$countryCode$phone';
-
-                          try {
-                            await _fetchCustomerData(fullPhoneNumber);
-                            if (dialogContext.mounted) {
-                              Navigator.of(dialogContext).pop();
-                            }
-                          } catch (e) {
-                            setState(() {
-                              isLoading = false;
-                            });
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: TranslatedText(
-                                    'Error: ${e.toString()}',
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Text(
+                                  "OR",
+                                  style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  backgroundColor: Colors.red,
+                                ),
+                              ),
+                              Expanded(
+                                child: Divider(
+                                  color: Colors.grey[200],
+                                  thickness: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Scan QR Button (Big & Clean)
+                          InkWell(
+                            onTap: () async {
+                              final scannedCode = await Navigator.push<String>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => _QRScannerDialog(),
                                 ),
                               );
-                            }
-                          }
-                        },
-                  child: const TranslatedText('Continue'),
+                              if (scannedCode != null) {
+                                phoneController.text = scannedCode;
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                border: Border.all(
+                                  color: Colors.grey[300]!,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.qr_code_scanner_rounded,
+                                    color: Colors.blue[800],
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  TranslatedText(
+                                    'Scan Customer QR Code',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.blueGrey[800],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Bottom Actions
+                          Row(
+                            children: [
+                              // Guest Button
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () {
+                                    if (isLoading) return;
+                                    Navigator.pop(context); // Continue as guest
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    foregroundColor: Colors.grey[600],
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  child: const TranslatedText(
+                                    'Skip & Continue',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+
+                              // Start Session Button
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF2563EB),
+                                        Color(0xFF1D4ED8),
+                                      ],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFF2563EB,
+                                        ).withOpacity(0.3),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton(
+                                    onPressed: isLoading
+                                        ? null
+                                        : () async {
+                                            final phone = phoneController.text
+                                                .trim();
+                                            if (phone.isEmpty) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: TranslatedText(
+                                                    'Please enter a phone number',
+                                                  ),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                              return;
+                                            }
+
+                                            setState(() {
+                                              isLoading = true;
+                                            });
+
+                                            final countryCode =
+                                                selectedCountry.dialCode
+                                                    ?.replaceAll('+', '') ??
+                                                '91';
+                                            final fullPhoneNumber =
+                                                '$countryCode$phone';
+
+                                            try {
+                                              await _fetchCustomerData(
+                                                fullPhoneNumber,
+                                              );
+                                              if (mounted) {
+                                                Navigator.pop(context);
+                                              }
+                                            } catch (e) {
+                                              setState(() {
+                                                isLoading = false;
+                                              });
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: TranslatedText(
+                                                      'Error: ${e.toString()}',
+                                                    ),
+                                                    backgroundColor: Colors.red,
+                                                  ),
+                                                );
+                                              }
+                                            }
+                                          },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    child: isLoading
+                                        ? const SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const TranslatedText(
+                                            'Start Session',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             );
           },
         );
@@ -2271,8 +2639,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(theme),
-            _buildSearchBar(theme),
+            _buildTopBanner(theme),
+
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2484,202 +2852,466 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     );
   }
 
-  Widget _buildHeader(ThemeData theme) {
+  Widget _buildTopBanner(ThemeData theme) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-      ),
-      child: Row(
-        children: [
-          // Menu Button
-          IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () {
-              _scaffoldKey.currentState?.openDrawer();
-            },
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          const SizedBox(width: 8),
-
-          // Store Icon/Avatar
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: theme.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.store, color: theme.primaryColor, size: 24),
-          ),
-          const SizedBox(width: 12),
-
-          // Store Name & Title
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TranslatedText(
-                  widget.storeName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                TranslatedText(
-                  'Point of Sale',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Customer Profile Button
-          InkWell(
-            onTap: _showCustomerProfileDialog,
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.grey[100],
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: const Icon(
-                Icons.person_outline,
-                color: Colors.black87,
-                size: 20,
-              ),
-            ),
-          ),
-
-          /* IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black54),
-            onPressed: _logout,
-            tooltip: 'Change Store',
-          ), */
         ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.storefront_rounded,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.6),
+                ),
+              ),
+            ),
+
+            // Content
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      // Menu Button (with label)
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TranslatedText(
+                            'MENU',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.menu_rounded,
+                              color: Colors.blueGrey,
+                              size: 32,
+                            ),
+                            onPressed: () {
+                              _scaffoldKey.currentState?.openDrawer();
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            style: IconButton.styleFrom(
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Store Name & Title
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            TranslatedText(
+                              widget.storeName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1E293B), // Slate 800
+                                letterSpacing: -0.5,
+                                height: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Colors.blue.withOpacity(0.2),
+                                ),
+                              ),
+                              child: TranslatedText(
+                                'POINT OF SALE',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.blue[800],
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Customer Profile Button (with label and bigger size)
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TranslatedText(
+                            'USER STATS',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: _showCustomerProfileDialog,
+                            borderRadius: BorderRadius.circular(30),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blueGrey.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.person_rounded,
+                                color: Colors.blueGrey,
+                                size: 28, // Bigger size
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          return SizeTransition(
+                            sizeFactor: animation,
+                            axis: Axis.horizontal,
+                            axisAlignment: -1.0,
+                            child: FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            ),
+                          );
+                        },
+                    child: _isSearchExpanded
+                        ? _buildExpandedSearch()
+                        : _buildDefaultOptionsBar(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildSearchBar(ThemeData theme) {
+  Widget _buildExpandedSearch() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      color: Colors.white,
-      child: Row(
-        children: [
-          // Order Method (Compact)
-          if (!_isOrderMethodsLoading)
-            InkWell(
-              onTap: _showOrderMethodSelection,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+      height: 68, // Match height of DefaultOptionsBar (Label + Box)
+      alignment: Alignment.bottomCenter,
+      key: const ValueKey('expanded_search'), // Key for AnimatedSwitcher
+      child: Container(
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF1565C0), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1565C0).withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: _onSearchChanged,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'Search products by name, code...',
+            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              color: Color(0xFF1565C0),
+              size: 24,
+            ),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  onPressed: _isListening
+                      ? _stopVoiceSearch
+                      : _startVoiceSearch,
+                  icon: Icon(
+                    _isListening ? Icons.mic : Icons.mic_none_rounded,
+                    size: 22,
+                  ),
+                  color: _isListening ? Colors.red : Colors.grey[600],
+                  tooltip: 'Voice Search',
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(20),
+                Container(
+                  height: 24,
+                  width: 1,
+                  color: Colors.grey[300],
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.dining,
-                      size: 16,
-                      color: Colors.grey[700],
-                    ), // Generic icon if image missing
-                    const SizedBox(width: 4),
-                    TranslatedText(
-                      _selectedOrderMethod?['order_method_name'] ?? 'Order',
-                      style: TextStyle(
-                        color: Colors.grey[800],
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                IconButton(
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 22,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _searchController.clear();
+                      _isSearchExpanded = false;
+                      if (_selectedCategoryId != null) {
+                        _fetchProductsByCategory(_selectedCategoryId!);
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: 16,
+            ),
+          ),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultOptionsBar() {
+    return Row(
+      key: const ValueKey('default_options'),
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Order Method (Dominant)
+        Expanded(
+          flex: 11, // Increased flex space
+          child: _buildActionBox(
+            label: 'Order Type',
+            iconColor: const Color(0xFFE65100),
+            child: !_isOrderMethodsLoading
+                ? InkWell(
+                    onTap: _showOrderMethodSelection,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.room_service_outlined,
+                            size: 18,
+                            color: const Color(0xFFE65100),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TranslatedText(
+                                  _selectedOrderMethod?['order_method_name'] ??
+                                      'Select Type',
+                                  style: const TextStyle(
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 20,
+                            color: Colors.grey[400],
+                          ),
+                        ],
                       ),
                     ),
-                    const Icon(Icons.keyboard_arrow_down, size: 16),
+                  )
+                : const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        // Search Action (Compact)
+        Expanded(
+          flex: 5, // Slightly bigger than 2/9 proportions
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _isSearchExpanded = true;
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: _buildActionBox(
+              label: 'Search',
+              iconColor: const Color(0xFF1565C0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.search_rounded,
+                      size: 20,
+                      color: Color(0xFF1565C0),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TranslatedText(
+                        "Search",
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
-          const SizedBox(width: 8),
+          ),
+        ),
 
-          // Search Field
-          Expanded(
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                decoration: InputDecoration(
-                  hintText: 'Search...',
-                  hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Colors.grey[500],
-                    size: 20,
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? GestureDetector(
-                          onTap: () {
-                            _searchController.clear();
-                            if (_selectedCategoryId != null) {
-                              _fetchProductsByCategory(_selectedCategoryId!);
-                            }
-                          },
-                          child: Icon(
-                            Icons.clear,
-                            color: Colors.grey[500],
-                            size: 18,
-                          ),
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 0,
-                    horizontal: 16,
-                  ),
-                  isDense: true,
+        const SizedBox(width: 12),
+
+        // Scanner Action
+        Expanded(
+          flex: 4, // Adjusted to maintain ratio
+          child: InkWell(
+            onTap: _openQRScanner,
+            borderRadius: BorderRadius.circular(12),
+            child: _buildActionBox(
+              label: 'Scan',
+              iconColor: Colors.black87,
+              child: const Center(
+                child: Icon(
+                  Icons.qr_code_scanner_rounded,
+                  size: 20,
+                  color: Colors.black87,
                 ),
-                style: const TextStyle(fontSize: 14),
               ),
             ),
           ),
-          const SizedBox(width: 8),
+        ),
+      ],
+    );
+  }
 
-          // Action Buttons
-          Row(
-            mainAxisSize: MainAxisSize.min,
+  Widget _buildActionBox({
+    required String label,
+    required Widget child,
+    Color? iconColor,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 3),
+          child: Row(
             children: [
-              IconButton(
-                onPressed: _openQRScanner,
-                icon: const Icon(Icons.qr_code_scanner),
-                color: Colors.black87,
-                tooltip: 'Scan',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              ),
-              IconButton(
-                onPressed: _isListening ? _stopVoiceSearch : _startVoiceSearch,
-                icon: Icon(_isListening ? Icons.mic : Icons.mic_none),
-                color: _isListening ? Colors.red : Colors.black87,
-                tooltip: 'Voice',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              if (iconColor != null) ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: iconColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              TranslatedText(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.blueGrey[600],
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+        Container(
+          height: 40, // Reduced height for less chunky look
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.grey[300]!,
+              width: 1.5,
+            ), // Stronger Border
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05), // Softer, deeper shadow
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ],
     );
   }
 
@@ -2741,7 +3373,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
   Widget _buildCategoriesSidebar(ThemeData theme) {
     // Premium Sidebar Design
-    const width = 85.0; // Slightly wider for comfort
+    const width = 100.0; // Compact width
 
     if (_isCategoriesLoading) {
       return Container(
@@ -2767,37 +3399,45 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(right: BorderSide(color: Colors.grey[200]!)),
+        // Innovative: Subtle gradient for depth and premium feel
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFEFF6FF), // Start with light blue
+            Color(0xFFDBEAFE), // Gentlest fade to deeper blue
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(
+              0.08,
+            ), // Soft shadow for lifting effect
+            blurRadius: 15,
+            offset: const Offset(5, 0),
+            spreadRadius: 1,
+          ),
+        ],
+        border: Border(right: BorderSide(color: Colors.black.withOpacity(0.1))),
       ),
       child: Column(
         children: [
-          // Sync Button
-          Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 8),
-            child: InkWell(
-              onTap: _syncCategories,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: const Icon(Icons.sync, size: 20, color: Colors.black87),
-              ),
-            ),
-          ),
-
           Expanded(
             child: ListView.separated(
-              padding: const EdgeInsets.only(bottom: 16, top: 8),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: _categories.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              separatorBuilder: (_, __) => Divider(
+                color: Colors.black.withOpacity(0.05), // Light black divider
+                height: 16,
+                thickness: 1,
+                indent: 8,
+                endIndent: 8,
+              ),
               itemBuilder: (context, index) {
                 final category = _categories[index];
                 final isSelected = category['id'] == _selectedCategoryId;
+
+                final categoryKey = GlobalObjectKey(category['id']);
 
                 return InkWell(
                   onTap: () {
@@ -2806,64 +3446,90 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       _searchController.clear();
                     });
                     _fetchProductsByCategory(category['id']);
+
+                    // Ensure the selected item is fully visible after expansion
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (categoryKey.currentContext != null) {
+                        Scrollable.ensureVisible(
+                          categoryKey.currentContext!,
+                          alignment: 0.5, // Center it in the list
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    });
                   },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? theme.primaryColor.withOpacity(0.1)
-                              : Colors.transparent,
-                          shape: BoxShape.circle,
-                          border: isSelected
-                              ? Border.all(
-                                  color: theme.primaryColor,
-                                  width: 1.5,
-                                )
-                              : null,
-                        ),
-                        child: category['category_icon'] != null
-                            ? ClipOval(
+                  child: AnimatedContainer(
+                    key: categoryKey,
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 10, // Slightly more padding
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? theme.primaryColor.withOpacity(0.08)
+                          : Colors.transparent,
+                      border: isSelected
+                          ? Border(
+                              left: BorderSide(
+                                color: theme.primaryColor,
+                                width: 3,
+                              ),
+                            )
+                          : const Border(
+                              left: BorderSide(
+                                color: Colors.transparent,
+                                width: 3,
+                              ),
+                            ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start, // Left align content
+                      children: [
+                        // Show image only if selected
+                        if (isSelected)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Center(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
                                 child: CustomCachedNetworkImage(
-                                  imgUrl: category['category_icon'],
-                                  width: 28,
-                                  height: 28,
+                                  // Use sample image if icon is null for visualization
+                                  imgUrl:
+                                      category['category_icon'] ??
+                                      'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=200&auto=format&fit=crop',
+                                  width: 80, // Large rectangular image
+                                  height: 80,
                                   fit: BoxFit.cover,
                                 ),
-                              )
-                            : Icon(
-                                Icons.grid_view,
-                                size: 28,
-                                color: isSelected
-                                    ? theme.primaryColor
-                                    : Colors.grey[400],
                               ),
-                      ),
-                      const SizedBox(height: 4),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: TranslatedText(
+                            ),
+                          ),
+
+                        TranslatedText(
                           _capitalizeCategoryName(
                             category['category_name'] ?? '',
                           ),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
+                          textAlign: TextAlign.left, // Left align text
+                          maxLines: 2, // Sophisticated limit
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelSmall?.copyWith(
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: isSelected
                                 ? FontWeight.bold
                                 : FontWeight.w500,
                             color: isSelected
                                 ? theme.primaryColor
-                                : Colors.grey[600],
+                                : Colors.blueGrey[800],
+                            height: 1.2, // Improved typography
+                            letterSpacing: -0.2,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
@@ -2944,13 +3610,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 220,
-                  childAspectRatio: 0.8,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.65, // Taller card for bigger image
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final product = _products[index];
@@ -2995,12 +3661,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey.withOpacity(0.3),
+          width: 1,
+        ), // Added border
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.15), // Stronger, matte shadow
+            blurRadius: 8,
+            spreadRadius: 1, // Spread all around
+            offset: Offset.zero, // Evenly distributed
           ),
         ],
       ),
@@ -3008,80 +3679,124 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => _showProductDetails(product),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Product Image
+              // Product Image Area with Price Overlay
               Expanded(
-                flex: 4,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                  child: productImage != null
-                      ? CustomCachedNetworkImage(
-                          imgUrl: productImage,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          color: Colors.grey[100],
-                          child: Icon(
-                            Icons.inventory_2_outlined,
-                            size: 32,
-                            color: Colors.grey[400],
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Image
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(12),
+                      ),
+                      child: productImage != null
+                          ? CustomCachedNetworkImage(
+                              imgUrl: productImage,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                            )
+                          : Container(
+                              color: Colors.grey[100],
+                              child: Icon(
+                                Icons.inventory_2_outlined,
+                                size: 28,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                    ),
+                    // Price Tag Overlay
+                    Positioned(
+                      bottom: 4,
+                      left: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2E7D32), // Green color
+                          borderRadius: BorderRadius.circular(
+                            8,
+                          ), // Rounded shape
+                        ),
+                        child: TranslatedText(
+                          '₹$productPrice',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
                         ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
-              // Product Details
-              Expanded(
-                flex: 3,
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TranslatedText(
-                            productName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: Colors.black87,
-                              height: 1.2,
-                            ),
+              // Dashed Separator
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 0),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final boxWidth = constraints.constrainWidth();
+                    const dashWidth = 3.0;
+                    final dashCount = (boxWidth / (2 * dashWidth)).floor();
+                    return Flex(
+                      direction: Axis.horizontal,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: List.generate(dashCount, (_) {
+                        return SizedBox(
+                          width: dashWidth,
+                          height: 1,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(color: Colors.grey[300]),
                           ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Flexible(
-                            child: TranslatedText(
-                              '₹$productPrice',
-                              style: TextStyle(
-                                color: theme.primaryColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          _buildProductAction(theme, product),
-                        ],
-                      ),
-                    ],
+                        );
+                      }),
+                    );
+                  },
+                ),
+              ),
+
+              // Product Details (Name + Button only)
+              Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(12),
                   ),
+                ),
+                padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Name
+                    SizedBox(
+                      height: 32, // Fixed height for 2 lines
+                      child: TranslatedText(
+                        productName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12, // Slightly larger font
+                          color: Colors.black87,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Add Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: _buildProductAction(theme, product),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -3097,25 +3812,27 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     // If not in cart, show Add button
     if (qty == 0) {
       return SizedBox(
-        height: 26,
+        height: 32, // Taller button
         child: ElevatedButton(
           onPressed: () => _handleAddToCart(product),
           style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             backgroundColor: theme.primaryColor,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(6),
             ),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            elevation: 0,
           ),
           child: const Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add, size: 14),
-              SizedBox(width: 2),
-              TranslatedText('Add', style: TextStyle(fontSize: 11)),
+              Icon(Icons.add, size: 16),
+              SizedBox(width: 4),
+              TranslatedText(
+                'Add',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
         ),
@@ -3123,41 +3840,45 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
 
     // If in cart, show counter
-
     return Container(
-      height: 28,
+      height: 32,
       decoration: BoxDecoration(
         color: theme.primaryColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: theme.primaryColor),
+        border: Border.all(color: theme.primaryColor, width: 1),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          InkWell(
-            onTap: () {
-              // Decrement with empty combination ID as requested
-              _decrementCartItem('', product['id']);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Icon(Icons.remove, size: 16, color: theme.primaryColor),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                // Decrement with empty combination ID as requested
+                _decrementCartItem('', product['id']);
+              },
+              child: Center(
+                child: Icon(Icons.remove, size: 16, color: theme.primaryColor),
+              ),
             ),
           ),
-          TranslatedText(
-            '$qty',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: theme.primaryColor,
-              fontSize: 13,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: TranslatedText(
+              '$qty',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: theme.primaryColor,
+                fontSize: 14,
+              ),
             ),
           ),
-          InkWell(
-            // (+) Button calls /product-variation-value/ i.e. _handleAddToCart
-            onTap: () => _handleAddToCart(product),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Icon(Icons.add, size: 16, color: theme.primaryColor),
+          Expanded(
+            child: InkWell(
+              // (+) Button calls /product-variation-value/ i.e. _handleAddToCart
+              onTap: () => _handleAddToCart(product),
+              child: Center(
+                child: Icon(Icons.add, size: 16, color: theme.primaryColor),
+              ),
             ),
           ),
         ],
