@@ -1899,36 +1899,38 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           small: true,
                           onTap: () {},
                         ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.insert_chart_outlined,
+                          title: 'Reports',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.calendar_month_outlined,
+                          title: 'Financial Years',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.percent,
+                          title: 'GST Rates',
+                          small: true,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    GstRatesScreen(storeId: widget.storeId),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
-                  ),
-
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.insert_chart_outlined,
-                    title: 'Reports',
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.calendar_month_outlined,
-                    title: 'Financial Years',
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.percent,
-                    title: 'GST Rates',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              GstRatesScreen(storeId: widget.storeId),
-                        ),
-                      );
-                    },
                   ),
 
                   // Reports Expansion Tile (Second one in image list)
@@ -1952,7 +1954,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         _buildDrawerItem(
                           theme,
                           icon: Icons.bar_chart,
-                          title: 'Sales Report',
+                          title: 'GST Reports',
                           small: true,
                           onTap: () {},
                         ),
