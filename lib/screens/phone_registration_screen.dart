@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:country_code_picker/country_code_picker.dart';
-import 'package:exanor/screens/otp_verification_screen.dart';
+import 'package:exanor/screens/simple_otp_verification_screen.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/components/universal_translation_wrapper.dart';
@@ -397,7 +397,7 @@ class _PhoneRegistrationScreenState extends State<PhoneRegistrationScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => OTPVerificationScreen(
+                builder: (context) => SimpleOTPVerificationScreen(
                   phoneNumber:
                       fullPhoneNumber, // Pass full numeric phone number
                 ),

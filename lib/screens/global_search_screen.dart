@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:exanor/components/translation_widget.dart';
-import 'package:exanor/screens/store_screen.dart';
+// import 'package:exanor/screens/store_screen.dart'; // REMOVED - Customer screen
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/services/api_service.dart';
@@ -292,12 +292,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         // Store Header
         InkWell(
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => StoreScreen(storeId: store['id']),
-              ),
-            );
+            // TODO: Navigate to store owner POS or show store details
+            // Navigator.push(
+            //   context,
+            //   MaterialPageRoute(
+            //     builder: (context) => StoreScreen(storeId: store['id']),
+            //   ),
+            // );
           },
           child: Row(
             children: [
@@ -405,22 +406,16 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       ),
       child: InkWell(
         onTap: () {
-          // Open StoreScreen and attempt to scroll to this product
-          // Since StoreScreen doesn't support direct scroll yet,
-          // we will pass the product name as a search query to simulate isolating/scrolling to it.
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              // We need to modify StoreScreen to accept initialSearchQuery or perform this search
-              // For now, let's assume we will add 'initialSearchQuery' to StoreScreen
-              // or we use 'storeId' only and hope user finds it.
-              // Recommending adding initialSearchQuery to StoreScreen next.
-              builder: (context) => StoreScreen(
-                storeId: storeId,
-                initialSearchQuery: product['product_name'],
-              ),
-            ),
-          );
+          // TODO: Navigate to store owner POS or product details
+          // Navigator.push(
+          //   context,
+          //   MaterialPageRoute(
+          //     builder: (context) => StoreScreen(
+          //       storeId: storeId,
+          //       initialSearchQuery: product['product_name'],
+          //     ),
+          //   ),
+          // );
         },
         borderRadius: BorderRadius.circular(12),
         child: Column(

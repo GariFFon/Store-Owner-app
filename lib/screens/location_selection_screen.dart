@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/services/api_service.dart';
-import 'package:exanor/screens/HomeScreen.dart';
+import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/components/universal_translation_wrapper.dart';
 import 'package:exanor/services/enhanced_translation_service.dart';
@@ -2400,7 +2400,8 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
                                 Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const HomeScreen(),
+                                    builder: (context) =>
+                                        const StoreSelectionScreen(),
                                   ),
                                   (route) => false,
                                 );

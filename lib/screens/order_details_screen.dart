@@ -27,8 +27,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Map<String, dynamic>? _orderData;
   List<dynamic> _products = [];
   List<dynamic> _orderStatuses = [];
+  List<dynamic> _statusOptions = [];
+  List<dynamic> _storeBankDetails = [];
   String? _errorMessage;
   Timer? _statusTimer;
+  bool _isUpdatingStatus = false;
 
   @override
   void initState() {
@@ -36,6 +39,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     _fetchOrderDetails();
     _fetchOrderProducts();
     _startStatusPolling();
+    _fetchStatusOptions();
   }
 
   @override
@@ -81,6 +85,121 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
+  Future<void> _fetchStatusOptions() async {
+    try {
+      final requestBody = {"store_id": widget.storeId, "store_access": true};
+
+      final response = await ApiService.post(
+        '/order-status-options/',
+        body: requestBody,
+        useBearerToken: true,
+      );
+
+      if (response['data'] != null &&
+          response['data']['status'] == 200 &&
+          mounted) {
+        setState(() {
+          _statusOptions = response['data']['response'] ?? [];
+        });
+      }
+    } catch (e) {
+      print("❌ Error fetching status options: $e");
+    }
+  }
+
+  Future<void> _fetchStoreBankDetails() async {
+    try {
+      final requestBody = {
+        "store_id": widget.storeId,
+        "store_access": true,
+        "create": false,
+        "order_by": "bank_name",
+        "limit": 50,
+      };
+
+      final response = await ApiService.post(
+        '/store-bank-details/',
+        body: requestBody,
+        useBearerToken: true,
+      );
+
+      if (response['data'] != null &&
+          response['data']['status'] == 200 &&
+          mounted) {
+        setState(() {
+          _storeBankDetails = response['data']['response'] ?? [];
+        });
+        print(
+          "✅ Store bank details fetched: ${_storeBankDetails.length} items",
+        );
+      }
+    } catch (e) {
+      print("❌ Error fetching store bank details: $e");
+    }
+  }
+
+  Future<void> _updateOrderStatus(
+    String status,
+    String orderStatusId, {
+    String? bankId,
+    double? amountPaid,
+  }) async {
+    setState(() => _isUpdatingStatus = true);
+
+    try {
+      final requestBody = {
+        "order_id": widget.orderId,
+        "store_id": widget.storeId,
+        "store_access": true,
+        "order_status_id": orderStatusId,
+      };
+
+      if (amountPaid != null) {
+        requestBody["amount_paid"] = amountPaid;
+      }
+
+      if (bankId != null) {
+        if (status.contains('order_returned') ||
+            status.contains('order_partially_returned')) {
+          requestBody["refund_method_store_bank_id"] = bankId;
+        } else {
+          requestBody["payment_method_store_bank_id"] = bankId;
+        }
+      }
+
+      final response = await ApiService.put(
+        '/orders/',
+        body: requestBody,
+        useBearerToken: true,
+      );
+
+      if (response['data'] != null &&
+          (response['data']['status'] == 200 || response['status'] == 200)) {
+        if (mounted) {
+          Navigator.pop(context); // Close sheet
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: TranslatedText('Order status updated')),
+          );
+          _fetchOrderDetails(); // Refresh details
+          _fetchOrderStatuses(); // Refresh timeline
+        }
+      } else {
+        throw Exception(response['message'] ?? 'Failed to update status');
+      }
+    } catch (e) {
+      print("❌ Error updating order status: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: TranslatedText('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUpdatingStatus = false);
+      }
+    }
+  }
+
   Future<void> _fetchOrderDetails() async {
     setState(() {
       _isLoadingOrder = true;
@@ -92,6 +211,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         "page": 1,
         "query": {"id": widget.orderId},
         "store_id": widget.storeId,
+        "store_access": true,
       };
 
       print("📦 Fetching order details for: ${widget.orderId}");
@@ -220,6 +340,474 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           : _isLoadingOrder
           ? _buildLoadingView(theme)
           : _buildOrderDetails(theme),
+      floatingActionButton: _statusOptions.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _showUpdateStatusSheet,
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const TranslatedText('Update Status'),
+            )
+          : null,
+    );
+  }
+
+  void _showUpdateStatusSheet() {
+    _fetchStoreBankDetails();
+
+    // Move state variables outside StatefulBuilder to prevent recreation
+    String? selectedStatusId;
+    String? selectedStatusValue;
+    String? selectedBankId;
+    final TextEditingController amountController = TextEditingController();
+
+    // Pre-fill amount with Grand Total
+    final double grandTotal =
+        double.tryParse(_orderData?['grand_total']?.toString() ?? '0') ?? 0.0;
+    amountController.text = grandTotal.toStringAsFixed(2);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateSheet) {
+            final theme = Theme.of(context);
+
+            final isOrderReturned =
+                selectedStatusValue != null &&
+                (selectedStatusValue!.contains('order_returned') ||
+                    selectedStatusValue!.contains('order_partially_returned'));
+
+            final isOrderCompleted =
+                selectedStatusValue != null &&
+                selectedStatusValue!.contains('order_completed');
+
+            final isOrderPartiallyPaid =
+                selectedStatusValue != null &&
+                selectedStatusValue!.contains('order_partially_paid');
+
+            final showPaymentOptions =
+                isOrderReturned || isOrderCompleted || isOrderPartiallyPaid;
+            final showAmountInput = isOrderCompleted || isOrderPartiallyPaid;
+
+            // Reset amount controller when switching to partially paid (user should enter amount)
+            // But validation logic is complex in build(), so we handle initial values carefully or rely on user editing.
+            // For completed, we pre-fill full amount. For partial, we might want it empty or 0.
+            // A simple approach is handled in the UI logic below or just letting user edit.
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
+                ),
+                padding: const EdgeInsets.only(top: 20, bottom: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TranslatedText(
+                            'Change Order Status',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+
+                    if (_isUpdatingStatus)
+                      const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else ...[
+                      // Status Selection List
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  10,
+                                  20,
+                                  10,
+                                ),
+                                child: TranslatedText(
+                                  'Select New Status *',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: theme.colorScheme.onSurface
+                                        .withOpacity(0.6),
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: theme.dividerColor.withOpacity(0.2),
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: ButtonTheme(
+                                    alignedDropdown: true,
+                                    child: DropdownButton<String>(
+                                      isExpanded: true,
+                                      value: selectedStatusId,
+                                      hint: const TranslatedText(
+                                        'Choose status...',
+                                      ),
+                                      items: _statusOptions.map((option) {
+                                        return DropdownMenuItem<String>(
+                                          value: option['id'],
+                                          child: Text(
+                                            option['status_title_for_seller'] ??
+                                                option['status'],
+                                          ),
+                                          onTap: () {
+                                            setStateSheet(() {
+                                              selectedStatusValue =
+                                                  option['status'];
+                                            });
+                                          },
+                                        );
+                                      }).toList(),
+                                      onChanged: (value) {
+                                        setStateSheet(() {
+                                          selectedStatusId = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // Info Banner for selected status
+                              if (selectedStatusId != null) ...[
+                                const SizedBox(height: 16),
+                                Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(
+                                        Icons.info_outline_rounded,
+                                        color: Colors.blue,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            TranslatedText(
+                                              selectedStatusValue ?? '',
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.blue.shade800,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            TranslatedText(
+                                              _statusOptions.firstWhere(
+                                                    (e) =>
+                                                        e['id'] ==
+                                                        selectedStatusId,
+                                                  )['description'] ??
+                                                  'Status update',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: Colors.blue.shade900,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+
+                              // Amount Paid Input (For order_completed & order_partially_paid)
+                              if (showAmountInput) ...[
+                                const SizedBox(height: 20),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      TranslatedText(
+                                        'Amount Paid',
+                                        style: theme.textTheme.labelMedium
+                                            ?.copyWith(
+                                              color: theme.colorScheme.onSurface
+                                                  .withOpacity(0.6),
+                                            ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Divider(
+                                          color: theme.dividerColor.withOpacity(
+                                            0.2,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  child: TextField(
+                                    controller: amountController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: theme.dividerColor.withOpacity(
+                                            0.2,
+                                          ),
+                                        ),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: theme.dividerColor.withOpacity(
+                                            0.2,
+                                          ),
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
+                                    ),
+                                    onTap: () {
+                                      // Make it easier to edit by selecting all if pre-filled
+                                      amountController.selection =
+                                          TextSelection(
+                                            baseOffset: 0,
+                                            extentOffset:
+                                                amountController.text.length,
+                                          );
+                                    },
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 4,
+                                  ),
+                                  child: TranslatedText(
+                                    isOrderCompleted
+                                        ? 'Full amount (₹${grandTotal.toStringAsFixed(2)}) will be recorded as paid'
+                                        : 'Maximum: ₹${grandTotal.toStringAsFixed(2)}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface
+                                          .withOpacity(0.5),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+
+                              // Payment/Refund Method (Bank Account) Dropdown
+                              if (showPaymentOptions) ...[
+                                const SizedBox(height: 20),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: TranslatedText(
+                                          isOrderReturned
+                                              ? 'Refund Method (Bank Account)'
+                                              : 'Payment Method (Bank Account)',
+                                          style: theme.textTheme.labelMedium
+                                              ?.copyWith(
+                                                color: Colors.blue,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Divider(
+                                          color: Colors.blue.withOpacity(0.3),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.blue.withOpacity(0.5),
+                                      width: 1.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: ButtonTheme(
+                                      alignedDropdown: true,
+                                      child: DropdownButton<String>(
+                                        isExpanded: true,
+                                        value: selectedBankId,
+                                        hint: TranslatedText(
+                                          isOrderReturned
+                                              ? 'Select Refund Account'
+                                              : 'Select Payment Account',
+                                        ),
+                                        items: _storeBankDetails.map((bank) {
+                                          final name =
+                                              bank['account_holder_name'] ??
+                                              bank['bank_name'] ??
+                                              'Unknown Account';
+                                          final number =
+                                              bank['account_number_or_upi_id'] ??
+                                              '';
+                                          return DropdownMenuItem<String>(
+                                            value: bank['id'],
+                                            child: Text('$name ($number)'),
+                                          );
+                                        }).toList(),
+                                        onChanged: (value) {
+                                          setStateSheet(() {
+                                            selectedBankId = value;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 4,
+                                  ),
+                                  child: TranslatedText(
+                                    'Optional - defaults to cash if not selected',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface
+                                          .withOpacity(0.5),
+                                    ),
+                                  ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 30),
+
+                              // Update Button
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const TranslatedText('CANCEL'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            theme.colorScheme.primary,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: selectedStatusId == null
+                                          ? null
+                                          : () {
+                                              final amount = double.tryParse(
+                                                amountController.text,
+                                              );
+                                              _updateOrderStatus(
+                                                selectedStatusValue!,
+                                                selectedStatusId!,
+                                                bankId: selectedBankId,
+                                                amountPaid: amount,
+                                              );
+                                            },
+                                      child: const TranslatedText(
+                                        'UPDATE STATUS',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -448,55 +1036,159 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Widget _buildProductItem(ThemeData theme, Map<String, dynamic> product) {
     final quantity = product['quantity'] ?? 0;
     final itemTotal =
-        double.tryParse(product['item_total']?.toString() ?? '0') ?? 0.0;
+        double.tryParse((product['item_total'] ?? 0).toString()) ?? 0.0;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: TranslatedText(
-            '${quantity}x',
-            style: TextStyle(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
+    final cgst = double.tryParse(product['cgst']?.toString() ?? '0') ?? 0.0;
+    final sgst = double.tryParse(product['sgst']?.toString() ?? '0') ?? 0.0;
+    final igst = double.tryParse(product['igst']?.toString() ?? '0') ?? 0.0;
+    final cess = double.tryParse(product['cess']?.toString() ?? '0') ?? 0.0;
+    final amountExcludingTax =
+        double.tryParse(product['amount_excluding_tax']?.toString() ?? '0') ??
+        0.0;
+    // final amountIncludingTax = double.tryParse(product['amount_including_tax']?.toString() ?? '0') ?? 0.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.05)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TranslatedText(
-                product['product_name'] ?? 'Unknown Product',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: TranslatedText(
+                  '${quantity}x',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
-              const SizedBox(height: 4),
-              TranslatedText(
-                '₹${itemTotal.toStringAsFixed(2)}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TranslatedText(
+                      product['product_name'] ?? 'Unknown Product',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    TranslatedText(
+                      '₹${itemTotal.toStringAsFixed(2)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  TranslatedText(
+                    '₹${itemTotal.toStringAsFixed(2)}',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ),
-        TranslatedText(
-          '₹${itemTotal.toStringAsFixed(2)}',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
+          if (cgst > 0 || sgst > 0 || igst > 0 || cess > 0) ...[
+            const SizedBox(height: 12),
+            Theme(
+              data: theme.copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                title: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 14,
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                    const SizedBox(width: 6),
+                    TranslatedText(
+                      'Tax Breakdown',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+                children: [
+                  _buildTaxRow(theme, 'Base Price', amountExcludingTax),
+                  if (cgst > 0) _buildTaxRow(theme, 'CGST', cgst),
+                  if (sgst > 0) _buildTaxRow(theme, 'SGST', sgst),
+                  if (igst > 0) _buildTaxRow(theme, 'IGST', igst),
+                  if (cess > 0) _buildTaxRow(theme, 'Cess', cess),
+                  const Divider(),
+                  _buildTaxRow(theme, 'Total', itemTotal, isTotal: true),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaxRow(
+    ThemeData theme,
+    String label,
+    double amount, {
+    bool isTotal = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TranslatedText(
+            label,
+            style: isTotal
+                ? theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  )
+                : theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    fontSize: 11,
+                  ),
           ),
-        ),
-      ],
+          TranslatedText(
+            '₹${amount.toStringAsFixed(2)}',
+            style: isTotal
+                ? theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  )
+                : theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    fontSize: 11,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -972,7 +1664,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   Widget _buildAnimatedStatusIcon(ThemeData theme, String? status) {
-    Color statusColor = _getStatusColorFromString(status);
     IconData iconData = _getStatusIcon(status);
 
     return Container(
@@ -1094,7 +1785,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     return Icons.info_outline_rounded;
   }
 }
-// ... (existing code for _ProductReviewItem will be appended to the file)
 
 class _ProductReviewItem extends StatefulWidget {
   final Map<String, dynamic> product;

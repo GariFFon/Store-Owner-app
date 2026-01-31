@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:exanor/components/otp_input_section.dart';
-import 'package:exanor/screens/HomeScreen.dart';
+import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/components/translation_widget.dart';
@@ -335,12 +335,16 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               await _storeUserData(responseData['user_data']);
             }
 
-            print('🎉 All data stored successfully - navigating to HomeScreen');
+            print(
+              '🎉 All data stored successfully - navigating to StoreSelectionScreen',
+            );
 
-            // Navigate to homepage
+            // Navigate to store selection
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
+              MaterialPageRoute(
+                builder: (context) => const StoreSelectionScreen(),
+              ),
               (route) => false,
             );
           } else {

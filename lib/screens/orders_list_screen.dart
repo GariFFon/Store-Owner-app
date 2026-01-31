@@ -21,7 +21,11 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
   bool _hasNextPage = false;
   int _currentPage = 1;
   String? _effectiveStoreId;
+
   String? _errorMessage;
+  List<dynamic> _statusOptions = [];
+  String? _selectedStatus;
+  bool _isLoadingStatusOptions = false;
 
   @override
   void initState() {
@@ -44,7 +48,40 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     _effectiveStoreId = widget.storeId ?? args?['storeId'];
 
+    _effectiveStoreId = widget.storeId ?? args?['storeId'];
+
+    _fetchStatusOptions();
     _fetchOrders();
+  }
+
+  Future<void> _fetchStatusOptions() async {
+    if (_effectiveStoreId == null) return;
+
+    setState(() => _isLoadingStatusOptions = true);
+
+    try {
+      final requestBody = {"store_id": _effectiveStoreId, "store_access": true};
+
+      final response = await ApiService.post(
+        '/order-status-options/',
+        body: requestBody,
+        useBearerToken: true,
+      );
+
+      if (response['data'] != null &&
+          response['data']['status'] == 200 &&
+          mounted) {
+        setState(() {
+          _statusOptions = response['data']['response'] ?? [];
+          _isLoadingStatusOptions = false;
+        });
+      } else {
+        if (mounted) setState(() => _isLoadingStatusOptions = false);
+      }
+    } catch (e) {
+      print("❌ Error fetching status options: $e");
+      if (mounted) setState(() => _isLoadingStatusOptions = false);
+    }
   }
 
   void _onScroll() {
@@ -64,9 +101,16 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     }
 
     try {
+      final Map<String, dynamic> query = {};
+      if (_selectedStatus != null) {
+        query['status'] = _selectedStatus;
+      }
+
       final requestBody = {
-        "query": {},
+        "query": query,
         "page": isLoadMore ? _currentPage + 1 : 1,
+        "store_id": _effectiveStoreId,
+        "store_access": true,
       };
 
       final result = await ApiService.post(
@@ -169,7 +213,89 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
         backgroundColor: theme.colorScheme.surface,
         foregroundColor: theme.colorScheme.onSurface,
       ),
-      body: _buildBody(theme),
+      body: Column(
+        children: [
+          _buildStatusFilter(theme),
+          Expanded(child: _buildBody(theme)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusFilter(ThemeData theme) {
+    if (_statusOptions.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _statusOptions.length + 1, // +1 for "All" option
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            // "All" option
+            final isSelected = _selectedStatus == null;
+            return _buildFilterChip(theme, 'All', isSelected, () {
+              if (!isSelected) {
+                setState(() => _selectedStatus = null);
+                _fetchOrders();
+              }
+            });
+          }
+
+          final option = _statusOptions[index - 1];
+          final isSelected = _selectedStatus == option['status'];
+          final label =
+              option['status_title_for_seller'] ??
+              option['status'] ??
+              'Unknown';
+
+          return _buildFilterChip(theme, label, isSelected, () {
+            if (!isSelected) {
+              setState(() => _selectedStatus = option['status']);
+              _fetchOrders();
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(
+    ThemeData theme,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.dividerColor.withOpacity(0.1),
+          ),
+        ),
+        alignment: Alignment.center,
+        child: TranslatedText(
+          label,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: isSelected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurface,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
     );
   }
 
