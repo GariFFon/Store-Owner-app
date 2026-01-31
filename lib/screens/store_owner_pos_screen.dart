@@ -14,6 +14,7 @@ import 'package:exanor/screens/purchase_screen.dart';
 import 'package:exanor/screens/receipts_screen.dart';
 import 'package:exanor/screens/overview_screen.dart';
 import 'package:exanor/screens/sales_screen.dart';
+import 'package:exanor/screens/payment_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
@@ -1832,7 +1833,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           icon: Icons.payment,
                           title: 'Payments',
                           small: true,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    PaymentScreen(storeId: widget.storeId),
+                              ),
+                            );
+                          },
                         ),
                         _buildDrawerItem(
                           theme,
