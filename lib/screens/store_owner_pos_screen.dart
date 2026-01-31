@@ -20,6 +20,7 @@ import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/screens/suppliers_list_screen.dart';
 import 'package:exanor/screens/gst_rates_screen.dart';
 import 'package:exanor/screens/customers_list_screen.dart';
+import 'package:exanor/screens/financial_years_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1911,7 +1912,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           icon: Icons.calendar_month_outlined,
                           title: 'Financial Years',
                           small: true,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FinancialYearsScreen(
+                                  storeId: widget.storeId,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         _buildDrawerItem(
                           theme,

@@ -610,4 +610,38 @@ class StoreOwnerApiService {
       throw Exception('Failed to fetch parties: $e');
     }
   }
+
+  /// Fetch financial years
+  /// POST /financial-year-operations/
+  static Future<Map<String, dynamic>> getFinancialYears(
+    String storeId, {
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/financial-year-operations/',
+        body: {
+          'create': false,
+          'store_id': storeId,
+          'store_access': true,
+          'query': {},
+          'order_by': '-start_date',
+          'limit': limit,
+          'offset': offset,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          return Map<String, dynamic>.from(data);
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch financial years: $e');
+    }
+  }
 }
