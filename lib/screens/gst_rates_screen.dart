@@ -220,6 +220,16 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
   }
 
   Widget _buildRatesTable() {
+    // Define fixed widths for columns for better readability on mobile
+    const double hsnWidth = 80;
+    const double descWidth = 150;
+    const double taxWidth = 60;
+    const double dateWidth = 100;
+    const double statusWidth = 80;
+    
+    // Total min width needed
+    const double minTableWidth = hsnWidth + descWidth + (taxWidth * 4) + dateWidth + statusWidth + 40; // + padding
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -233,154 +243,142 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-              color: Colors.grey.shade50,
-            ),
-            child: Row(
-              children: [
-                _buildHeaderCell('HSN Code', flex: 2),
-                _buildHeaderCell('Description', flex: 4),
-                _buildHeaderCell('CGST %', flex: 1),
-                _buildHeaderCell('SGST %', flex: 1),
-                _buildHeaderCell('IGST %', flex: 1),
-                _buildHeaderCell('CESS %', flex: 1),
-                _buildHeaderCell('Effective From', flex: 2),
-                _buildHeaderCell(
-                  'Status',
-                  flex: 1,
-                  alignment: Alignment.centerRight,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: minTableWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Container(
+                width: minTableWidth,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                  color: Colors.grey.shade50,
                 ),
-              ],
-            ),
-          ),
-
-          // List
-          if (_rates.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32.0),
-              child: Text("No rates found"),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _rates.length,
-              separatorBuilder: (c, i) =>
-                  Divider(height: 1, color: Colors.grey.shade100),
-              itemBuilder: (context, index) {
-                final rate = _rates[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      // HSN
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          rate.hsnCode,
-                          style: const TextStyle(
-                            color: Colors.blue,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
+                child: Row(
+                  children: [
+                    _buildHeaderCell('HSN Code', width: hsnWidth),
+                    _buildHeaderCell('Description', width: descWidth),
+                    _buildHeaderCell('CGST %', width: taxWidth),
+                    _buildHeaderCell('SGST %', width: taxWidth),
+                    _buildHeaderCell('IGST %', width: taxWidth),
+                    _buildHeaderCell('CESS %', width: taxWidth),
+                    _buildHeaderCell('Effective From', width: dateWidth),
+                    _buildHeaderCell('Status', width: statusWidth, alignment: Alignment.centerRight),
+                  ],
+                ),
+              ),
+              
+              // List
+              if (_rates.isEmpty)
+                Container(
+                  width: minTableWidth,
+                  padding: const EdgeInsets.all(32.0),
+                  alignment: Alignment.center,
+                  child: const Text("No rates found"),
+                )
+              else
+                Column(
+                  children: List.generate(_rates.length, (index) {
+                    final rate = _rates[index];
+                    return Container(
+                      width: minTableWidth,
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
                       ),
-                      // Description
-                      Expanded(
-                        flex: 4,
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Text(
-                            rate.hsnDescription,
-                            style: const TextStyle(fontSize: 13),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      // Percentages
-                      _buildPercentCell(rate.cgstPercent),
-                      _buildPercentCell(rate.sgstPercent),
-                      _buildPercentCell(rate.igstPercent),
-                      _buildPercentCell(rate.cessPercent), // CESS
-                      // Effective From
-                      Expanded(
-                        flex: 2,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              rate.effectiveFrom,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade700,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      child: Row(
+                        children: [
+                          // HSN
+                          SizedBox(
+                            width: hsnWidth,
+                            child: Text(
+                              rate.hsnCode,
+                              style: const TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
                               ),
                             ),
-                            if (rate.effectiveTo.isNotEmpty)
-                              Text(
-                                "To: ${rate.effectiveTo}",
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.redAccent,
+                          ),
+                          // Description
+                          SizedBox(
+                            width: descWidth,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: Text(
+                                rate.hsnDescription,
+                                style: const TextStyle(fontSize: 13),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          // Percentages
+                          _buildPercentCell(rate.cgstPercent, width: taxWidth),
+                          _buildPercentCell(rate.sgstPercent, width: taxWidth),
+                          _buildPercentCell(rate.igstPercent, width: taxWidth),
+                          _buildPercentCell(rate.cessPercent, width: taxWidth),
+                          
+                          // Effective From
+                          SizedBox(
+                            width: dateWidth,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  rate.effectiveFrom,
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                                ),
+                                if (rate.effectiveTo.isNotEmpty)
+                                  Text(
+                                    "To: ${rate.effectiveTo}",
+                                    style: const TextStyle(fontSize: 10, color: Colors.redAccent),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          
+                          // Status
+                          SizedBox(
+                            width: statusWidth,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: rate.isActive ? Colors.green.shade600 : Colors.grey,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  rate.isActive ? 'Active' : 'Inactive',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
-
-                      // Status
-                      Expanded(
-                        flex: 1,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: rate.isActive
-                                  ? Colors.green.shade600
-                                  : Colors.grey,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              rate.isActive ? 'Active' : 'Inactive',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
+                    );
+                  }),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildHeaderCell(
-    String text, {
-    int flex = 1,
-    Alignment alignment = Alignment.centerLeft,
-  }) {
-    return Expanded(
-      flex: flex,
+  Widget _buildHeaderCell(String text, {required double width, Alignment alignment = Alignment.centerLeft}) {
+    return SizedBox(
+      width: width,
       child: Align(
         alignment: alignment,
         child: Text(
@@ -395,22 +393,21 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
     );
   }
 
-  Widget _buildPercentCell(String value) {
-    return Expanded(
-      flex: 1,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        margin: const EdgeInsets.only(right: 4), // Spacing
-        decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          "$value%",
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Colors.blue,
+  Widget _buildPercentCell(String value, {required double width}) {
+    return SizedBox(
+      width: width,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 8.0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            "$value%",
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue),
+            textAlign: TextAlign.center,
           ),
         ),
       ),
