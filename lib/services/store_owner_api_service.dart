@@ -644,4 +644,39 @@ class StoreOwnerApiService {
       throw Exception('Failed to fetch financial years: $e');
     }
   }
+
+  /// Create a new financial year
+  /// POST /financial-year-operations/
+  static Future<Map<String, dynamic>> createFinancialYear({
+    required String storeId,
+    required String startDate,
+    required String endDate,
+    required bool isActive,
+    required bool isLocked,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/financial-year-operations/',
+        body: {
+          'create': true,
+          'store_id': storeId,
+          'store_access': true,
+          'start_date': startDate,
+          'end_date': endDate,
+          'is_active': isActive,
+          'is_locked': isLocked,
+        },
+        useBearerToken: true,
+      );
+
+      // Return the full response data if status code is 200, or if it's a 400 error handled by API
+      // The shared ApiService usually returns {statusCode: ..., data: ...}
+      if (response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to create financial year: $e');
+    }
+  }
 }

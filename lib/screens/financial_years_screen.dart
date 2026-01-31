@@ -89,6 +89,18 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
     );
   }
 
+  void _showCreateFinancialYearSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _CreateFinancialYearSheet(
+        storeId: widget.storeId,
+        onSuccess: _fetchFinancialYears,
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -131,13 +143,7 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Create functionality not implemented yet'),
-                  ),
-                );
-              },
+              onPressed: _showCreateFinancialYearSheet,
               icon: const Icon(Icons.add, size: 18, color: Colors.white),
               label: const Text(
                 'Create Financial Year',
@@ -406,6 +412,414 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CreateFinancialYearSheet extends StatefulWidget {
+  final String storeId;
+  final VoidCallback onSuccess;
+
+  const _CreateFinancialYearSheet({
+    required this.storeId,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_CreateFinancialYearSheet> createState() =>
+      _CreateFinancialYearSheetState();
+}
+
+class _CreateFinancialYearSheetState extends State<_CreateFinancialYearSheet> {
+  late TextEditingController _startDateController;
+  late TextEditingController _endDateController;
+  DateTime? _startDate;
+  DateTime? _endDate;
+  bool _isActive = true;
+  bool _isLocked = false;
+  bool _isCreating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDateController = TextEditingController();
+    _endDateController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _startDateController.dispose();
+    _endDateController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate(bool isStart) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isStart
+          ? (_startDate ?? DateTime.now())
+          : (_endDate ??
+                (_startDate?.add(const Duration(days: 365)) ?? DateTime.now())),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (picked != null) {
+      if (mounted) {
+        setState(() {
+          if (isStart) {
+            _startDate = picked;
+            // Auto-set end date to 31st March of next year if user picks April 1st
+            // Or roughly 1 year ahead
+            if (_endDate == null) {
+              // Try to smart guess Indian FY
+              if (picked.month == 4 && picked.day == 1) {
+                _endDate = DateTime(picked.year + 1, 3, 31);
+              } else {
+                _endDate = picked.add(const Duration(days: 364));
+              }
+              _endDateController.text = DateFormat(
+                'MM/dd/yyyy',
+              ).format(_endDate!);
+            }
+            _startDateController.text = DateFormat('MM/dd/yyyy').format(picked);
+          } else {
+            _endDate = picked;
+            _endDateController.text = DateFormat('MM/dd/yyyy').format(picked);
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _createFinancialYear() async {
+    if (_startDate == null || _endDate == null) {
+      return;
+    }
+
+    setState(() => _isCreating = true);
+
+    try {
+      final response = await StoreOwnerApiService.createFinancialYear(
+        storeId: widget.storeId,
+        startDate: DateFormat('yyyy-MM-dd').format(_startDate!),
+        endDate: DateFormat('yyyy-MM-dd').format(_endDate!),
+        isActive: _isActive,
+        isLocked: _isLocked,
+      );
+
+      if (!mounted) return;
+
+      if (response['status'] == 200 && response['response'] != null) {
+        // Success
+        Navigator.pop(context);
+        widget.onSuccess();
+
+        final responseData = response['response'];
+        final start = responseData['start_date'] ?? _startDate.toString();
+        final end = responseData['end_date'] ?? _endDate.toString();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Financial Year Created Successfully for $start to $end',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else if (response.containsKey('status') &&
+          response['status'] == 400 &&
+          response.containsKey('response')) {
+        // Error from API
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['response']),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unexpected response from server'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCreating = false);
+      }
+    }
+  }
+
+  String get _previewText {
+    if (_startDate == null || _endDate == null)
+      return 'Select dates to preview';
+    final start = DateFormat('yyyy-MM-dd').format(_startDate!);
+    final end = DateFormat('yyyy-MM-dd').format(_endDate!);
+    return 'FY $start to $end';
+  }
+
+  String get _durationText {
+    if (_startDate == null || _endDate == null) return '';
+    final days = _endDate!.difference(_startDate!).inDays;
+    return 'Duration: $days days';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF5F7FA),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Create Financial Year',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              Text(
+                'Define a new financial year period for your store',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Financial Year Period',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => _selectDate(true),
+                child: AbsorbPointer(
+                  child: TextField(
+                    controller: _startDateController,
+                    decoration: InputDecoration(
+                      labelText: 'Start Date *',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () => _selectDate(false),
+                child: AbsorbPointer(
+                  child: TextField(
+                    controller: _endDateController,
+                    decoration: InputDecoration(
+                      labelText: 'End Date *',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Settings',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F2F5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Active',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              'Set this as the active financial year',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                        Switch(
+                          value: _isActive,
+                          onChanged: (val) => setState(() => _isActive = val),
+                          activeColor: Colors.blue[700],
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Locked',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              'Prevent modifications to this period',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                        Switch(
+                          value: _isLocked,
+                          onChanged: (val) => setState(() => _isLocked = val),
+                          activeColor: Colors.blue[700],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Preview',
+                      style: TextStyle(
+                        color: Colors.blue[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _previewText,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      _durationText,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        foregroundColor: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _isCreating ? null : _createFinancialYear,
+                      child: _isCreating
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Create Financial Year',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        disabledBackgroundColor: Colors.blue[300],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
