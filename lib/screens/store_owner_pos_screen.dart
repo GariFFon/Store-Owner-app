@@ -19,6 +19,7 @@ import 'package:exanor/screens/payment_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/screens/suppliers_list_screen.dart';
 import 'package:exanor/screens/gst_rates_screen.dart';
+import 'package:exanor/screens/customers_list_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1840,7 +1841,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           icon: Icons.people_outline,
                           title: 'Customers',
                           small: true,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CustomersListScreen(
+                                  storeId: widget.storeId,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         _buildDrawerItem(
                           theme,
