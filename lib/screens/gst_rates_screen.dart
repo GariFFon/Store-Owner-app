@@ -18,9 +18,12 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
   int _totalCount = 0;
   int _limit = 50;
   int _offset = 0;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
   String _searchQuery = '';
   // Used for debounce
   Timer? _debounce;
+  final ScrollController _scrollController = ScrollController();
 
   // Stats
   int _activeCount = 0;
@@ -31,18 +34,33 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
   void initState() {
     super.initState();
     _fetchRates();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.9) {
+      if (!_isLoadingMore && _hasMore) {
+        _loadMoreRates();
+      }
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
   Future<void> _fetchRates() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _offset = 0;
+      _hasMore = true;
+    });
     try {
       final response = await GstService.fetchGstRates(
         storeId: widget.storeId,
@@ -55,13 +73,13 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
         setState(() {
           _rates = response.rates;
           _totalCount = response.count;
-          // Calculate active count from the current batch or use API if available
-          // Since API doesn't give total active count separately, we can only show active in current batch
-          // or we just show the count. The image has "Active Rates 50".
-          // If the limit is 50, and all are active, maybe that's why.
-          // We will count visible active rates.
           _activeCount = _rates.where((r) => r.isActive).length;
           _isLoading = false;
+          // Check if we have more to load based on the count returned vs local list size
+          // or simply if the response list size < limit
+          if (response.rates.length < _limit) {
+            _hasMore = false;
+          }
         });
       }
     } catch (e) {
@@ -70,6 +88,43 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadMoreRates() async {
+    if (!mounted) return;
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final nextOffset = _offset + _limit;
+      final response = await GstService.fetchGstRates(
+        storeId: widget.storeId,
+        limit: _limit,
+        offset: nextOffset,
+        searchQuery: _searchQuery,
+      );
+
+      if (mounted) {
+        setState(() {
+          if (response.rates.isNotEmpty) {
+            _rates.addAll(response.rates);
+            _offset = nextOffset;
+            _activeCount = _rates.where((r) => r.isActive).length;
+          }
+
+          if (response.rates.length < _limit) {
+            _hasMore = false;
+          }
+          _isLoadingMore = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading more: ${e.toString()}')),
+        );
+        setState(() => _isLoadingMore = false);
       }
     }
   }
@@ -130,6 +185,7 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
 
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,6 +228,26 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
                   _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : _buildRatesTable(),
+
+                  if (_isLoadingMore)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+
+                  if (!_hasMore && !_isLoading && _rates.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24.0),
+                      child: Center(
+                        child: Text(
+                          "No more rates to load",
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -226,9 +302,15 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
     const double taxWidth = 60;
     const double dateWidth = 100;
     const double statusWidth = 80;
-    
+
     // Total min width needed
-    const double minTableWidth = hsnWidth + descWidth + (taxWidth * 4) + dateWidth + statusWidth + 40; // + padding
+    const double minTableWidth =
+        hsnWidth +
+        descWidth +
+        (taxWidth * 4) +
+        dateWidth +
+        statusWidth +
+        40; // + padding
 
     return Container(
       decoration: BoxDecoration(
@@ -253,9 +335,14 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
               // Header
               Container(
                 width: minTableWidth,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                  border: Border(
+                    bottom: BorderSide(color: Colors.grey.shade200),
+                  ),
                   color: Colors.grey.shade50,
                 ),
                 child: Row(
@@ -267,11 +354,15 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
                     _buildHeaderCell('IGST %', width: taxWidth),
                     _buildHeaderCell('CESS %', width: taxWidth),
                     _buildHeaderCell('Effective From', width: dateWidth),
-                    _buildHeaderCell('Status', width: statusWidth, alignment: Alignment.centerRight),
+                    _buildHeaderCell(
+                      'Status',
+                      width: statusWidth,
+                      alignment: Alignment.centerRight,
+                    ),
                   ],
                 ),
               ),
-              
+
               // List
               if (_rates.isEmpty)
                 Container(
@@ -287,9 +378,14 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
                     return Container(
                       width: minTableWidth,
                       decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey.shade100),
+                        ),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                       child: Row(
                         children: [
                           // HSN
@@ -322,7 +418,7 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
                           _buildPercentCell(rate.sgstPercent, width: taxWidth),
                           _buildPercentCell(rate.igstPercent, width: taxWidth),
                           _buildPercentCell(rate.cessPercent, width: taxWidth),
-                          
+
                           // Effective From
                           SizedBox(
                             width: dateWidth,
@@ -331,26 +427,37 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
                               children: [
                                 Text(
                                   rate.effectiveFrom,
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade700,
+                                  ),
                                 ),
                                 if (rate.effectiveTo.isNotEmpty)
                                   Text(
                                     "To: ${rate.effectiveTo}",
-                                    style: const TextStyle(fontSize: 10, color: Colors.redAccent),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.redAccent,
+                                    ),
                                   ),
                               ],
                             ),
                           ),
-                          
+
                           // Status
                           SizedBox(
                             width: statusWidth,
                             child: Align(
                               alignment: Alignment.centerRight,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: rate.isActive ? Colors.green.shade600 : Colors.grey,
+                                  color: rate.isActive
+                                      ? Colors.green.shade600
+                                      : Colors.grey,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
@@ -376,7 +483,11 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
     );
   }
 
-  Widget _buildHeaderCell(String text, {required double width, Alignment alignment = Alignment.centerLeft}) {
+  Widget _buildHeaderCell(
+    String text, {
+    required double width,
+    Alignment alignment = Alignment.centerLeft,
+  }) {
     return SizedBox(
       width: width,
       child: Align(
@@ -406,7 +517,11 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
           ),
           child: Text(
             "$value%",
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
             textAlign: TextAlign.center,
           ),
         ),
