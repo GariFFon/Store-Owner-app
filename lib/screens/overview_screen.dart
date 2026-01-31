@@ -56,9 +56,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
         _endDate = now;
         break;
       case 'Weekly':
-        // Last 7 days including today
-        _startDate = now.subtract(const Duration(days: 6));
-        _endDate = now;
+        // User requested "Weekly" to show week numbers for the year (based on "week number in group of 10 or 5")
+        // So we set range to this year, similar to Yearly, but we will group by weeks in the chart.
+        _startDate = DateTime(now.year, 1, 1);
+        _endDate = DateTime(now.year, 12, 31);
         break;
       case 'Monthly':
         _startDate = DateTime(now.year, now.month, 1);
@@ -585,82 +586,154 @@ class _OverviewScreenState extends State<OverviewScreen> {
     return '';
   }
 
+  // --- Refactored Revenue Chart Generation ---
   List<BarChartGroupData> _generateRevenueBarGroups() {
-    List<double> monthlyRevenue = List.filled(12, 0.0);
+    if (_selectedFilter == 'Weekly') {
+      // Group by Week (0-52)
+      List<double> weeklyRevenue = List.filled(53, 0.0);
+      for (var item in _revenueData) {
+        if (item['date'] != null) {
+          try {
+            DateTime date = DateTime.parse(item['date']);
+            // Only aggregate if same year (should be governed by API but good to check)
+            if (date.year == _startDate.year) {
+              // Calculate Week of Year (1-53)
+              int dayOfYear = int.parse(DateFormat("D").format(date));
+              int week = ((dayOfYear - date.weekday + 10) / 7).floor();
+              if (week < 1) week = 1;
+              if (week > 53) week = 53;
 
-    for (var item in _revenueData) {
-      if (item['date'] != null) {
-        try {
-          DateTime date = DateTime.parse(item['date']);
-          if (date.month >= 1 && date.month <= 12) {
-            monthlyRevenue[date.month - 1] += (item['revenue'] as num)
-                .toDouble();
+              if (week >= 1 && week <= 53) {
+                weeklyRevenue[week - 1] += (item['revenue'] as num).toDouble();
+              }
+            } else {
+              if (weeklyRevenue.every((e) => e == 0) &&
+                  weeklyRevenue.length < 5)
+                debugPrint('Skipping Rev: \${date} != \${_startDate.year}');
+            }
+          } catch (e) {
+            debugPrint('Rev Parse Error: \$e');
           }
-        } catch (e) {
-          // ignore parse error
         }
       }
-    }
 
-    // Find max value for background bar
-    double maxVal = 100;
-    if (monthlyRevenue.isNotEmpty) {
-      double currentMax = monthlyRevenue.reduce(
-        (curr, next) => curr > next ? curr : next,
-      );
-      if (currentMax > 0) maxVal = currentMax * 1.1;
-    }
-
-    return List.generate(12, (index) {
-      return BarChartGroupData(
-        x: index,
-        barRods: [
-          BarChartRodData(
-            toY: monthlyRevenue[index],
-            color: const Color(0xFF6366F1), // Indigo/Blue-ish color
-            width: 20,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-            backDrawRodData: BackgroundBarChartRodData(
-              show: true,
-              toY: maxVal,
-              color: Colors.transparent,
+      return List.generate(53, (index) {
+        return BarChartGroupData(
+          x: index,
+          barRods: [
+            BarChartRodData(
+              toY: weeklyRevenue[index],
+              color: const Color(0xFF6366F1),
+              width: 12, // Thinner bars for weeks
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(2),
+              ),
             ),
-          ),
-        ],
-      );
-    });
+          ],
+        );
+      });
+    } else {
+      // Default / Yearly -> Monthly Aggregation (existing logic)
+      List<double> monthlyRevenue = List.filled(12, 0.0);
+      for (var item in _revenueData) {
+        if (item['date'] != null) {
+          try {
+            DateTime date = DateTime.parse(item['date']);
+            if (date.month >= 1 && date.month <= 12) {
+              monthlyRevenue[date.month - 1] += (item['revenue'] as num)
+                  .toDouble();
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Calculate Max for background (optional, keeping simple for now)
+      return List.generate(12, (index) {
+        return BarChartGroupData(
+          x: index,
+          barRods: [
+            BarChartRodData(
+              toY: monthlyRevenue[index],
+              color: const Color(0xFF6366F1),
+              width: 20,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(4),
+              ),
+            ),
+          ],
+        );
+      });
+    }
   }
 
+  // --- Refactored Order Volume Chart Generation ---
   List<BarChartGroupData> _generateOrderVolumeBarGroups() {
-    List<double> monthlyOrders = List.filled(12, 0.0);
+    if (_selectedFilter == 'Weekly') {
+      List<double> weeklyOrders = List.filled(53, 0.0);
+      for (var item in _orderCountData) {
+        if (item['date'] != null) {
+          try {
+            DateTime date = DateTime.parse(item['date']);
+            if (date.year == _startDate.year) {
+              // Week of Year calculation
+              int dayOfYear = int.parse(DateFormat("D").format(date));
+              int week = ((dayOfYear - date.weekday + 10) / 7).floor();
+              if (week < 1) week = 1;
+              if (week > 53) week = 53;
 
-    for (var item in _orderCountData) {
-      if (item['date'] != null) {
-        try {
-          DateTime date = DateTime.parse(item['date']);
-          if (date.month >= 1 && date.month <= 12) {
-            monthlyOrders[date.month - 1] += (item['order_count'] as num)
-                .toDouble();
-          }
-        } catch (e) {
-          // ignore
+              if (week >= 1 && week <= 53) {
+                weeklyOrders[week - 1] += (item['order_count'] as num)
+                    .toDouble();
+              }
+            }
+          } catch (e) {}
         }
       }
+      return List.generate(53, (index) {
+        return BarChartGroupData(
+          x: index,
+          barRods: [
+            BarChartRodData(
+              toY: weeklyOrders[index],
+              color: const Color(0xFF6366F1),
+              width: 12,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(2),
+              ),
+            ),
+          ],
+        );
+      });
+    } else {
+      // Monthly
+      List<double> monthlyOrders = List.filled(12, 0.0);
+      for (var item in _orderCountData) {
+        if (item['date'] != null) {
+          try {
+            DateTime date = DateTime.parse(item['date']);
+            if (date.month >= 1 && date.month <= 12) {
+              monthlyOrders[date.month - 1] += (item['order_count'] as num)
+                  .toDouble();
+            }
+          } catch (e) {}
+        }
+      }
+      return List.generate(12, (index) {
+        return BarChartGroupData(
+          x: index,
+          barRods: [
+            BarChartRodData(
+              toY: monthlyOrders[index],
+              color: const Color(0xFF6366F1),
+              width: 20,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(4),
+              ),
+            ),
+          ],
+        );
+      });
     }
-
-    return List.generate(12, (index) {
-      return BarChartGroupData(
-        x: index,
-        barRods: [
-          BarChartRodData(
-            toY: monthlyOrders[index],
-            color: const Color(0xFF6366F1), // Indigo/Blue
-            width: 20,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-          ),
-        ],
-      );
-    });
   }
 
   Widget _buildRevenueChart() {
@@ -723,19 +796,37 @@ class _OverviewScreenState extends State<OverviewScreen> {
                             reservedSize: 30,
                             getTitlesWidget: (value, meta) {
                               int index = value.toInt();
-                              if (index >= 0 && index < 12) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: Text(
-                                    _getMonthName(index),
-                                    style: const TextStyle(
-                                      color: Color(0xFF64748B),
-                                      fontSize: 10,
+                              if (_selectedFilter == 'Weekly') {
+                                // Show every 5th week number or so
+                                if (index % 5 == 0 && index < 53) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      'W${index + 1}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 10,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              } else {
+                                // Monthly
+                                if (index >= 0 && index < 12) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      _getMonthName(index),
+                                      style: const TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return const SizedBox.shrink();
                               }
-                              return const SizedBox.shrink();
                             },
                           ),
                         ),
@@ -805,10 +896,14 @@ class _OverviewScreenState extends State<OverviewScreen> {
                             return PieChartSectionData(
                               color: color,
                               value: val,
-                              title: val
-                                  .toInt()
-                                  .toString(), // Show value if needed, or hide
-                              showTitle: false,
+                              title: val.toInt().toString(),
+                              showTitle: true,
+                              titlePositionPercentageOffset: 1.4, // Outside
+                              titleStyle: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: color, // Match section color
+                              ),
                               radius: 25,
                             );
                           }).toList(),
@@ -927,15 +1022,22 @@ class _OverviewScreenState extends State<OverviewScreen> {
                             final name = e['order_method_name'] ?? '';
                             Color color;
                             if (name.toLowerCase().contains('dine')) {
-                              color = const Color(0xFF6366F1); // Blue
+                              color = const Color(0xFF6366F1);
                             } else {
-                              color = const Color(0xFF8B5CF6); // Purple
+                              color = const Color(0xFF8B5CF6);
                             }
                             final val = (e['total_orders'] as num).toDouble();
                             return PieChartSectionData(
                               color: color,
                               value: val,
-                              showTitle: false,
+                              showTitle: true,
+                              title: val.toInt().toString(),
+                              titlePositionPercentageOffset: 1.4, // Outside
+                              titleStyle: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: color,
+                              ),
                               radius: 20,
                             );
                           }).toList(),
@@ -1015,8 +1117,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _sentimentData.isEmpty &&
-                      false // Remove && false when real data comes
+                : _sentimentData.isEmpty
                 ? const Center(child: Text("No Data"))
                 : BarChart(
                     BarChartData(
@@ -1050,19 +1151,35 @@ class _OverviewScreenState extends State<OverviewScreen> {
                             reservedSize: 30,
                             getTitlesWidget: (value, meta) {
                               int index = value.toInt();
-                              if (index >= 0 && index < 12) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: Text(
-                                    _getMonthName(index),
-                                    style: const TextStyle(
-                                      color: Color(0xFF64748B),
-                                      fontSize: 10,
+                              if (_selectedFilter == 'Weekly') {
+                                if (index % 5 == 0 && index < 53) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      'W${index + 1}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 10,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              } else {
+                                if (index >= 0 && index < 12) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      _getMonthName(index),
+                                      style: const TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return const SizedBox.shrink();
                               }
-                              return const SizedBox.shrink();
                             },
                           ),
                         ),
@@ -1161,19 +1278,35 @@ class _OverviewScreenState extends State<OverviewScreen> {
                             reservedSize: 30,
                             getTitlesWidget: (value, meta) {
                               int index = value.toInt();
-                              if (index >= 0 && index < 12) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: Text(
-                                    _getMonthName(index),
-                                    style: const TextStyle(
-                                      color: Color(0xFF64748B),
-                                      fontSize: 10,
+                              if (_selectedFilter == 'Weekly') {
+                                if (index % 5 == 0 && index < 53) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      'W${index + 1}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 10,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              } else {
+                                if (index >= 0 && index < 12) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      _getMonthName(index),
+                                      style: const TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return const SizedBox.shrink();
                               }
-                              return const SizedBox.shrink();
                             },
                           ),
                         ),
