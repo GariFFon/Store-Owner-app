@@ -494,7 +494,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 ),
                               ),
                               SizedBox(
-                                width: 80,
+                                width: 100,
                                 child: Text(
                                   "STATUS",
                                   style: TextStyle(
@@ -510,7 +510,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
                         // List Items
                         SizedBox(
-                          width: 670, // Total width of all columns
+                          width: 722, // Total width (690) + Padding (32)
                           child: ListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -520,7 +520,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               return InkWell(
                                 onTap: () => showDialog(
                                   context: context,
-                                  builder: (_) => PaymentDetailsDialog(voucher: v),
+                                  builder: (_) =>
+                                      PaymentDetailsDialog(voucher: v),
                                 ),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -530,7 +531,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                   decoration: const BoxDecoration(
                                     color: Colors.white,
                                     border: Border(
-                                      bottom: BorderSide(color: Color(0xFFF1F5F9)),
+                                      bottom: BorderSide(
+                                        color: Color(0xFFF1F5F9),
+                                      ),
                                     ),
                                   ),
                                   child: Row(
@@ -594,7 +597,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                               child: Text(
                                                 v.partyName,
                                                 overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(fontSize: 13),
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
                                               ),
                                             ),
                                           ],
@@ -622,38 +627,49 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                         ),
                                       ),
                                       SizedBox(
-                                        width: 80,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: v.isPosted
-                                                ? Colors.green.withOpacity(0.1)
-                                                : Colors.orange.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (v.isPosted)
-                                                const Icon(
-                                                  Icons.check,
-                                                  size: 10,
-                                                  color: Colors.green,
+                                        width: 100,
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: v.isPosted
+                                                  ? Colors.green.withOpacity(
+                                                      0.1,
+                                                    )
+                                                  : Colors.orange.withOpacity(
+                                                      0.1,
+                                                    ),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (v.isPosted)
+                                                  const Icon(
+                                                    Icons.check,
+                                                    size: 10,
+                                                    color: Colors.green,
+                                                  ),
+                                                if (v.isPosted)
+                                                  const SizedBox(width: 2),
+                                                Text(
+                                                  v.isPosted
+                                                      ? 'Posted'
+                                                      : 'Draft',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: v.isPosted
+                                                        ? Colors.green
+                                                        : Colors.orange,
+                                                  ),
                                                 ),
-                                              const SizedBox(width: 2),
-                                              Text(
-                                                v.isPosted ? 'Posted' : 'Draft',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: v.isPosted
-                                                      ? Colors.green
-                                                      : Colors.orange,
-                                                ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
