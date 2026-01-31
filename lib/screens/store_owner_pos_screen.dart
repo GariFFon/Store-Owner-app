@@ -17,6 +17,7 @@ import 'package:exanor/screens/overview_screen.dart';
 import 'package:exanor/screens/sales_screen.dart';
 import 'package:exanor/screens/payment_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
+import 'package:exanor/screens/suppliers_list_screen.dart';
 import 'package:exanor/screens/gst_rates_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
@@ -1822,7 +1823,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           icon: Icons.storefront_outlined,
                           title: 'Suppliers',
                           small: true,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SuppliersListScreen(
+                                  storeId: widget.storeId,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         _buildDrawerItem(
                           theme,

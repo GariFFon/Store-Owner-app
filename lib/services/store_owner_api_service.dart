@@ -550,4 +550,64 @@ class StoreOwnerApiService {
       throw Exception('Failed to fetch receipts: $e');
     }
   }
+
+  /// Fetch party list (Suppliers, Customers, etc.)
+  /// POST /party-list/
+  static Future<Map<String, dynamic>> getParties(
+    String storeId, {
+    int page = 1,
+    int pageSize = 25,
+    String? filter = 'suppliers',
+    String sortBy = 'name',
+    String sortOrder = 'desc',
+    String? searchQuery,
+    bool includeAgingReport = false,
+    bool includeLedgerReport = false,
+    String? ledgerStartDate,
+    String? ledgerEndDate,
+    String? asOfDate,
+  }) async {
+    try {
+      final body = {
+        'store_id': storeId,
+        'store_access': true,
+        'page': page,
+        'page_size': pageSize,
+        'sort_by': sortBy,
+        'sort_order': sortOrder,
+      };
+
+      if (filter != null) body['filter'] = filter;
+      if (searchQuery != null && searchQuery.isNotEmpty)
+        body['search'] = searchQuery;
+
+      if (includeAgingReport) {
+        body['include_aging_report'] = true;
+        if (asOfDate != null) body['as_of_date'] = asOfDate;
+      }
+
+      if (includeLedgerReport) {
+        body['include_ledger_report'] = true;
+        if (ledgerStartDate != null)
+          body['ledger_start_date'] = ledgerStartDate;
+        if (ledgerEndDate != null) body['ledger_end_date'] = ledgerEndDate;
+      }
+
+      final response = await ApiService.post(
+        '/party-list/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          return Map<String, dynamic>.from(data);
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch parties: $e');
+    }
+  }
 }

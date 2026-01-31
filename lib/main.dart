@@ -17,6 +17,7 @@ import 'package:exanor/screens/saved_addresses_screen.dart';
 import 'package:exanor/screens/remote_config_debug_screen.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
+import 'package:exanor/screens/suppliers_list_screen.dart';
 // REMOVED: Deleted screens (chat, subscription, profiles, refer & earn, feed, taxi)I wan
 
 import 'package:exanor/config/theme_config.dart';
@@ -602,6 +603,7 @@ class _MyAppState extends State<MyApp> {
               '/remote_config_debug': (context) =>
                   const RemoteConfigDebugScreen(),
               '/orders': (context) => const OrdersListScreen(),
+              '/suppliers': (context) => const SuppliersListScreen(),
               '/restart_app': (context) => const SplashScreen(),
               // REMOVED: Routes for deleted screens (profiles, chat, subscription, etc.)
             },
