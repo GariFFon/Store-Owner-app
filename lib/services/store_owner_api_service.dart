@@ -980,14 +980,15 @@ class StoreOwnerApiService {
     required String storeId,
     int page = 1,
     String orderBy = '-expiry_timestamp',
+    Map<String, dynamic> query = const {},
   }) async {
     try {
       final response = await ApiService.post(
         '/coupons/',
         body: {
           'store_id': storeId,
-          // 'store_access': true, // Not present in sample payload but usually required, sticking to sample payload for now + store_access if needed
-          'query': {},
+          // 'store_access': true,
+          'query': query,
           'order_by': orderBy,
           'page': page,
         },
