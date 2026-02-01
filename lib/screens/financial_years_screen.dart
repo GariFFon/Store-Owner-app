@@ -17,6 +17,7 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
   bool _isLoading = true;
   List<FinancialYear> _financialYears = [];
   int _totalCount = 0;
+  String _selectedFilter = 'All'; // Filter state: All, Active, Inactive, Locked, Unlocked
 
   @override
   void initState() {
@@ -24,11 +25,29 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
     _fetchFinancialYears();
   }
 
+  Map<String, dynamic>? _buildQueryFromFilter() {
+    switch (_selectedFilter) {
+      case 'Active':
+        return {'is_active': true};
+      case 'Inactive':
+        return {'is_active': false};
+      case 'Locked':
+        return {'is_locked': true};
+      case 'Unlocked':
+        return {'is_locked': false};
+      case 'All':
+      default:
+        return {};
+    }
+  }
+
   Future<void> _fetchFinancialYears() async {
     setState(() => _isLoading = true);
     try {
+      final query = _buildQueryFromFilter();
       final response = await StoreOwnerApiService.getFinancialYears(
         widget.storeId,
+        query: query,
       );
       if (mounted) {
         final List<dynamic> list = response['response'] ?? [];
@@ -140,26 +159,65 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
             style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _showCreateFinancialYearSheet,
-              icon: const Icon(Icons.add, size: 18, color: Colors.white),
-              label: const Text(
-                'Create Financial Year',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _showCreateFinancialYearSheet,
+                  icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                  label: const Text(
+                    'Create Financial Year',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[700],
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[700],
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
                   borderRadius: BorderRadius.circular(8),
+                  color: Colors.white,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedFilter,
+                    icon: Icon(Icons.filter_list, color: Colors.blue[700]),
+                    items: ['All', 'Active', 'Inactive', 'Locked', 'Unlocked']
+                        .map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(
+                          value,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedFilter = newValue;
+                        });
+                        _fetchFinancialYears();
+                      }
+                    },
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ],
       ),

@@ -927,6 +927,7 @@ class StoreOwnerApiService {
     String storeId, {
     int limit = 50,
     int offset = 0,
+    Map<String, dynamic>? query,
   }) async {
     try {
       final response = await ApiService.post(
@@ -935,7 +936,7 @@ class StoreOwnerApiService {
           'create': false,
           'store_id': storeId,
           'store_access': true,
-          'query': {'is_active': true},
+          'query': query ?? {},
           'order_by': '-start_date',
           'limit': limit,
           'offset': offset,
