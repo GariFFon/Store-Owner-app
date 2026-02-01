@@ -26,6 +26,10 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool _isOrdersLoading = false;
   String? _ordersError;
 
+  // Order Method Templates
+  List<Map<String, dynamic>> _orderMethodTemplates = [];
+  bool _isTemplatesLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +98,392 @@ class _SettingsScreenState extends State<SettingsScreen>
         _ordersError = 'Error: $e';
         _isOrdersLoading = false;
       });
+    }
+  }
+
+  Future<void> _fetchOrderMethodTemplates() async {
+    setState(() {
+      _isTemplatesLoading = true;
+    });
+
+    try {
+      final response = await ApiService.post(
+        '/order-method-template/',
+        body: {"query": {}, "store_id": widget.storeId},
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          setState(() {
+            _orderMethodTemplates = List<Map<String, dynamic>>.from(
+              data['response'],
+            );
+            _isTemplatesLoading = false;
+          });
+        } else {
+          setState(() => _isTemplatesLoading = false);
+        }
+      } else {
+        setState(() => _isTemplatesLoading = false);
+      }
+    } catch (e) {
+      print('Error fetching templates: $e');
+      setState(() => _isTemplatesLoading = false);
+    }
+  }
+
+  Future<void> _showOrderMethodBottomSheet({
+    Map<String, dynamic>? orderMethod,
+  }) async {
+    // Determine if we are editing or adding
+    final isEditing = orderMethod != null;
+
+    // Fetch templates if needed
+    if (_orderMethodTemplates.isEmpty) {
+      await _fetchOrderMethodTemplates();
+    }
+
+    if (!mounted) return;
+
+    // Controllers
+    final basePriceController = TextEditingController(
+      text: orderMethod?['base_price']?.toString() ?? '0',
+    );
+    final chargesPerKmController = TextEditingController(
+      text: orderMethod?['charges_per_km']?.toString() ?? '0',
+    );
+    final chargesPerMinController = TextEditingController(
+      text: orderMethod?['charges_per_min']?.toString() ?? '0',
+    );
+    final minOrderValueController = TextEditingController(
+      text: orderMethod?['min_order_value']?.toString() ?? '0',
+    );
+    final maxOrderValueController = TextEditingController(
+      text: orderMethod?['max_order_value']?.toString() ?? '500',
+    );
+    final maxDeliveryRangeController = TextEditingController(
+      text: orderMethod?['max_delivery_range_in_km']?.toString() ?? '10',
+    );
+
+    String? selectedTemplateId = orderMethod?['order_method_template_id'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isEditing ? 'Edit Order Method' : 'Add Order Method',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    _buildBottomSheetInput(
+                      label: 'Base Price',
+                      controller: basePriceController,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Template Dropdown
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[400]!),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedTemplateId,
+                          isExpanded: true,
+                          hint: const Text('Order Method Template'),
+                          items: _orderMethodTemplates.map((template) {
+                            return DropdownMenuItem<String>(
+                              value: template['id'],
+                              child: Text(
+                                template['order_method_name'] ?? 'Unknown',
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setSheetState(() {
+                              selectedTemplateId = val;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildBottomSheetInput(
+                      label: 'Charges Per KM',
+                      controller: chargesPerKmController,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildBottomSheetInput(
+                      label: 'Charges Per Minute',
+                      controller: chargesPerMinController,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildBottomSheetInput(
+                      label: 'Min Order Value',
+                      controller: minOrderValueController,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildBottomSheetInput(
+                      label: 'Max Order Value',
+                      controller: maxOrderValueController,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildBottomSheetInput(
+                      label: 'Max Delivery Range (KM)',
+                      controller: maxDeliveryRangeController,
+                    ),
+                    const SizedBox(height: 32),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(
+                            'CANCEL',
+                            style: TextStyle(color: Colors.blue),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton(
+                          onPressed: () async {
+                            // Handle Submit
+                            bool success = await _submitOrderMethod(
+                              isEditing: isEditing,
+                              orderMethodId: orderMethod?['id'],
+                              basePrice: basePriceController.text,
+                              templateId: selectedTemplateId,
+                              chargesPerKm: chargesPerKmController.text,
+                              chargesPerMin: chargesPerMinController.text,
+                              minOrder: minOrderValueController.text,
+                              maxOrder: maxOrderValueController.text,
+                              maxRange: maxDeliveryRangeController.text,
+                            );
+                            if (success && mounted) {
+                              Navigator.pop(context);
+                              _fetchOrderMethods(); // Refresh list
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1976D2),
+                            minimumSize: const Size(100, 48),
+                          ),
+                          child: const Text(
+                            'SUBMIT',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomSheetInput({
+    required String label,
+    required TextEditingController controller,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[400]!),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 12, top: 8),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ),
+          TextFormField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              isDense: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateOrderMethodStatus(
+    String orderMethodId,
+    bool isEnabled,
+  ) async {
+    // Optimistic Update
+    setState(() {
+      final index = _orderMethods.indexWhere(
+        (element) => element['id'] == orderMethodId,
+      );
+      if (index != -1) {
+        _orderMethods[index]['is_enabled'] = isEnabled;
+      }
+    });
+
+    try {
+      await ApiService.put(
+        '/order-method-settings/',
+        body: {
+          "store_id": widget.storeId,
+          "order_method_id": orderMethodId,
+          "data_to_be_updated": {"is_enabled": isEnabled},
+        },
+        useBearerToken: true,
+      );
+    } catch (e) {
+      // Revert on failure
+      setState(() {
+        final index = _orderMethods.indexWhere(
+          (element) => element['id'] == orderMethodId,
+        );
+        if (index != -1) {
+          _orderMethods[index]['is_enabled'] = !isEnabled;
+        }
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating status: $e')));
+      }
+    }
+  }
+
+  Future<bool> _submitOrderMethod({
+    required bool isEditing,
+    String? orderMethodId,
+    required String basePrice,
+    String? templateId,
+    required String chargesPerKm,
+    required String chargesPerMin,
+    required String minOrder,
+    required String maxOrder,
+    required String maxRange,
+  }) async {
+    Map<String, dynamic> dataToBeUpdated = {
+      "base_price": double.tryParse(basePrice) ?? 0,
+      "charges_per_km": double.tryParse(chargesPerKm) ?? 0,
+      "charges_per_min": double.tryParse(chargesPerMin) ?? 0,
+      "min_order_value": double.tryParse(minOrder) ?? 0,
+      "max_order_value": double.tryParse(maxOrder) ?? 0,
+      "max_delivery_range_in_km": double.tryParse(maxRange) ?? 0,
+    };
+
+    if (templateId != null) {
+      dataToBeUpdated["order_method_template_id"] = templateId;
+    }
+
+    try {
+      if (isEditing) {
+        await ApiService.put(
+          '/order-method-settings/',
+          body: {
+            "store_id": widget.storeId,
+            "order_method_id": orderMethodId,
+            "data_to_be_updated": dataToBeUpdated,
+          },
+          useBearerToken: true,
+        );
+      } else {
+        // Creation Logic
+        if (templateId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please select a template name')),
+          );
+          return false;
+        }
+
+        final response = await ApiService.post(
+          '/order-method-settings/',
+          body: {
+            "store_id": widget.storeId,
+            "create": true,
+            "view": false,
+            "order_method_creation_data": {
+              "base_price": double.tryParse(basePrice) ?? 0,
+              "order_method_template_id": templateId,
+              "charges_per_km": double.tryParse(chargesPerKm) ?? 0,
+              "charges_per_min": double.tryParse(chargesPerMin) ?? 0,
+              "min_order_value": double.tryParse(minOrder) ?? 0,
+              "max_order_value": double.tryParse(maxOrder) ?? 0,
+              "max_delivery_range_in_km": double.tryParse(maxRange) ?? 0,
+            },
+          },
+          useBearerToken: true,
+        );
+
+        if (response['statusCode'] == 409) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Duplicate Order Method'),
+                content: Text(
+                  response['data']['response'] ??
+                      'Order method with this template already exists.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+          return false; // Exit so we don't close the sheet if error
+        }
+      }
+      return true; // Success
+    } catch (e) {
+      print('Error submitting order method: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      return false; // Exit on error
     }
   }
 
@@ -391,7 +781,9 @@ class _SettingsScreenState extends State<SettingsScreen>
               ),
             ),
             OutlinedButton(
-              onPressed: () {},
+              onPressed: () {
+                _showOrderMethodBottomSheet(); // Open for adding
+              },
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -455,7 +847,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   Switch(
                     value: method['is_enabled'] ?? false,
                     onChanged: (val) {
-                      // Implement toggle logic here if needed separate from EDIT
+                      _updateOrderMethodStatus(method['id'], val);
                     },
                     activeColor: Colors.white,
                     activeTrackColor: const Color(0xFF1976D2),
@@ -467,7 +859,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                   ),
                   const SizedBox(width: 24),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      _showOrderMethodBottomSheet(orderMethod: method);
+                    },
                     child: const Text(
                       'EDIT',
                       style: TextStyle(
