@@ -480,7 +480,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                           children: [
                             _buildHorizontalStepper(theme),
                             const SizedBox(height: 32),
-                            Expanded(child: _buildCurrentStepContent(theme)),
+                            _buildCurrentStepContent(theme),
                           ],
                         )
                       : Column(

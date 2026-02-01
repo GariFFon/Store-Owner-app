@@ -142,8 +142,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
+        final val = prefs.getBool('pos_text_only_mode') ?? false;
+        print("Loading persistent view mode: $val");
         setState(() {
-          _isTextOnlyMode = prefs.getBool('pos_text_only_mode') ?? false;
+          _isTextOnlyMode = val;
         });
       }
     } catch (e) {
@@ -2682,53 +2684,51 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          InkWell(
-                            onTap: () async {
-                              final newValue = !_isTextOnlyMode;
-                              setState(() {
-                                _isTextOnlyMode = newValue;
-                              });
-                              try {
-                                final prefs =
-                                    await SharedPreferences.getInstance();
-                                await prefs.setBool(
-                                  'pos_text_only_mode',
-                                  newValue,
-                                );
-                              } catch (e) {
-                                print('Error saving view preference: $e');
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(30),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _isTextOnlyMode
-                                    ? Colors.blue.withOpacity(0.1)
-                                    : Colors.white,
-                                border: Border.all(
+                          Material(
+                            color: _isTextOnlyMode
+                                ? Colors.blue.withOpacity(0.1)
+                                : Colors.white,
+                            shape: const CircleBorder(),
+                            clipBehavior: Clip.hardEdge,
+                            child: InkWell(
+                              onTap: () async {
+                                final newValue = !_isTextOnlyMode;
+                                print("Toggling text mode to: $newValue");
+                                setState(() {
+                                  _isTextOnlyMode = newValue;
+                                });
+                                try {
+                                  final prefs =
+                                      await SharedPreferences.getInstance();
+                                  await prefs.setBool(
+                                    'pos_text_only_mode',
+                                    newValue,
+                                  );
+                                  print("Saved persistence: $newValue");
+                                } catch (e) {
+                                  print('Error saving view preference: $e');
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: _isTextOnlyMode
+                                        ? Colors.blue
+                                        : Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  _isTextOnlyMode
+                                      ? Icons.image
+                                      : Icons.article_outlined,
                                   color: _isTextOnlyMode
                                       ? Colors.blue
-                                      : Colors.white,
-                                  width: 2,
+                                      : Colors.blueGrey,
+                                  size: 24,
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.blueGrey.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                _isTextOnlyMode
-                                    ? Icons.image_not_supported_outlined
-                                    : Icons.article_outlined,
-                                color: _isTextOnlyMode
-                                    ? Colors.blue
-                                    : Colors.blueGrey,
-                                size: 24,
                               ),
                             ),
                           ),
