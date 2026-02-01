@@ -333,6 +333,139 @@ class StoreOwnerApiService {
     }
   }
 
+  /// Create store bank details
+  /// POST /store-bank-details/
+  static Future<bool> createStoreBankDetails({
+    required String storeId,
+    required String accountType,
+    required String bankName,
+    required String accountNumber,
+    required String ifscCode,
+    required String holderName,
+    required String holderType,
+    required String city,
+    required String address,
+    required String state,
+    required String country,
+    required bool isDefault,
+    required bool isActive,
+    String? financialYearId,
+    double? openingBalance,
+  }) async {
+    try {
+      final body = {
+        'store_id': storeId,
+        'store_access': true,
+        'create': true,
+        'account_type_choices': accountType.toLowerCase(),
+        'bank_name': bankName,
+        'account_number_or_upi_id': accountNumber,
+        'ifsc_code': ifscCode,
+        'account_holder_name': holderName,
+        'account_holder_type': holderType.toLowerCase(),
+        'account_holder_address': address,
+        'account_holder_city': city,
+        'account_holder_state': state,
+        'account_holder_country': country,
+        'is_default': isDefault,
+        'is_active': isActive,
+      };
+
+      if (financialYearId != null) {
+        body['financial_year'] = financialYearId;
+      }
+      if (openingBalance != null) {
+        body['opening_balance'] = openingBalance;
+      }
+
+      final response = await ApiService.post(
+        '/store-bank-details/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
+        // Some APIs return 201 for create, some 200. Check both.
+        // Assuming success if status code is OK.
+        // Also check inner status if available
+        final data = response['data'];
+        if (data != null && (data['status'] == 200 || data['status'] == 201)) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Failed to create store bank details: $e');
+    }
+  }
+
+  /// Update store bank details
+  /// PUT /store-bank-details/
+  static Future<bool> updateStoreBankDetails({
+    required String storeId,
+    required String bankDetailsId,
+    required String accountType,
+    required String bankName,
+    required String accountNumber,
+    required String ifscCode,
+    required String holderName,
+    required String holderType,
+    required String city,
+    required String address,
+    required String state,
+    required String country,
+    required bool isDefault,
+    required bool isActive,
+    String? financialYearId,
+    double? openingBalance,
+  }) async {
+    try {
+      final body = {
+        'store_id': storeId,
+        'store_access': true,
+        'create': false,
+        'view': false,
+        'bank_details_id': bankDetailsId,
+        'account_type_choices': accountType.toLowerCase(),
+        'bank_name': bankName,
+        'account_number_or_upi_id': accountNumber,
+        'ifsc_code': ifscCode,
+        'account_holder_name': holderName,
+        'account_holder_type': holderType.toLowerCase(),
+        'account_holder_address': address,
+        'account_holder_city': city,
+        'account_holder_state': state,
+        'account_holder_country': country,
+        'is_default': isDefault,
+        'is_active': isActive,
+        'is_verified': false, // As per payload requirement
+      };
+
+      if (financialYearId != null) {
+        body['financial_year'] = financialYearId;
+      }
+      if (openingBalance != null) {
+        body['opening_balance'] = openingBalance;
+      }
+
+      final response = await ApiService.put(
+        '/store-bank-details/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200) {
+        final data = response['data'];
+        if (data != null && data['status'] == 200) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Failed to update store bank details: $e');
+    }
+  }
+
   /// Upload purchase invoice for AI analysis
   /// POST /purchase-entry-intelligence/
   /// Upload purchase invoice for AI analysis

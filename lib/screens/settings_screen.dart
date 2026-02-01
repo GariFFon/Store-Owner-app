@@ -1936,7 +1936,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             const SizedBox(width: 16),
             ElevatedButton.icon(
               onPressed: () {
-                // TODO: Add account logic
+                _showAddPayoutAccountBottomSheet();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1976D2),
@@ -2156,7 +2156,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 icon: const Icon(Icons.edit_outlined, size: 20),
                 color: Colors.grey[600],
                 onPressed: () {
-                  // Edit action
+                  _showAddPayoutAccountBottomSheet(accountToEdit: account);
                 },
               ),
             ],
@@ -2261,6 +2261,655 @@ class _SettingsScreenState extends State<SettingsScreen>
             fontSize: 13,
             color: Colors.black87,
             fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAddPayoutAccountBottomSheet({StoreBankDetails? accountToEdit}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return _AddPayoutAccountForm(
+          storeId: widget.storeId,
+          financialYears: _financialYears,
+          accountToEdit: accountToEdit,
+          onSuccess: (success) {
+            if (success) {
+              Navigator.pop(context);
+              _fetchPayoutAccounts();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    accountToEdit == null
+                        ? 'Account created successfully'
+                        : 'Account updated successfully',
+                  ),
+                ),
+              );
+            }
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AddPayoutAccountForm extends StatefulWidget {
+  final String storeId;
+  final List<FinancialYear> financialYears;
+  final StoreBankDetails? accountToEdit;
+  final Function(bool) onSuccess;
+
+  const _AddPayoutAccountForm({
+    Key? key,
+    required this.storeId,
+    required this.financialYears,
+    this.accountToEdit,
+    required this.onSuccess,
+  }) : super(key: key);
+
+  @override
+  State<_AddPayoutAccountForm> createState() => _AddPayoutAccountFormState();
+}
+
+class _AddPayoutAccountFormState extends State<_AddPayoutAccountForm> {
+  final _formKey = GlobalKey<FormState>();
+
+  late TextEditingController _bankNameController;
+  late TextEditingController _accountNumberController;
+  late TextEditingController _ifscController;
+  late TextEditingController _holderNameController;
+  late TextEditingController _cityController;
+  late TextEditingController _addressController;
+  late TextEditingController _stateController;
+  late TextEditingController _countryController;
+  late TextEditingController _openingBalanceController;
+
+  String? _selectedAccountType;
+  String? _selectedHolderType;
+  String? _selectedFinancialYearId;
+  bool _isDefault = false;
+  bool _isActive = true;
+  bool _isLoading = false;
+
+  final List<String> _accountTypes = [
+    'Savings Bank Account', // Updated to match image
+    'Current Account',
+    'Cash Account',
+    'BHIM UPI',
+    'PayTM UPI',
+    'PhonePe UPI',
+    'Google Pay UPI',
+    'Amazon Pay UPI',
+    'Overdraft',
+    'Other Payment Methods',
+  ];
+
+  // Mapping for API values since UI shows full names but API might expect simpler keys or just use these strings directly.
+  // The user prompt implies account_type_choices could be 'savings' etc.
+  // Let's assume we send what we pick, lowercased, or mapped.
+  // The prompt says: "account_type_choices":"savings" for "Savings Bank Account"?
+  // Let's make a helper map.
+
+  final Map<String, String> _accountTypeMap = {
+    'Savings Bank Account': 'savings',
+    'Current Account': 'current',
+    'Cash Account': 'cash',
+    'BHIM UPI': 'bhim_upi',
+    'PayTM UPI': 'paytm_upi',
+    'PhonePe UPI': 'phonepe_upi',
+    'Google Pay UPI': 'google_pay_upi',
+    'Amazon Pay UPI': 'amazon_pay_upi',
+    'Overdraft': 'overdraft',
+    'Other Payment Methods': 'other',
+  };
+
+  String _getReverseAccountType(String apiValue) {
+    // Basic reverse mapping attempt
+    for (var entry in _accountTypeMap.entries) {
+      if (entry.value == apiValue) return entry.key;
+    }
+    // Fallback if exact match not found (e.g. 'savings' -> 'Savings Bank Account')
+    if (apiValue == 'savings') return 'Savings Bank Account';
+    if (apiValue == 'current') return 'Current Account';
+    if (apiValue == 'cash') return 'Cash Account';
+    return 'Savings Bank Account'; // Default fallback
+  }
+
+  final List<String> _holderTypes = ['Individual', 'Company'];
+
+  @override
+  void initState() {
+    super.initState();
+    final edit = widget.accountToEdit;
+
+    _bankNameController = TextEditingController(text: edit?.bankName ?? '');
+    _accountNumberController = TextEditingController(
+      text: edit?.accountNumberOrUpiId ?? '',
+    );
+    _ifscController = TextEditingController(text: edit?.ifscCode ?? '');
+    _holderNameController = TextEditingController(
+      text: edit?.accountHolderName ?? '',
+    );
+    _cityController = TextEditingController(
+      text: edit?.accountHolderCity ?? '',
+    );
+    _addressController = TextEditingController(
+      text: edit?.accountHolderAddress ?? '',
+    );
+    _stateController = TextEditingController(
+      text: edit?.accountHolderState ?? '',
+    );
+    _countryController = TextEditingController(
+      text: edit?.accountHolderCountry ?? 'India',
+    );
+    // Opening balance logic usually complex (might be per FY). For now leaving empty on edit to avoid confusion unless we have it.
+    _openingBalanceController = TextEditingController();
+
+    if (edit != null) {
+      _selectedAccountType = _getReverseAccountType(edit.accountTypeChoices);
+
+      // holder type formatting
+      String ht = edit.accountHolderType; // e.g. "individual"
+      _selectedHolderType = ht.isNotEmpty
+          ? ht[0].toUpperCase() + ht.substring(1).toLowerCase()
+          : 'Individual';
+
+      _isDefault = edit.isDefault;
+      _isActive = edit.isActive;
+    } else {
+      _selectedAccountType = _accountTypes[0];
+      _selectedHolderType = _holderTypes[0];
+    }
+  }
+
+  @override
+  void dispose() {
+    _bankNameController.dispose();
+    _accountNumberController.dispose();
+    _ifscController.dispose();
+    _holderNameController.dispose();
+    _cityController.dispose();
+    _addressController.dispose();
+    _stateController.dispose();
+    _countryController.dispose();
+    _openingBalanceController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedAccountType == null) return;
+    if (_selectedHolderType == null) return;
+
+    setState(() => _isLoading = true);
+
+    final apiAccountType = _accountTypeMap[_selectedAccountType] ?? 'savings';
+
+    try {
+      bool success;
+      if (widget.accountToEdit != null) {
+        success = await StoreOwnerApiService.updateStoreBankDetails(
+          storeId: widget.storeId,
+          bankDetailsId: widget.accountToEdit!.id,
+          accountType: apiAccountType,
+          bankName: _bankNameController.text.trim(),
+          accountNumber: _accountNumberController.text.trim(),
+          ifscCode: _ifscController.text.trim(),
+          holderName: _holderNameController.text.trim(),
+          holderType: _selectedHolderType!,
+          city: _cityController.text.trim(),
+          address: _addressController.text.trim(),
+          state: _stateController.text.trim(),
+          country: _countryController.text.trim(),
+          isDefault: _isDefault,
+          isActive: _isActive,
+          financialYearId: _selectedFinancialYearId,
+          openingBalance: double.tryParse(
+            _openingBalanceController.text.trim(),
+          ),
+        );
+      } else {
+        success = await StoreOwnerApiService.createStoreBankDetails(
+          storeId: widget.storeId,
+          accountType: apiAccountType,
+          bankName: _bankNameController.text.trim(),
+          accountNumber: _accountNumberController.text.trim(),
+          ifscCode: _ifscController.text.trim(),
+          holderName: _holderNameController.text.trim(),
+          holderType: _selectedHolderType!,
+          city: _cityController.text.trim(),
+          address: _addressController.text.trim(),
+          state: _stateController.text.trim(),
+          country: _countryController.text.trim(),
+          isDefault: _isDefault,
+          isActive: _isActive,
+          financialYearId: _selectedFinancialYearId,
+          openingBalance: double.tryParse(
+            _openingBalanceController.text.trim(),
+          ),
+        );
+      }
+
+      widget.onSuccess(success);
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to ${widget.accountToEdit != null ? 'update' : 'create'} account',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.accountToEdit == null
+                        ? 'Add New Payout Account'
+                        : 'Edit Account',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Divider(height: 1, color: Colors.grey[200]),
+              const SizedBox(height: 24),
+
+              // Account Type
+              _buildDropdown(
+                label: 'Account Type *',
+                value: _selectedAccountType,
+                items: _accountTypes,
+                onChanged: (val) => setState(() => _selectedAccountType = val),
+              ),
+              const SizedBox(height: 16),
+
+              // Responsive Rows
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return _buildResponsiveFields(
+                    constraints,
+                    _buildInput(
+                      label: 'Bank Name * *',
+                      controller: _bankNameController,
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                    _buildInput(
+                      label: 'Account Number * *',
+                      controller: _accountNumberController,
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return _buildResponsiveFields(
+                    constraints,
+                    _buildInput(
+                      label: 'IFSC Code * *',
+                      controller: _ifscController,
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                    _buildInput(
+                      label: 'Account Holder Name * *',
+                      controller: _holderNameController,
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return _buildResponsiveFields(
+                    constraints,
+                    _buildDropdown(
+                      label: 'Holder Type *',
+                      value: _selectedHolderType,
+                      items: _holderTypes,
+                      onChanged: (val) =>
+                          setState(() => _selectedHolderType = val),
+                    ),
+                    _buildInput(
+                      label: 'City * *',
+                      controller: _cityController,
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              _buildInput(
+                label: 'Address * *',
+                controller: _addressController,
+                validator: (v) => v!.isEmpty ? 'Required' : null,
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return _buildResponsiveFields(
+                    constraints,
+                    _buildInput(
+                      label: 'State * *',
+                      controller: _stateController,
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                    _buildInput(
+                      label: 'Country * *',
+                      controller: _countryController,
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+
+              const Text(
+                'Opening Balance (Optional)',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return _buildResponsiveFields(
+                    constraints,
+                    _buildFinancialYearDropdown(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInput(
+                          label: 'Opening Balance',
+                          controller: _openingBalanceController,
+                          keyboardType: TextInputType.number,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 2),
+                          child: Text(
+                            'Enter opening balance for selected FY',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+
+              // Toggles
+              _buildSwitch(
+                label: 'Set as Default',
+                description: 'Use this account for all payouts by default',
+                value: _isDefault,
+                onChanged: (val) => setState(() => _isDefault = val),
+              ),
+              const SizedBox(height: 16),
+              _buildSwitch(
+                label: 'Active',
+                description: 'Enable this account for payouts',
+                value: _isActive,
+                onChanged: (val) => setState(() => _isActive = val),
+              ),
+
+              const SizedBox(height: 32),
+              Divider(height: 1, color: Colors.grey[200]),
+              const SizedBox(height: 24),
+
+              // Footer
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey[300]!),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.blue),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1976D2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 16,
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Create',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResponsiveFields(
+    BoxConstraints constraints,
+    Widget child1,
+    Widget child2,
+  ) {
+    if (constraints.maxWidth > 500) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: child1),
+          const SizedBox(width: 16),
+          Expanded(child: child2),
+        ],
+      );
+    } else {
+      return Column(children: [child1, const SizedBox(height: 16), child2]);
+    }
+  }
+
+  Widget _buildInput({
+    required String label,
+    required TextEditingController controller,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) {
+    return TextFormField(
+      controller: controller,
+      validator: validator,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.blue),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        alignLabelWithHint: true,
+      ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required List<String> items,
+    required Function(String?) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      items: items.map((item) {
+        return DropdownMenuItem<String>(value: item, child: Text(item));
+      }).toList(),
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFinancialYearDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedFinancialYearId,
+      items: widget.financialYears.map((fy) {
+        return DropdownMenuItem<String>(
+          value: fy.id,
+          child: Text(fy.displayName),
+        );
+      }).toList(),
+      onChanged: (val) => setState(() => _selectedFinancialYearId = val),
+      decoration: InputDecoration(
+        labelText: 'Financial Year',
+        labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwitch({
+    required String label,
+    required String description,
+    required bool value,
+    required Function(bool) onChanged,
+  }) {
+    return Row(
+      children: [
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: Colors.white,
+          activeTrackColor: const Color(0xFF1976D2),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                description,
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+            ],
           ),
         ),
       ],
