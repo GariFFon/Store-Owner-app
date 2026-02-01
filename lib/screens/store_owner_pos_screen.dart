@@ -26,6 +26,7 @@ import 'package:exanor/screens/gst_reports_screen.dart';
 import 'package:exanor/screens/settings_screen.dart';
 import 'package:exanor/screens/coupons_screen.dart';
 import 'package:exanor/screens/inventory_screen.dart';
+import 'package:exanor/screens/simple_phone_registration_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -2038,9 +2039,74 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                   ),
 
                   const SizedBox(height: 20),
-
-                  const SizedBox(height: 20),
                 ],
+              ),
+            ),
+
+            // Logout button at the bottom
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildDrawerItem(
+                theme,
+                icon: Icons.logout,
+                title: 'Logout',
+                textColor: Colors.red.shade700,
+                iconColor: Colors.red.shade700,
+                isBold: true,
+                onTap: () async {
+                  // Show confirmation dialog
+                  final shouldLogout = await showDialog<bool>(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: const Text('Logout'),
+                        content: const Text(
+                          'Are you sure you want to logout?',
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text(
+                              'CANCEL',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: Text(
+                              'LOGOUT',
+                              style: TextStyle(
+                                color: Colors.red.shade700,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+
+                  if (shouldLogout == true && context.mounted) {
+                    // Clear all stored data
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.clear();
+
+                    // Navigate to phone registration screen
+                    if (context.mounted) {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const SimplePhoneRegistrationScreen(),
+                        ),
+                        (route) => false,
+                      );
+                    }
+                  }
+                },
               ),
             ),
           ],
