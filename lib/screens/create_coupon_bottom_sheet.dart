@@ -89,6 +89,9 @@ class _CreateCouponBottomSheetState extends State<CreateCouponBottomSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Column(
         children: [
           // Header
@@ -131,11 +134,11 @@ class _CreateCouponBottomSheetState extends State<CreateCouponBottomSheet> {
           // Scrollable Content
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                24,
-                24,
-                24,
-                MediaQuery.of(context).viewInsets.bottom + 24,
+              padding: const EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: 24,
               ),
               child: Form(
                 key: _formKey,
@@ -539,7 +542,7 @@ class _CreateCouponBottomSheetState extends State<CreateCouponBottomSheet> {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: IgnorePointer(
-            ignoring: onTap == null,
+            ignoring: onTap != null,
             child: TextField(
               controller: controller,
               maxLines: maxLines,
