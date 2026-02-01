@@ -406,6 +406,38 @@ class StoreOwnerApiService {
     }
   }
 
+  /// Update product inventory
+  /// PUT /product-inventory/
+  static Future<Map<String, dynamic>> updateProductInventory({
+    required String storeId,
+    required String productInventoryId,
+    required bool isAccessibleOnline,
+    required bool isAccessiblePos,
+  }) async {
+    try {
+      final response = await ApiService.put(
+        '/product-inventory/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'product_inventory_id': productInventoryId,
+          'data': {
+            'is_accessible_online': isAccessibleOnline,
+            'is_accessible_pos': isAccessiblePos,
+          },
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to update product inventory: $e');
+    }
+  }
+
   /// Fetch racks
   /// POST /racks/
   static Future<List<Map<String, dynamic>>> getRacks(String storeId) async {
