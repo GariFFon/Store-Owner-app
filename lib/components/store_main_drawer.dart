@@ -6,6 +6,15 @@ import 'package:exanor/screens/purchase_screen.dart';
 import 'package:exanor/screens/receipts_screen.dart';
 import 'package:exanor/screens/sales_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
+import 'package:exanor/screens/settings_screen.dart';
+import 'package:exanor/screens/gst_reports_screen.dart';
+import 'package:exanor/screens/coupons_screen.dart';
+import 'package:exanor/screens/staff_management_screen.dart';
+import 'package:exanor/screens/financial_years_screen.dart';
+import 'package:exanor/screens/suppliers_list_screen.dart';
+import 'package:exanor/screens/customers_list_screen.dart';
+import 'package:exanor/screens/inventory_screen.dart';
+// import 'package:exanor/screens/auth/login_screen.dart'; // Assuming login screen exists
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -259,9 +268,32 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                     },
                   ),
                   _buildDrawerItem(
+                    icon: Icons.confirmation_number_outlined,
+                    title: 'Coupons',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              CouponsScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
                     icon: Icons.warehouse_outlined,
                     title: 'Inventory',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              InventoryScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 24),
@@ -336,13 +368,31 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                         icon: Icons.storefront_outlined,
                         title: 'Suppliers',
                         isSmall: true,
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  SuppliersListScreen(storeId: widget.storeId),
+                            ),
+                          );
+                        },
                       ),
                       _buildDrawerItem(
                         icon: Icons.people_outline,
                         title: 'Customers',
                         isSmall: true,
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  CustomersListScreen(storeId: widget.storeId),
+                            ),
+                          );
+                        },
                       ),
                       _buildDrawerItem(
                         icon: Icons.menu_book_outlined,
@@ -356,6 +406,46 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                         isSmall: true,
                         onTap: () {},
                       ),
+                      _buildDrawerItem(
+                        icon: Icons.bar_chart,
+                        title: 'Reports',
+                        isSmall: true,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Coming Soon')),
+                          );
+                        },
+                      ),
+                      _buildDrawerItem(
+                        icon: Icons.calendar_month_outlined,
+                        title: 'Financial Years',
+                        isSmall: true,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  FinancialYearsScreen(storeId: widget.storeId),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildDrawerItem(
+                        icon: Icons.percent_rounded,
+                        title: 'GST Rates',
+                        isSmall: true,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  GstRatesScreen(storeId: widget.storeId),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
 
@@ -368,30 +458,20 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                     children: [
                       _buildDrawerItem(
                         icon: Icons.bar_chart,
-                        title: 'Sales Report',
+                        title: 'GST Report',
                         isSmall: true,
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  GstReportsScreen(storeId: widget.storeId),
+                            ),
+                          );
+                        },
                       ),
                     ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // GST Rates
-                  _buildDrawerItem(
-                    icon: Icons.percent_rounded,
-                    title: 'GST Rates',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              GstRatesScreen(storeId: widget.storeId),
-                        ),
-                      );
-                    },
-                    isGroupHeaderStyle: true,
                   ),
 
                   const SizedBox(height: 24),
@@ -399,10 +479,58 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                   const SizedBox(height: 16),
 
                   _buildDrawerItem(
+                    icon: Icons.manage_accounts_outlined,
+                    title: 'Staff Management',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              StaffManagementScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
+                  ),
+
+                  _buildDrawerItem(
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              SettingsScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
+
+                  const SizedBox(height: 24),
+
+                  // Logout
+                  _buildDrawerItem(
+                    icon: Icons.logout_rounded,
+                    title: 'Logout',
+                    isDestructive: true,
+                    onTap: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.clear();
+                      if (context.mounted) {
+                        // Try to navigate to login if route exists, else confirm logout
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const StoreSelectionScreen(),
+                          ), // Fallback to store selection or login
+                          (route) => false,
+                        );
+                      }
+                    },
+                  ),
+
                   const SizedBox(height: 40),
                 ],
               ),
