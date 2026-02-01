@@ -59,6 +59,12 @@ class FirebaseRemoteConfigService {
   // Refer & Earn Data
   static const String _referAndEarnDataKey = 'refer_and_earn_screen_data';
 
+  // Theme Gradient Configuration
+  static const String _themeGradientLightStartKey = 'themeGradientLightStart';
+  static const String _themeGradientLightEndKey = 'themeGradientLightEnd';
+  static const String _themeGradientDarkStartKey = 'themeGradientDarkStart';
+  static const String _themeGradientDarkEndKey = 'themeGradientDarkEnd';
+
   // Default values
   static const Map<String, dynamic> _defaults = {
     _baseUrlKey: 'https://development.api.exanor.com/api/v1',
@@ -220,9 +226,75 @@ class FirebaseRemoteConfigService {
     _splashScreenLineColorKey: '#2962FF',
     _splashScreenColorKey: '#2962FF',
 
+    // Theme Gradient defaults
+    _themeGradientLightStartKey: '#B9FBC0',
+    _themeGradientLightEndKey: '#F7F9FC',
+    _themeGradientDarkStartKey: '#0F3D3E',
+    _themeGradientDarkEndKey: '#0F172A',
+
     // Refer & Earn Data Default (Empty JSON, parser handles defaults)
     _referAndEarnDataKey: '{}',
   };
+
+  /// Get Theme Gradient Light Start Color
+  static String getThemeGradientLightStart() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        return _defaults[_themeGradientLightStartKey] as String;
+      }
+      final value = _remoteConfig!.getString(_themeGradientLightStartKey);
+      return value.isNotEmpty
+          ? value
+          : _defaults[_themeGradientLightStartKey] as String;
+    } catch (e) {
+      return _defaults[_themeGradientLightStartKey] as String;
+    }
+  }
+
+  /// Get Theme Gradient Light End Color
+  static String getThemeGradientLightEnd() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        return _defaults[_themeGradientLightEndKey] as String;
+      }
+      final value = _remoteConfig!.getString(_themeGradientLightEndKey);
+      return value.isNotEmpty
+          ? value
+          : _defaults[_themeGradientLightEndKey] as String;
+    } catch (e) {
+      return _defaults[_themeGradientLightEndKey] as String;
+    }
+  }
+
+  /// Get Theme Gradient Dark Start Color
+  static String getThemeGradientDarkStart() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        return _defaults[_themeGradientDarkStartKey] as String;
+      }
+      final value = _remoteConfig!.getString(_themeGradientDarkStartKey);
+      return value.isNotEmpty
+          ? value
+          : _defaults[_themeGradientDarkStartKey] as String;
+    } catch (e) {
+      return _defaults[_themeGradientDarkStartKey] as String;
+    }
+  }
+
+  /// Get Theme Gradient Dark End Color
+  static String getThemeGradientDarkEnd() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        return _defaults[_themeGradientDarkEndKey] as String;
+      }
+      final value = _remoteConfig!.getString(_themeGradientDarkEndKey);
+      return value.isNotEmpty
+          ? value
+          : _defaults[_themeGradientDarkEndKey] as String;
+    } catch (e) {
+      return _defaults[_themeGradientDarkEndKey] as String;
+    }
+  }
 
   /// Initialize Firebase Remote Config
   static Future<void> initialize() async {

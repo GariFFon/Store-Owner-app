@@ -10,23 +10,17 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:exanor/screens/review_order_screen.dart';
-import 'package:exanor/screens/orders_list_screen.dart';
-import 'package:exanor/screens/purchase_screen.dart';
-import 'package:exanor/screens/receipts_screen.dart';
-import 'package:exanor/screens/overview_screen.dart';
-import 'package:exanor/screens/sales_screen.dart';
-import 'package:exanor/screens/payment_screen.dart';
-import 'package:exanor/screens/store_selection_screen.dart';
-import 'package:exanor/screens/gst_rates_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
   final String storeName;
+  final VoidCallback? onMenuPressed;
 
   const StoreOwnerPOSScreen({
     super.key,
     required this.storeId,
     required this.storeName,
+    this.onMenuPressed,
   });
 
   @override
@@ -94,20 +88,19 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   bool _isOrderMethodsLoading = false;
 
   String? _ownerName;
+  String? _storeName;
+  bool _isTextOnlyMode = false;
 
   @override
   void initState() {
     super.initState();
     _fetchOwnerName();
     _initializeSpeech();
-    _fetchCategories();
     _setupScrollListener();
-    _initializeSpeech();
-    _fetchCategories();
     _fetchCategories();
     _fetchPaymentMethods();
     _fetchStoreBankDetails();
-    _setupScrollListener();
+    _loadViewPreference(); // Load view preference
     _initLocationAndCart(); // Load location then cart data
 
     // Show customer phone dialog on init
@@ -137,10 +130,24 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           if (_ownerName!.isEmpty) {
             _ownerName = 'Store Owner';
           }
+          _storeName = prefs.getString('selected_store_name') ?? 'My Store';
         });
       }
     } catch (e) {
       debugPrint('Error fetching owner name: $e');
+    }
+  }
+
+  Future<void> _loadViewPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _isTextOnlyMode = prefs.getBool('pos_text_only_mode') ?? false;
+        });
+      }
+    } catch (e) {
+      print('Error loading view preference: $e');
     }
   }
 
@@ -323,6 +330,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           'store_id': widget.storeId,
           'query': queryParam,
           'page': _currentPage,
+          'page_size': 24,
           'store_access': true,
           'customer_user_id': customer_user_id ?? '',
         },
@@ -334,12 +342,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
         if (data['status'] == 200 && data['response'] != null) {
           final newProducts = List<Map<String, dynamic>>.from(data['response']);
+
+          // Use pagination info from API response if available
+          final pagination = data['pagination'];
+          final hasNextFromApi = pagination?['has_next'] ?? false;
+
+          print(
+            '📦 Loaded ${newProducts.length} products, page: ${pagination?['current_page']}, has_next: $hasNextFromApi, total_pages: ${pagination?['total_pages']}',
+          );
+
           setState(() {
             _products = newProducts;
             _isProductsLoading = false;
-            // If we got fewer products than expected, there might not be more
-            _hasMoreProducts =
-                newProducts.length >= 10; // Assuming 10 items per page
+            // Use API's has_next field for accurate pagination
+            _hasMoreProducts = hasNextFromApi;
           });
         } else {
           setState(() {
@@ -366,12 +382,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Future<void> _loadMoreProducts() async {
+    print(
+      '🔄 _loadMoreProducts called - isLoadingMore: $_isLoadingMore, hasMore: $_hasMoreProducts, page: $_currentPage',
+    );
+
     if (_isLoadingMore || !_hasMoreProducts) {
+      print(
+        '⏭️ Skipping load: isLoadingMore=$_isLoadingMore, hasMoreProducts=$_hasMoreProducts',
+      );
       return;
     }
 
     final isSearching = _searchController.text.isNotEmpty;
     if (!isSearching && _selectedCategoryId == null) {
+      print('⏭️ Skipping load: no category selected and not searching');
       return;
     }
 
@@ -381,6 +405,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       });
 
       _currentPage++; // Increment page
+      print('📄 Loading page $_currentPage...');
 
       dynamic response;
 
@@ -411,6 +436,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             'store_id': widget.storeId,
             'query': queryParam,
             'page': _currentPage,
+            'page_size': 24,
             'store_access': true,
             'customer_user_id': customer_user_id ?? '',
           },
@@ -418,11 +444,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         );
       }
 
+      print('📥 API Response status: ${response['statusCode']}');
+
       if (response['statusCode'] == 200 && response['data'] != null) {
         final data = response['data'];
 
         if (data['status'] == 200 && data['response'] != null) {
           final newProducts = List<Map<String, dynamic>>.from(data['response']);
+
+          // Use pagination info from API response
+          final pagination = data['pagination'];
+          final hasNextFromApi = pagination?['has_next'] ?? false;
+
+          print(
+            '✅ Loaded ${newProducts.length} new products. Total now: ${_products.length + newProducts.length}. Page: ${pagination?['current_page']}, has_next: $hasNextFromApi',
+          );
           setState(() {
             _products.addAll(newProducts); // Append new products
             _isLoadingMore = false;
@@ -430,17 +466,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             if (isSearching) {
               _hasMoreProducts = data['has_next'] ?? false;
             } else {
-              // If we got fewer products than expected, there might not be more
-              _hasMoreProducts = newProducts.length >= 10;
+              // Use API's has_next field for accurate pagination
+              _hasMoreProducts = hasNextFromApi;
             }
+            print('📊 hasMoreProducts now: $_hasMoreProducts');
           });
         } else {
+          print('❌ No data in response or status != 200');
           setState(() {
             _isLoadingMore = false;
             _hasMoreProducts = false; // No more products
           });
         }
       } else {
+        print('❌ API status code != 200');
         setState(() {
           _isLoadingMore = false;
           _hasMoreProducts = false;
@@ -451,7 +490,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         _isLoadingMore = false;
         // Don't set hasMoreProducts to false on error, allow retry
       });
-      print('Error loading more products: $e');
+      print('❌ Error loading more products: $e');
     }
   }
 
@@ -557,10 +596,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     String productCombinationId,
     String productId,
   ) async {
-    try {
-      // Optimistic update (optional, but good for UI)
-      // For now, we wait for API
+    // Optimistic UI update - increment quantity locally first
+    _updateLocalProductQuantity(productId, 1);
 
+    try {
       final response = await ApiService.post(
         '/increment-product-in-cart/',
         body: {
@@ -574,13 +613,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       );
 
       if (response['statusCode'] == 200 && response['data'] != null) {
-        // We call validateCart to ensure we get the FULL updated cart,
-        // as increment/decrement might return partial structure.
+        // Update cart state without refetching products
         await _validateCart();
-        // Refresh products to show updated counters from API
-        _fetchProductsByCategory(_selectedCategoryId ?? 'all', isRefresh: true);
+      } else {
+        // Revert optimistic update on failure
+        _updateLocalProductQuantity(productId, -1);
       }
     } catch (e) {
+      // Revert optimistic update on error
+      _updateLocalProductQuantity(productId, -1);
       print('Error incrementing item: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: TranslatedText('Error updating cart: $e')),
@@ -592,6 +633,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     String productCombinationId,
     String productId,
   ) async {
+    // Optimistic UI update - decrement quantity locally first
+    _updateLocalProductQuantity(productId, -1);
+
     try {
       final response = await ApiService.post(
         '/decrement-product-in-cart/',
@@ -606,12 +650,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       );
 
       if (response['statusCode'] == 200 && response['data'] != null) {
-        // We call validateCart to ensure we get the FULL updated cart.
+        // Update cart state without refetching products
         await _validateCart();
-        // Refresh products to show updated counters from API
-        _fetchProductsByCategory(_selectedCategoryId ?? 'all', isRefresh: true);
+      } else {
+        // Revert optimistic update on failure
+        _updateLocalProductQuantity(productId, 1);
       }
     } catch (e) {
+      // Revert optimistic update on error
+      _updateLocalProductQuantity(productId, 1);
       print('Error decrementing item: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: TranslatedText('Error updating cart: $e')),
@@ -619,12 +666,28 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
+  /// Update local product quantity without refetching from API
+  void _updateLocalProductQuantity(String productId, int delta) {
+    if (!mounted) return;
+    setState(() {
+      for (int i = 0; i < _products.length; i++) {
+        if (_products[i]['id']?.toString() == productId) {
+          final currentQty = (_products[i]['quantity'] as num?)?.toInt() ?? 0;
+          final newQty = (currentQty + delta).clamp(0, 9999);
+          _products[i] = Map<String, dynamic>.from(_products[i]);
+          _products[i]['quantity'] = newQty;
+          break;
+        }
+      }
+    });
+  }
+
   /// Get total quantity of a product in cart (sum of all variations)
   int _getProductQuantityInCart(Map<String, dynamic> product) {
     // First, check if the product object itself has a quantity (from /product API)
     if (product.containsKey('quantity') && product['quantity'] != null) {
       final q = (product['quantity'] as num).toInt();
-      if (q > 0) return q;
+      if (q >= 0) return q;
     }
 
     // Fallback: Calculate from local cart items list
@@ -1655,373 +1718,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
-  Widget _buildDrawer(ThemeData theme) {
-    return Drawer(
-      backgroundColor: Colors.white,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Close Button or Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                children: [
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.store_mall_directory_outlined,
-                    title: 'Change Store',
-                    textColor: Colors.red.shade700,
-                    iconColor: Colors.red.shade700,
-                    isBold: true,
-                    onTap: () async {
-                      // Clear selected store preference to force store selection logic to run correctly
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.remove('selected_store_id');
-                      await prefs.remove('selected_store_name');
-
-                      if (context.mounted) {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const StoreSelectionScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      }
-                    },
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.speed,
-                    title: 'Overview',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => OverviewScreen(
-                            storeId: widget.storeId,
-                            ownerName: _ownerName ?? 'Store Owner',
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.point_of_sale,
-                    title: 'Sales Panel',
-                    isBold: true,
-                    prefixText: 'POS',
-                    onTap: () => Navigator.pop(context), // Already here
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.inventory_2_outlined,
-                    title: 'Products',
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.warehouse_outlined,
-                    title: 'Inventory',
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.local_shipping_outlined,
-                    title: 'Orders',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              OrdersListScreen(storeId: widget.storeId),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.confirmation_number_outlined,
-                    title: 'Coupons',
-                    iconColor: Colors.pinkAccent,
-                    backgroundColor: Colors.blue.withOpacity(0.05),
-                    textColor: Colors.blue,
-                    onTap: () {},
-                  ),
-
-                  // Accounting Expansion Tile
-                  Theme(
-                    data: theme.copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      leading: Icon(
-                        Icons.account_balance_wallet_outlined,
-                        color: Colors.grey[700],
-                      ),
-                      title: Text(
-                        'Accounting',
-                        style: TextStyle(
-                          color: Colors.grey[800],
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      childrenPadding: const EdgeInsets.only(left: 16),
-                      initiallyExpanded: true,
-                      children: [
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.shopping_bag_outlined,
-                          title: 'Purchases',
-                          small: true,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    PurchaseScreen(storeId: widget.storeId),
-                              ),
-                            );
-                          },
-                        ),
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.receipt_long_outlined,
-                          title: 'Sales',
-                          small: true,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    SalesScreen(storeId: widget.storeId),
-                              ),
-                            );
-                          },
-                        ),
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.storefront_outlined,
-                          title: 'Suppliers',
-                          small: true,
-                          onTap: () {},
-                        ),
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.people_outline,
-                          title: 'Customers',
-                          small: true,
-                          onTap: () {},
-                        ),
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.payment,
-                          title: 'Payments',
-                          small: true,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    PaymentScreen(storeId: widget.storeId),
-                              ),
-                            );
-                          },
-                        ),
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.receipt,
-                          title: 'Receipts',
-                          small: true,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    ReceiptsScreen(storeId: widget.storeId),
-                              ),
-                            );
-                          },
-                        ),
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.menu_book_outlined,
-                          title: 'Ledger',
-                          small: true,
-                          onTap: () {},
-                        ),
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.description_outlined,
-                          title: 'Invoices',
-                          small: true,
-                          onTap: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.insert_chart_outlined,
-                    title: 'Reports',
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.calendar_month_outlined,
-                    title: 'Financial Years',
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.percent,
-                    title: 'GST Rates',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              GstRatesScreen(storeId: widget.storeId),
-                        ),
-                      );
-                    },
-                  ),
-
-                  // Reports Expansion Tile (Second one in image list)
-                  Theme(
-                    data: theme.copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      leading: Icon(
-                        Icons.analytics_outlined,
-                        color: Colors.grey[700],
-                      ),
-                      title: Text(
-                        'Reports',
-                        style: TextStyle(
-                          color: Colors.grey[800],
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      childrenPadding: const EdgeInsets.only(left: 16),
-                      children: [
-                        _buildDrawerItem(
-                          theme,
-                          icon: Icons.bar_chart,
-                          title: 'Sales Report',
-                          small: true,
-                          onTap: () {},
-                        ),
-                        // Add more sub-reports as needed
-                      ],
-                    ),
-                  ),
-
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.manage_accounts_outlined,
-                    title: 'Staff Management',
-                    onTap: () {},
-                  ),
-
-                  const Divider(height: 32),
-
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.settings_outlined,
-                    title: 'Settings',
-                    onTap: () {},
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem(
-    ThemeData theme, {
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    bool isBold = false,
-    String? prefixText,
-    Color? iconColor,
-    Color? textColor,
-    Color? backgroundColor,
-    bool small = false,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ListTile(
-        dense: small,
-        visualDensity: small ? VisualDensity.compact : null,
-        onTap: onTap,
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (prefixText != null) ...[
-              Text(
-                prefixText,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.grey[700],
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
-            Icon(
-              icon,
-              color: iconColor ?? Colors.grey[700],
-              size: small ? 20 : 24,
-            ),
-          ],
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: textColor ?? Colors.grey[800],
-            fontSize: small ? 14 : 16,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
   void _onSearchChanged(String value) {
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 500), () {
@@ -2084,7 +1780,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
-  // Customer Phone Bottom Sheet
+  // Customer Phone Bottom Sheet (Premium Redesign)
   void _showCustomerPhoneDialog() {
     final TextEditingController phoneController = TextEditingController();
     CountryCode selectedCountry = CountryCode.fromCountryCode('IN');
@@ -2095,483 +1791,474 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       isDismissible: false,
-      enableDrag: false,
+      enableDrag: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            // Calculate keyboard height to prevent overflow
             final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+            final primaryColor = Theme.of(context).primaryColor;
 
             return Container(
-              height:
-                  600 +
-                  bottomPadding, // Allow height expansion but keep it controlled
-              constraints: BoxConstraints(
-                maxHeight:
-                    MediaQuery.of(context).size.height * 0.9, // Max 90% screen
-              ),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 40,
-                    offset: Offset(0, -10),
-                  ),
-                ],
               ),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(32),
-                ),
-                child: Stack(
-                  children: [
-                    // Decorative Gradient Blob 1
-                    Positioned(
-                      top: -100,
-                      right: -50,
-                      child: Container(
-                        width: 200,
-                        height: 200,
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).primaryColor.withOpacity(0.05),
-                          shape: BoxShape.circle,
-                        ),
+              padding: EdgeInsets.only(
+                bottom: bottomPadding + 24,
+                top: 20,
+                left: 24,
+                right: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Drag Handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    // Decorative Gradient Blob 2
-                    Positioned(
-                      top: 50,
-                      left: -80,
-                      child: Container(
-                        width: 150,
-                        height: 150,
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.05),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-                    // Main Scrollable Content
-                    SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(
-                        24,
-                        24,
-                        24,
-                        bottomPadding + 24,
-                      ),
+                  // Wrapped in ScrollView to prevent overflow
+                  Flexible(
+                    child: SingleChildScrollView(
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Handle Bar
-                          Center(
-                            child: Container(
-                              width: 48,
-                              height: 5,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(2.5),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Header Icon
-                          Center(
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.storefront_rounded,
-                                size: 40,
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Title & Subtitle
-                          const Center(
-                            child: TranslatedText(
-                              'New Sale Session',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black87,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          // "Why" Section (Integrated)
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF0F9FF), // Light blue tint
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: const Color(0xFFBAE6FD).withOpacity(0.5),
-                              ),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.tips_and_updates_rounded,
-                                    size: 20,
-                                    color: Color(0xFF0284C7),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const TranslatedText(
-                                        'Why link a customer?',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                          color: Color(0xFF0C4A6E),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      TranslatedText(
-                                        'Linking enables loyalty rewards, purchase tracking, and personalized offers.',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.blueGrey[700],
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-
-                          // Phone Input Field
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.grey[300]!),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.03),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[50],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: CountryCodePicker(
-                                    onChanged: (CountryCode countryCode) {
-                                      setState(() {
-                                        selectedCountry = countryCode;
-                                      });
-                                    },
-                                    initialSelection: 'IN',
-                                    favorite: const ['+91', 'IN'],
-                                    showCountryOnly: false,
-                                    showOnlyCountryWhenClosed: false,
-                                    alignLeft: false,
-                                    padding: EdgeInsets.zero,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextField(
-                                    controller: phoneController,
-                                    keyboardType: TextInputType.phone,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0,
-                                    ),
-                                    decoration: InputDecoration(
-                                      hintText: 'Phone Number',
-                                      hintStyle: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 16,
-                                      ),
-                                      border: InputBorder.none,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 16,
-                                          ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // OR Divider
-                          Row(
+                          // 1. Cleaner Header
+                          // 1. Cleaner Header
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Divider(
-                                  color: Colors.grey[200],
-                                  thickness: 1,
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                ),
-                                child: Text(
-                                  "OR",
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Divider(
-                                  color: Colors.grey[200],
-                                  thickness: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // Scan QR Button (Big & Clean)
-                          InkWell(
-                            onTap: () async {
-                              final scannedCode = await Navigator.push<String>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => _QRScannerDialog(),
-                                ),
-                              );
-                              if (scannedCode != null) {
-                                phoneController.text = scannedCode;
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                border: Border.all(
-                                  color: Colors.grey[300]!,
-                                  width: 1.5,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  Icon(
-                                    Icons.qr_code_scanner_rounded,
-                                    color: Colors.blue[800],
-                                    size: 22,
+                                  Container(
+                                    width: 4,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          primaryColor,
+                                          Colors.blue.shade400,
+                                        ],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  TranslatedText(
-                                    'Scan Customer QR Code',
+                                  const SizedBox(width: 8),
+                                  const TranslatedText(
+                                    'Link Customer',
                                     style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.blueGrey[800],
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black87,
+                                      letterSpacing: -0.5,
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          // Bottom Actions
-                          Row(
-                            children: [
-                              // Guest Button
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: () {
-                                    if (isLoading) return;
-                                    Navigator.pop(context); // Continue as guest
-                                  },
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    foregroundColor: Colors.grey[600],
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
-                                  child: const TranslatedText(
-                                    'Skip & Continue',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-
-                              // Start Session Button
-                              Expanded(
-                                flex: 2,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(14),
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF2563EB),
-                                        Color(0xFF1D4ED8),
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFF2563EB,
-                                        ).withOpacity(0.3),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ElevatedButton(
-                                    onPressed: isLoading
-                                        ? null
-                                        : () async {
-                                            final phone = phoneController.text
-                                                .trim();
-                                            if (phone.isEmpty) {
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: TranslatedText(
-                                                    'Please enter a phone number',
-                                                  ),
-                                                  backgroundColor: Colors.red,
-                                                ),
-                                              );
-                                              return;
-                                            }
-
-                                            setState(() {
-                                              isLoading = true;
-                                            });
-
-                                            final countryCode =
-                                                selectedCountry.dialCode
-                                                    ?.replaceAll('+', '') ??
-                                                '91';
-                                            final fullPhoneNumber =
-                                                '$countryCode$phone';
-
-                                            try {
-                                              await _fetchCustomerData(
-                                                fullPhoneNumber,
-                                              );
-                                              if (mounted) {
-                                                Navigator.pop(context);
-                                              }
-                                            } catch (e) {
-                                              setState(() {
-                                                isLoading = false;
-                                              });
-                                              if (context.mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: TranslatedText(
-                                                      'Error: ${e.toString()}',
-                                                    ),
-                                                    backgroundColor: Colors.red,
-                                                  ),
-                                                );
-                                              }
-                                            }
-                                          },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      shadowColor: Colors.transparent,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                    child: isLoading
-                                        ? const SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: CircularProgressIndicator(
-                                              color: Colors.white,
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const TranslatedText(
-                                            'Start Session',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
+                              const SizedBox(height: 4),
+                              const Padding(
+                                padding: EdgeInsets.only(left: 11),
+                                child: TranslatedText(
+                                  'Associate order for rewards & history.',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
                             ],
                           ),
+
+                          const SizedBox(height: 20),
+
+                          // 2. The "Why" Card (Untouched as requested)
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFFF8FAFC),
+                                  primaryColor.withOpacity(0.08),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: primaryColor.withOpacity(0.1),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.auto_graph_rounded,
+                                      size: 20,
+                                      color: primaryColor,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    TranslatedText(
+                                      'Grow Your Business',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: primaryColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                const TranslatedText(
+                                  'Linking customers drives 3x more repeat sales.',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF334155),
+                                    height: 1.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                // Benefit Pills
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    _buildBenefitPill(
+                                      context,
+                                      Icons.loyalty,
+                                      'Loyalty Points',
+                                    ),
+                                    _buildBenefitPill(
+                                      context,
+                                      Icons.history,
+                                      'Track History',
+                                    ),
+                                    _buildBenefitPill(
+                                      context,
+                                      Icons.discount,
+                                      'Send Offers',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // 3. Input Zone - Ultra Clean
+                          const TranslatedText(
+                            'Mobile Number',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Input Field
+                              Expanded(
+                                child: Container(
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Minimalist Country Code
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 8,
+                                        ), // Reduced padding
+                                        child: CountryCodePicker(
+                                          onChanged: (CountryCode countryCode) {
+                                            setState(
+                                              () =>
+                                                  selectedCountry = countryCode,
+                                            );
+                                          },
+                                          initialSelection: 'IN',
+                                          favorite: const ['+91', 'IN'],
+                                          showCountryOnly: false,
+                                          showOnlyCountryWhenClosed: false,
+                                          showFlagMain: false,
+                                          alignLeft: false,
+                                          padding: EdgeInsets.zero,
+                                          textStyle: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                          ),
+                                          // Ensure transparent background
+                                          boxDecoration: const BoxDecoration(
+                                            color: Colors.white,
+                                          ),
+                                          flagWidth: 0,
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 1,
+                                        height: 20,
+                                        color: Colors.grey[200],
+                                      ),
+                                      // Input
+                                      Expanded(
+                                        child: TextField(
+                                          controller: phoneController,
+                                          keyboardType: TextInputType.phone,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 1.0,
+                                            color: Colors.black87,
+                                          ),
+                                          decoration: const InputDecoration(
+                                            hintText: '00000 00000',
+                                            hintStyle: TextStyle(
+                                              color: Color(0xFFCBD5E1),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            border: InputBorder.none,
+                                            enabledBorder: InputBorder.none,
+                                            focusedBorder: InputBorder
+                                                .none, // Removes blue line
+                                            errorBorder: InputBorder.none,
+                                            disabledBorder: InputBorder.none,
+                                            contentPadding:
+                                                EdgeInsets.symmetric(
+                                                  horizontal: 16,
+                                                ),
+                                            filled:
+                                                false, // Ensure no background fill
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(width: 12),
+
+                              // Scanner Button
+                              InkWell(
+                                onTap: () async {
+                                  final scannedCode =
+                                      await Navigator.push<String>(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              _QRScannerDialog(),
+                                        ),
+                                      );
+                                  if (scannedCode != null) {
+                                    phoneController.text = scannedCode;
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.qr_code_scanner_rounded,
+                                    color: Colors.black87,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+
+                  // 4. Fixed Bottom Actions (Outside ScrollView)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        // Text Link for Guest
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              if (!isLoading) Navigator.pop(context);
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: TranslatedText(
+                                'Continue as Guest',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 16),
+
+                        // Start Session Button
+                        Expanded(
+                          flex: 2,
+                          child: SizedBox(
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: isLoading
+                                  ? null
+                                  : () async {
+                                      final phone = phoneController.text.trim();
+                                      if (phone.isEmpty) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: TranslatedText(
+                                              'Please enter a phone number',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      setState(() => isLoading = true);
+
+                                      final countryCode =
+                                          selectedCountry.dialCode?.replaceAll(
+                                            '+',
+                                            '',
+                                          ) ??
+                                          '91';
+                                      final fullPhoneNumber =
+                                          '$countryCode$phone';
+
+                                      try {
+                                        await _fetchCustomerData(
+                                          fullPhoneNumber,
+                                        );
+                                        if (mounted) Navigator.pop(context);
+                                      } catch (e) {
+                                        setState(() => isLoading = false);
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: TranslatedText(
+                                                'Error: ${e.toString()}',
+                                              ),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0F172A),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const TranslatedText(
+                                      'Start Session',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildBenefitPill(BuildContext context, IconData icon, String label) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 18, color: Theme.of(context).primaryColor),
+        ),
+        const SizedBox(height: 6),
+        TranslatedText(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.black54,
+          ),
+        ),
+      ],
     );
   }
 
@@ -2634,27 +2321,28 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     // Use a lighter/white background for modern look
     return Scaffold(
       key: _scaffoldKey,
-      drawer: _buildDrawer(theme),
       backgroundColor: Colors.grey[50], // Lighter background
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBanner(theme),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
+            children: [
+              _buildTopBanner(theme),
 
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Categories Sidebar (Premium Left Layout)
-                  _buildCategoriesSidebar(theme),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Categories Sidebar (Always visible now)
+                    _buildCategoriesSidebar(theme, constraints.maxWidth > 700),
 
-                  // Products Grid
-                  Expanded(child: _buildProductsGrid(theme)),
-                ],
+                    // Products Grid
+                    Expanded(child: _buildProductsGrid(theme)),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
       floatingActionButton: _totalProductsInCart > 0
           ? FloatingActionButton.extended(
@@ -2887,7 +2575,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
             // Content
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              padding: EdgeInsets.fromLTRB(
+                12,
+                MediaQuery.of(context).padding.top + 8,
+                12,
+                12,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2910,10 +2603,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                             icon: const Icon(
                               Icons.menu_rounded,
                               color: Colors.blueGrey,
-                              size: 32,
+                              size: 28,
                             ),
                             onPressed: () {
-                              _scaffoldKey.currentState?.openDrawer();
+                              if (widget.onMenuPressed != null) {
+                                widget.onMenuPressed!();
+                              } else {
+                                // Fallback: Try to open nearest drawer if any (only works if ancestor has it)
+                                Scaffold.maybeOf(context)?.openDrawer();
+                              }
                             },
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -2936,7 +2634,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 22,
+                                fontSize: 18,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF1E293B), // Slate 800
                                 letterSpacing: -0.5,
@@ -2970,12 +2668,82 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         ),
                       ),
 
+                      // Text Only Mode Toggle
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TranslatedText(
+                            _isTextOnlyMode ? 'SHOW IMAGES' : 'TEXT ONLY',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () async {
+                              final newValue = !_isTextOnlyMode;
+                              setState(() {
+                                _isTextOnlyMode = newValue;
+                              });
+                              try {
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setBool(
+                                  'pos_text_only_mode',
+                                  newValue,
+                                );
+                              } catch (e) {
+                                print('Error saving view preference: $e');
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(30),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _isTextOnlyMode
+                                    ? Colors.blue.withOpacity(0.1)
+                                    : Colors.white,
+                                border: Border.all(
+                                  color: _isTextOnlyMode
+                                      ? Colors.blue
+                                      : Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blueGrey.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                _isTextOnlyMode
+                                    ? Icons.image_not_supported_outlined
+                                    : Icons.article_outlined,
+                                color: _isTextOnlyMode
+                                    ? Colors.blue
+                                    : Colors.blueGrey,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+
                       // Customer Profile Button (with label and bigger size)
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           TranslatedText(
-                            'USER STATS',
+                            customer_user_id != null
+                                ? 'USER STATS'
+                                : 'ADD USER',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
@@ -2988,7 +2756,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                             onTap: _showCustomerProfileDialog,
                             borderRadius: BorderRadius.circular(30),
                             child: Container(
-                              padding: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: Colors.white,
@@ -3007,7 +2775,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                               child: const Icon(
                                 Icons.person_rounded,
                                 color: Colors.blueGrey,
-                                size: 28, // Bigger size
+                                size: 24, // Bigger size
                               ),
                             ),
                           ),
@@ -3015,7 +2783,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
                     transitionBuilder:
@@ -3044,21 +2812,24 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Widget _buildExpandedSearch() {
-    return Container(
-      height: 68, // Match height of DefaultOptionsBar (Label + Box)
-      alignment: Alignment.bottomCenter,
-      key: const ValueKey('expanded_search'), // Key for AnimatedSwitcher
+    return Align(
+      alignment: Alignment.centerLeft, // Match default bar alignment
       child: Container(
+        key: const ValueKey('expanded_search'),
+        width: double.infinity,
         height: 48,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF1565C0), width: 1.5),
+          border: Border.all(
+            color: Colors.grey[300]!,
+            width: 1.5,
+          ), // Match button border
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1565C0).withOpacity(0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -3066,13 +2837,22 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           controller: _searchController,
           onChanged: _onSearchChanged,
           autofocus: true,
+          textAlignVertical: TextAlignVertical.center,
           decoration: InputDecoration(
-            hintText: 'Search products by name, code...',
-            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+            hintText: 'Search products...',
+            hintStyle: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
             prefixIcon: const Icon(
               Icons.search_rounded,
-              color: Color(0xFF1565C0),
-              size: 24,
+              color: Color(0xFF1565C0), // Keep blue accent for icon
+              size: 20,
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 36,
+              minHeight: 36,
             ),
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
@@ -3083,21 +2863,26 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       : _startVoiceSearch,
                   icon: Icon(
                     _isListening ? Icons.mic : Icons.mic_none_rounded,
-                    size: 22,
+                    size: 18,
                   ),
                   color: _isListening ? Colors.red : Colors.grey[600],
                   tooltip: 'Voice Search',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                 ),
                 Container(
-                  height: 24,
+                  height: 16,
                   width: 1,
                   color: Colors.grey[300],
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
                 ),
                 IconButton(
                   icon: const Icon(
                     Icons.close_rounded,
-                    size: 22,
+                    size: 18,
                     color: Colors.grey,
                   ),
                   onPressed: () {
@@ -3109,150 +2894,173 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       }
                     });
                   },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                 ),
+                const SizedBox(width: 4),
               ],
             ),
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 12,
-              horizontal: 16,
-            ),
+            isDense: true,
+            contentPadding: EdgeInsets.zero,
           ),
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            height: 1.0,
+          ),
         ),
       ),
     );
   }
 
+  // Helper placeholder to match previous code style if w_width_container was just my typo
+  // I will assume I need to use Container with double.infinity width
+
   Widget _buildDefaultOptionsBar() {
-    return Row(
-      key: const ValueKey('default_options'),
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        // Order Method (Dominant)
-        Expanded(
-          flex: 11, // Increased flex space
-          child: _buildActionBox(
-            label: 'Order Type',
-            iconColor: const Color(0xFFE65100),
-            child: !_isOrderMethodsLoading
-                ? InkWell(
-                    onTap: _showOrderMethodSelection,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      alignment: Alignment.centerLeft,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.room_service_outlined,
-                            size: 18,
-                            color: const Color(0xFFE65100),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                TranslatedText(
-                                  _selectedOrderMethod?['order_method_name'] ??
-                                      'Select Type',
-                                  style: const TextStyle(
-                                    color: Colors.black87,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        width: double.infinity,
+        child: Row(
+          key: const ValueKey('default_options'),
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // Order Method (Minimized / Fit Content)
+            _buildActionBox(
+              label: 'Order Type',
+              iconColor: const Color(0xFFE65100),
+              child: !_isOrderMethodsLoading
+                  ? InkWell(
+                      onTap: _showOrderMethodSelection,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min, // Hug content
+                          children: [
+                            Icon(
+                              Icons.room_service_outlined,
+                              size: 18,
+                              color: const Color(0xFFE65100),
                             ),
-                          ),
-                          Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 20,
-                            color: Colors.grey[400],
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : const Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-          ),
-        ),
-
-        const SizedBox(width: 12),
-
-        // Search Action (Compact)
-        Expanded(
-          flex: 5, // Slightly bigger than 2/9 proportions
-          child: InkWell(
-            onTap: () {
-              setState(() {
-                _isSearchExpanded = true;
-              });
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: _buildActionBox(
-              label: 'Search',
-              iconColor: const Color(0xFF1565C0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.search_rounded,
-                      size: 20,
-                      color: Color(0xFF1565C0),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TranslatedText(
-                        "Search",
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                            const SizedBox(width: 8),
+                            // Flexible ensures text does not force infinite width
+                            Flexible(
+                              fit: FlexFit.loose,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TranslatedText(
+                                    _selectedOrderMethod?['order_method_name'] ??
+                                        'Select Type',
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              size: 20,
+                              color: Colors.grey[400],
+                            ),
+                          ],
                         ),
-                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )
+                  : const SizedBox(
+                      width: 120, // Min width placeholder
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       ),
                     ),
-                  ],
+            ),
+
+            const SizedBox(width: 12),
+
+            // Search Action (Expanded - Takes remaining space)
+            Expanded(child: _buildSearchBoxContent()),
+
+            const SizedBox(width: 12),
+
+            // Scanner Action (Fixed width)
+            SizedBox(width: 90, child: _buildScanBoxContent()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBoxContent() {
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _isSearchExpanded = true;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: _buildActionBox(
+        label: 'Search',
+        iconColor: const Color(0xFF1565C0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.centerLeft,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: Color(0xFF1565C0),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TranslatedText(
+                  "Search",
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
+            ],
           ),
         ),
+      ),
+    );
+  }
 
-        const SizedBox(width: 12),
-
-        // Scanner Action
-        Expanded(
-          flex: 4, // Adjusted to maintain ratio
-          child: InkWell(
-            onTap: _openQRScanner,
-            borderRadius: BorderRadius.circular(12),
-            child: _buildActionBox(
-              label: 'Scan',
-              iconColor: Colors.black87,
-              child: const Center(
-                child: Icon(
-                  Icons.qr_code_scanner_rounded,
-                  size: 20,
-                  color: Colors.black87,
-                ),
-              ),
-            ),
+  Widget _buildScanBoxContent() {
+    return InkWell(
+      onTap: _openQRScanner,
+      borderRadius: BorderRadius.circular(12),
+      child: _buildActionBox(
+        label: 'Scan',
+        iconColor: Colors.black87,
+        child: const Center(
+          child: Icon(
+            Icons.qr_code_scanner_rounded,
+            size: 20,
+            color: Colors.black87,
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -3266,7 +3074,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 3),
+          padding: const EdgeInsets.only(left: 4, bottom: 2),
           child: Row(
             children: [
               if (iconColor != null) ...[
@@ -3293,7 +3101,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           ),
         ),
         Container(
-          height: 40, // Reduced height for less chunky look
+          height: 36, // Reduced height for less chunky look
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -3371,9 +3179,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
-  Widget _buildCategoriesSidebar(ThemeData theme) {
+  Widget _buildCategoriesSidebar(ThemeData theme, bool isDesktop) {
     // Premium Sidebar Design
-    const width = 100.0; // Compact width
+    final width = isDesktop ? 220.0 : 85.0; // Responsive width
 
     if (_isCategoriesLoading) {
       return Container(
@@ -3424,7 +3232,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         children: [
           Expanded(
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: EdgeInsets.zero,
               itemCount: _categories.length,
               separatorBuilder: (_, __) => Divider(
                 color: Colors.black.withOpacity(0.05), // Light black divider
@@ -3484,52 +3292,91 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                               ),
                             ),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start, // Left align content
-                      children: [
-                        // Show image only if selected
-                        if (isSelected)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Center(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: CustomCachedNetworkImage(
-                                  // Use sample image if icon is null for visualization
-                                  imgUrl:
-                                      category['category_icon'] ??
-                                      'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=200&auto=format&fit=crop',
-                                  width: 80, // Large rectangular image
-                                  height: 80,
-                                  fit: BoxFit.cover,
+                    child: isDesktop
+                        ? Row(
+                            children: [
+                              // Show image/icon
+                              if (isSelected)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 12.0),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: CustomCachedNetworkImage(
+                                      imgUrl:
+                                          category['category_icon'] ??
+                                          'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=200&auto=format&fit=crop',
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              Expanded(
+                                child: TranslatedText(
+                                  _capitalizeCategoryName(
+                                    category['category_name'] ?? '',
+                                  ),
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    fontSize: 14,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w500,
+                                    color: isSelected
+                                        ? theme.primaryColor
+                                        : Colors.blueGrey[800],
+                                  ),
+                                  maxLines: 2, // Sophisticated limit
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                            ),
-                          ),
+                            ],
+                          )
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start, // Left align content
+                            children: [
+                              // Show image only if selected
+                              if (isSelected)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Center(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: CustomCachedNetworkImage(
+                                        // Use sample image if icon is null for visualization
+                                        imgUrl:
+                                            category['category_icon'] ??
+                                            'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=200&auto=format&fit=crop',
+                                        width: 80, // Large rectangular image
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                ),
 
-                        TranslatedText(
-                          _capitalizeCategoryName(
-                            category['category_name'] ?? '',
+                              TranslatedText(
+                                _capitalizeCategoryName(
+                                  category['category_name'] ?? '',
+                                ),
+                                textAlign: TextAlign.left, // Left align text
+                                maxLines: 2, // Sophisticated limit
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: 12,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? theme.primaryColor
+                                      : Colors.blueGrey[800],
+                                  height: 1.2, // Improved typography
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ],
                           ),
-                          textAlign: TextAlign.left, // Left align text
-                          maxLines: 2, // Sophisticated limit
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontSize: 12,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.w500,
-                            color: isSelected
-                                ? theme.primaryColor
-                                : Colors.blueGrey[800],
-                            height: 1.2, // Improved typography
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 );
               },
@@ -3541,122 +3388,254 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Widget _buildProductsGrid(ThemeData theme) {
-    return RefreshIndicator(
-      onRefresh: () async {
-        final cartFuture = _validateCart();
-        final productsFuture = _fetchProductsByCategory(
-          _selectedCategoryId ?? 'all',
-          isRefresh: true,
-        );
-        await Future.wait([cartFuture, productsFuture]);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth > 900;
+    final isTablet = screenWidth > 600 && screenWidth <= 900;
+
+    // Dynamic aspect ratio calculation
+    double textOnlyAspectRatio;
+    if (isDesktop) {
+      textOnlyAspectRatio = 1.5; // Wider cards on desktop (shorter height)
+    } else if (isTablet) {
+      textOnlyAspectRatio = 1.2;
+    } else {
+      textOnlyAspectRatio = 0.85; // Taller cards on phone to prevent overflow
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (ScrollNotification scrollInfo) {
+        // Trigger pagination when near the end of scroll
+        if (scrollInfo.metrics.pixels >=
+            scrollInfo.metrics.maxScrollExtent - 200) {
+          if (!_isLoadingMore && _hasMoreProducts && !_isProductsLoading) {
+            _loadMoreProducts();
+          }
+        }
+        return false;
       },
-      child: CustomScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (_isProductsLoading)
-            const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_productsError != null)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(height: 16),
-                    TranslatedText(
-                      _productsError!,
-                      style: theme.textTheme.titleMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        if (_selectedCategoryId != null) {
-                          _fetchProductsByCategory(_selectedCategoryId!);
-                        }
-                      },
-                      child: const TranslatedText('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (_products.isEmpty)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.inventory_2_outlined,
-                      size: 64,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(height: 16),
-                    TranslatedText(
-                      'No products found',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.65, // Taller card for bigger image
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                ),
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final product = _products[index];
-                  return _buildProductCard(theme, product);
-                }, childCount: _products.length),
-              ),
-            ),
-          // Loading indicator at the bottom when loading more
-          if (!_isProductsLoading && _isLoadingMore)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(16),
+      child: RefreshIndicator(
+        onRefresh: () async {
+          final cartFuture = _validateCart();
+          final productsFuture = _fetchProductsByCategory(
+            _selectedCategoryId ?? 'all',
+            isRefresh: true,
+          );
+          await Future.wait([cartFuture, productsFuture]);
+        },
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            if (_isProductsLoading)
+              const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-          // Show "No more products" message if at end
-          if (!_isProductsLoading && !_hasMoreProducts && _products.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+              )
+            else if (_productsError != null)
+              SliverFillRemaining(
                 child: Center(
-                  child: TranslatedText(
-                    'No more products',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.grey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      TranslatedText(
+                        _productsError!,
+                        style: theme.textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (_selectedCategoryId != null) {
+                            _fetchProductsByCategory(_selectedCategoryId!);
+                          }
+                        },
+                        child: const TranslatedText('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (_products.isEmpty)
+              SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.inventory_2_outlined,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      TranslatedText(
+                        'No products found',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 220, // Responsive width
+                    childAspectRatio: _isTextOnlyMode
+                        ? textOnlyAspectRatio
+                        : 0.60,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final product = _products[index];
+                    return _buildProductCard(theme, product);
+                  }, childCount: _products.length),
+                ),
+              ),
+            // Loading indicator at the bottom when loading more
+            if (!_isProductsLoading && _isLoadingMore)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
+            // Load More button when there are more products (fallback for when scrolling doesn't trigger)
+            if (!_isProductsLoading &&
+                !_isLoadingMore &&
+                _hasMoreProducts &&
+                _products.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: ElevatedButton.icon(
+                      onPressed: _loadMoreProducts,
+                      icon: const Icon(Icons.arrow_downward, size: 18),
+                      label: const TranslatedText('Load More Products'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+            // Show "No more products" message if at end
+            if (!_isProductsLoading &&
+                !_hasMoreProducts &&
+                _products.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: TranslatedText(
+                      'No more products',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildProductCard(ThemeData theme, Map<String, dynamic> product) {
     final productName = product['product_name'] ?? 'Product';
-    final productPrice =
-        product['lowest_available_price'] ?? product['price_starts_from'] ?? 0;
+    final dynamic rawPrice =
+        product['lowest_available_price'] ?? product['price_starts_from'];
+    final bool isPriceAvailable = rawPrice != null;
+    final productPrice = rawPrice ?? 0;
     final productImage = product['img_url'];
+
+    if (_isTextOnlyMode) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.withOpacity(0.3), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _handleAddToCart(product),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(10), // Better padding
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Product Name
+                  TranslatedText(
+                    productName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.black87,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Price
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E7D32).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      isPriceAvailable ? '₹$productPrice' : 'Unavailable',
+                      style: TextStyle(
+                        color: isPriceAvailable
+                            ? const Color(0xFF2E7D32)
+                            : Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+
+                  const Spacer(), // Pushes button to bottom
+                  // Action Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildProductAction(theme, product),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -3678,7 +3657,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _showProductDetails(product),
+          onTap: () => _handleAddToCart(product),
           borderRadius: BorderRadius.circular(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3718,15 +3697,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32), // Green color
+                          color: isPriceAvailable
+                              ? const Color(0xFF2E7D32)
+                              : Colors
+                                    .red, // Green if available, Red if unavailable
                           borderRadius: BorderRadius.circular(
                             8,
                           ), // Rounded shape
                         ),
                         child: TranslatedText(
-                          '₹$productPrice',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          isPriceAvailable ? '₹$productPrice' : 'Unavailable',
+                          style: TextStyle(
+                            color: isPriceAvailable
+                                ? Colors.white
+                                : Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -3887,15 +3871,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   void _handleAddToCart(Map<String, dynamic> product) async {
-    try {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
+    final productId = product['id']?.toString() ?? '';
 
-      // Call API to get product variations
+    try {
+      // Call API to get product variations (no blocking dialog)
       final response = await ApiService.post(
         '/product-variation-value/',
         body: {
@@ -3908,8 +3887,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         useBearerToken: true,
       );
 
-      // Close loading indicator
-      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
 
       if (response['statusCode'] == 200 && response['data'] != null) {
         final data = response['data'];
@@ -3918,24 +3896,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         // Case A: Product added directly (no variants)
         if (additionalData != null &&
             additionalData['is_product_added_to_cart_successfully'] == true) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: TranslatedText(
-                  data['response'] ?? 'Product added to cart',
-                ),
-                duration: const Duration(seconds: 1), // Short duration
-                backgroundColor: Colors.green,
-              ),
-            );
-            // REFRESH CART
-            await _validateCart();
-            // Refresh products
-            _fetchProductsByCategory(
-              _selectedCategoryId ?? 'all',
-              isRefresh: true,
-            );
-          }
+          // Optimistic UI update - increment quantity locally (immediate)
+          _updateLocalProductQuantity(productId, 1);
+
+          // Update cart state in background (non-blocking)
+          _validateCart();
           return;
         }
 
@@ -3971,50 +3936,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         );
       }
     }
-  }
-
-  void _showProductDetails(Map<String, dynamic> product) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: TranslatedText(product['product_name'] ?? 'Product Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (product['img_url'] != null)
-              CustomCachedNetworkImage(
-                imgUrl: product['img_url'],
-                height: 200,
-                fit: BoxFit.cover,
-              ),
-            const SizedBox(height: 16),
-            TranslatedText(
-              'Price: ₹${product['lowest_available_price'] ?? product['price_starts_from'] ?? 0}',
-            ),
-            if (product['description'] != null &&
-                product['description'] != 'undefined') ...[
-              const SizedBox(height: 8),
-              TranslatedText(product['description']),
-            ],
-            if (product['parent_category'] != null) ...[
-              const SizedBox(height: 8),
-              TranslatedText('Category: ${product['parent_category']}'),
-            ],
-            if (product['child_category'] != null) ...[
-              const SizedBox(height: 4),
-              TranslatedText('Sub-category: ${product['child_category']}'),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const TranslatedText('Close'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showOrderMethodSelection() {
@@ -4131,12 +4052,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         storeId: widget.storeId,
         customerUserId: customer_user_id,
         onCartUpdated: () {
+          // Optimistic UI update - increment quantity locally
+          _updateLocalProductQuantity(product['id']?.toString() ?? '', 1);
+          // Update cart state without refetching products
           _validateCart();
-          _fetchProductsByCategory(
-            _selectedCategoryId ?? 'all',
-            isRefresh: true,
-          );
-        }, // Call cart validation and product refresh after adding
+        },
       ),
     );
   }
@@ -4530,14 +4450,6 @@ class _VariantsBottomSheetContentState
           if (mounted) {
             Navigator.pop(context);
             widget.onCartUpdated(); // Refresh cart
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: TranslatedText(
-                  data['response'] ?? 'Product added to cart',
-                ),
-                backgroundColor: Colors.green,
-              ),
-            );
           }
         } else {
           if (mounted) {

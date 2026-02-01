@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:exanor/components/translation_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -313,33 +314,21 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // Use a lighter/white background for modern look
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      appBar: AppBar(
-        title: const TranslatedText('Order Details'),
-        backgroundColor: theme.colorScheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_rounded,
-            color: theme.colorScheme.onSurface,
+      backgroundColor: Colors.grey[50],
+      body: Column(
+        children: [
+          _buildTopBanner(theme),
+          Expanded(
+            child: _errorMessage != null
+                ? _buildErrorView(theme)
+                : _isLoadingOrder
+                ? _buildLoadingView(theme)
+                : _buildOrderDetails(theme),
           ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          if (_orderData?['invoice_url'] != null)
-            IconButton(
-              icon: const Icon(Icons.download_rounded),
-              onPressed: _launchInvoice,
-              tooltip: 'Download Invoice',
-            ),
         ],
       ),
-      body: _errorMessage != null
-          ? _buildErrorView(theme)
-          : _isLoadingOrder
-          ? _buildLoadingView(theme)
-          : _buildOrderDetails(theme),
       floatingActionButton: _statusOptions.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: _showUpdateStatusSheet,
@@ -349,6 +338,179 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               label: const TranslatedText('Update Status'),
             )
           : null,
+    );
+  }
+
+  Widget _buildTopBanner(ThemeData theme) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.receipt_long_rounded,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.6),
+                ),
+              ),
+            ),
+
+            // Content
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                16 + MediaQuery.of(context).padding.top,
+                12,
+                16,
+              ),
+              child: Row(
+                children: [
+                  // Back Button
+                  InkWell(
+                    onTap: () => Navigator.of(context).pop(),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blueGrey.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            right: 2,
+                          ), // Visual correction for iOS back icon
+                          child: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.blueGrey,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Title
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        TranslatedText(
+                          _orderData?['store_name'] ?? 'Loading...',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B), // Slate 800
+                            letterSpacing: -0.5,
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.blue.withOpacity(0.2),
+                            ),
+                          ),
+                          child: const TranslatedText(
+                            'ORDER DETAILS',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1565C0),
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Invoice Button
+                  if (_orderData?['invoice_url'] != null)
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TranslatedText(
+                          'INVOICE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.blueGrey[400],
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        InkWell(
+                          onTap: _launchInvoice,
+                          borderRadius: BorderRadius.circular(30),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blueGrey.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.download_rounded,
+                              color: Colors.blueGrey,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -886,54 +1048,112 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       onRefresh: () async {
         await Future.wait([_fetchOrderDetails(), _fetchOrderProducts()]);
       },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Live Order Status Banner
-            _buildLiveStatusBanner(theme),
-            const SizedBox(height: 16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 900;
 
-            // Store & Order Info
-            _buildOrderInfoCard(theme),
-            const SizedBox(height: 16),
+          if (isWide) {
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1200),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // LEFT COLUMN (Info, Billing, Payment)
+                      Expanded(
+                        flex: 4,
+                        child: Column(
+                          children: [
+                            _buildLiveStatusBanner(theme),
+                            const SizedBox(height: 16),
+                            _buildOrderInfoCard(theme),
+                            const SizedBox(height: 16),
+                            if (_orderData!['billing_details'] != null) ...[
+                              _buildBillingDetailsCard(theme),
+                              const SizedBox(height: 16),
+                            ],
+                            if (_orderData!['payment_details'] != null) ...[
+                              _buildPaymentDetailsCard(theme),
+                              const SizedBox(height: 16),
+                            ],
+                            if (_orderData!['invoice_url'] != null)
+                              _buildInvoiceButton(theme),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      // RIGHT COLUMN (Products, Price)
+                      Expanded(
+                        flex: 6,
+                        child: Column(
+                          children: [
+                            _buildProductsSection(theme),
+                            const SizedBox(height: 16),
+                            _buildPriceBreakdownCard(theme),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
 
-            // Products Ordered
-            _buildProductsSection(theme),
-            const SizedBox(height: 16),
-
-            // Billing Details
-            if (_orderData!['billing_details'] != null)
-              _buildBillingDetailsCard(theme),
-            const SizedBox(height: 16),
-
-            // Payment Details
-            if (_orderData!['payment_details'] != null)
-              _buildPaymentDetailsCard(theme),
-            const SizedBox(height: 16),
-
-            // Price Breakdown
-            _buildPriceBreakdownCard(theme),
-            const SizedBox(height: 16),
-
-            // Invoice Button
-            if (_orderData!['invoice_url'] != null) _buildInvoiceButton(theme),
-            const SizedBox(height: 32),
-          ],
-        ),
+          // MOBILE LAYOUT
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLiveStatusBanner(theme),
+                    const SizedBox(height: 16),
+                    _buildOrderInfoCard(theme),
+                    const SizedBox(height: 16),
+                    _buildProductsSection(theme),
+                    const SizedBox(height: 16),
+                    if (_orderData!['billing_details'] != null)
+                      _buildBillingDetailsCard(theme),
+                    const SizedBox(height: 16),
+                    if (_orderData!['payment_details'] != null)
+                      _buildPaymentDetailsCard(theme),
+                    const SizedBox(height: 16),
+                    _buildPriceBreakdownCard(theme),
+                    const SizedBox(height: 16),
+                    if (_orderData!['invoice_url'] != null)
+                      _buildInvoiceButton(theme),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildOrderInfoCard(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -945,6 +1165,20 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          _buildInfoRow(
+            theme,
+            'Customer',
+            _orderData!['user_name'] ??
+                _orderData!['customer_name'] ??
+                _orderData!['user_first_name'] ??
+                _orderData!['name'] ??
+                (_orderData!['billing_details'] != null
+                    ? _orderData!['billing_details']['name']
+                    : null) ??
+                'Guest Customer',
+            Icons.person_rounded,
+          ),
+          const Divider(height: 24),
           _buildInfoRow(
             theme,
             'Store',
@@ -972,11 +1206,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   Widget _buildProductsSection(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1196,11 +1437,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final billing = _orderData!['billing_details'] as Map<String, dynamic>;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1250,11 +1498,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final payment = _orderData!['payment_details'] as Map<String, dynamic>;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1290,11 +1545,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final grandTotal = _orderData!['grand_total'] ?? 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
