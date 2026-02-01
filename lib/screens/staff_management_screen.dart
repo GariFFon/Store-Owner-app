@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:exanor/components/translation_widget.dart';
 
@@ -91,8 +92,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       final success = await StoreOwnerApiService.updateStoreStaff(
         storeId: widget.storeId,
         staffId: staff['id'],
-        phoneNumber: staff['user_phone_number'].toString(),
-        roleId: roleId,
         dataToBeUpdated: {'role_id': roleId},
       );
 
@@ -200,7 +199,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton.icon(
-                              onPressed: () {},
+                              onPressed: _showAddStaffBottomSheet,
                               icon: const Icon(Icons.add, size: 18),
                               label: const TranslatedText('Add Staff Member'),
                               style: ElevatedButton.styleFrom(
@@ -244,7 +243,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                               ],
                             ),
                             ElevatedButton.icon(
-                              onPressed: () {},
+                              onPressed: _showAddStaffBottomSheet,
                               icon: const Icon(Icons.add, size: 18),
                               label: const TranslatedText('Add Staff Member'),
                               style: ElevatedButton.styleFrom(
@@ -866,6 +865,58 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
   }
 
+  void _showAddStaffBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AddStaffSheet(
+        roles: _rolesList,
+        onAdd: (phoneNumber, roleId) {
+          Navigator.pop(context);
+          _handleAddStaff(phoneNumber, roleId);
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleAddStaff(String phoneNumber, String roleId) async {
+    setState(() => _isLoading = true);
+    try {
+      final success = await StoreOwnerApiService.createStoreStaff(
+        storeId: widget.storeId,
+        phoneNumber: phoneNumber,
+        roleId: roleId,
+      );
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('New staff member added successfully.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _fetchData();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to add staff member.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   void _showComingSoonAlert(BuildContext context) {
     showDialog(
       context: context,
@@ -956,6 +1007,184 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         fontWeight: FontWeight.bold,
         color: Colors.grey[500],
         letterSpacing: 0.5,
+      ),
+    );
+  }
+}
+
+class _AddStaffSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> roles;
+  final Function(String phoneNumber, String roleId) onAdd;
+
+  const _AddStaffSheet({required this.roles, required this.onAdd});
+
+  @override
+  State<_AddStaffSheet> createState() => _AddStaffSheetState();
+}
+
+class _AddStaffSheetState extends State<_AddStaffSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _phoneController = TextEditingController();
+  String? _selectedRoleId;
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Add Staff Member',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  splashRadius: 24,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enter staff details to add them to your team',
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+
+            // Phone Number
+            const Text(
+              'Phone Number*',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                hintText: 'Enter 10 digit phone number',
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) return 'Required';
+                if (value.length != 10) return 'Must be 10 digits';
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+
+            // Role
+            const Text(
+              'Role*',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedRoleId,
+              decoration: InputDecoration(
+                hintText: 'Select a role',
+                hintStyle: TextStyle(color: Colors.black87, fontSize: 13),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              items: widget.roles.map((role) {
+                return DropdownMenuItem<String>(
+                  value: role['id'],
+                  child: Text(
+                    role['role_name'] ?? 'Unknown',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) => setState(() => _selectedRoleId = value),
+              validator: (value) => value == null ? 'Required' : null,
+            ),
+            const SizedBox(height: 32),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      widget.onAdd(_phoneController.text, _selectedRoleId!);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black87,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Add Staff'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
