@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/services/api_service.dart';
+import 'package:exanor/services/store_owner_api_service.dart';
+import 'package:exanor/models/store_bank_details.dart';
+import 'package:exanor/models/financial_year.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String storeId;
@@ -44,6 +47,13 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool _isNotificationsLoading = false;
   String? _notificationsError;
 
+  // Payout Tab State
+  List<StoreBankDetails> _payoutAccounts = [];
+  List<FinancialYear> _financialYears = [];
+  String? _selectedFinancialYearId;
+  bool _isPayoutsLoading = false;
+  String? _payoutsError;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +81,10 @@ class _SettingsScreenState extends State<SettingsScreen>
     } else if (_tabController.index == 5 && !_tabController.indexIsChanging) {
       // 5 is the index for 'NOTIFICATIONS' tab
       _fetchNotificationSettings();
+    } else if (_tabController.index == 3 && !_tabController.indexIsChanging) {
+      // 3 is the index for 'PAYOUTS' tab
+      _fetchPayoutAccounts();
+      _fetchFinancialYears();
     }
   }
 
@@ -600,6 +614,49 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
   }
 
+  Future<void> _fetchFinancialYears() async {
+    try {
+      final response = await StoreOwnerApiService.getFinancialYears(
+        widget.storeId,
+        limit: 50,
+      );
+      if (response['response'] != null) {
+        setState(() {
+          _financialYears = (response['response'] as List)
+              .map((e) => FinancialYear.fromJson(e))
+              .toList();
+        });
+      }
+    } catch (e) {
+      print('Error fetching financial years: $e');
+    }
+  }
+
+  Future<void> _fetchPayoutAccounts() async {
+    if (_isPayoutsLoading) return;
+    setState(() {
+      _isPayoutsLoading = true;
+      _payoutsError = null;
+    });
+
+    try {
+      final accounts = await StoreOwnerApiService.getStoreBankDetails(
+        widget.storeId,
+      );
+      setState(() {
+        _payoutAccounts = accounts
+            .map((e) => StoreBankDetails.fromJson(e))
+            .toList();
+        _isPayoutsLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _payoutsError = 'Error: $e';
+        _isPayoutsLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -691,7 +748,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       _buildGeneralTab(),
                       _buildOrdersTab(),
                       _buildPaymentsTab(),
-                      _buildPlaceholderTab('Payouts'),
+                      _buildPayoutsTab(),
                       _buildPlaceholderTab('Shipping'),
                       _buildNotificationsTab(),
                     ],
@@ -1826,6 +1883,385 @@ class _SettingsScreenState extends State<SettingsScreen>
               ),
             );
           },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPayoutsTab() {
+    if (_isPayoutsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_payoutsError != null) {
+      return Center(
+        child: Column(
+          children: [
+            Text(_payoutsError!, style: const TextStyle(color: Colors.red)),
+            ElevatedButton(
+              onPressed: _fetchPayoutAccounts,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Payout Accounts',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Manage your bank accounts, wallets, and UPI for payouts',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                // TODO: Add account logic
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1976D2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              icon: const Icon(Icons.add, size: 18, color: Colors.white),
+              label: const Text(
+                'Add Account',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // Financial Year Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F7FA), // Light greyish blue
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.blue[100]!),
+                ),
+                child: const Icon(
+                  Icons.calendar_today_outlined,
+                  color: Color(0xFF1976D2),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    bool isSmallScreen = constraints.maxWidth < 450;
+                    return Flex(
+                      direction: isSmallScreen
+                          ? Axis.vertical
+                          : Axis.horizontal,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: isSmallScreen ? double.infinity : 250,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedFinancialYearId,
+                              hint: const Text(
+                                'Financial Year (Optional)',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              isExpanded: true,
+                              items: _financialYears.map((fy) {
+                                return DropdownMenuItem<String>(
+                                  value: fy.id,
+                                  child: Text(fy.displayName), // e.g. FY 2026
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                setState(() {
+                                  _selectedFinancialYearId = val;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: isSmallScreen ? 0 : 16,
+                          height: isSmallScreen ? 8 : 0,
+                        ),
+                        if (!isSmallScreen)
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Select a financial year to view opening balances',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            'Select a financial year to view opening balances',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // Responsive Grid
+            int crossAxisCount = constraints.maxWidth > 800 ? 2 : 1;
+
+            // If we have just a few items, we can just use a Wrap or Column for simplicity logic with LayoutBuilder
+            // But GridView is cleaner for 2 columns.
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 24,
+                mainAxisSpacing: 24,
+                childAspectRatio: 1.8, // Adjust based on content
+                mainAxisExtent: 260, // Fixed height for cards
+              ),
+              itemCount: _payoutAccounts.length,
+              itemBuilder: (context, index) {
+                final account = _payoutAccounts[index];
+                return _buildPayoutAccountCard(account);
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPayoutAccountCard(StoreBankDetails account) {
+    bool isDefault = account.isDefault;
+    bool isCash =
+        account.accountTypeChoices.toLowerCase() == 'cash' ||
+        account.bankName == null;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: Colors.grey[100]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1976D2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isCash
+                      ? Icons.account_balance_wallet_outlined
+                      : Icons.account_balance_outlined,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account.bankName ?? 'Cash Account',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isCash ? 'Cash Account' : 'Savings Bank Account',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                color: Colors.grey[600],
+                onPressed: () {
+                  // Edit action
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Divider(height: 1, color: Colors.grey[200]),
+          const SizedBox(height: 16),
+          _buildDetailRow(
+            'Account Number',
+            account.accountNumberOrUpiId,
+            isBold: true,
+          ),
+          if (!isCash)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: _buildDetailRow(
+                'IFSC Code',
+                account.ifscCode ?? '-',
+                isBold: true,
+              ),
+            ),
+          const SizedBox(height: 8),
+          _buildDetailRow(
+            'Account Holder',
+            account.accountHolderName,
+            isBold: true,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Text(
+                  'Holder Type',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
+              ),
+              Expanded(
+                flex: 3,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      account.accountHolderType,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF1976D2),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (isDefault) ...[
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check, size: 14, color: Colors.green),
+                  SizedBox(width: 4),
+                  Text(
+                    'Default',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.black87,
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+          ),
         ),
       ],
     );

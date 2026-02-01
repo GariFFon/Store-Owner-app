@@ -625,7 +625,7 @@ class StoreOwnerApiService {
           'create': false,
           'store_id': storeId,
           'store_access': true,
-          'query': {},
+          'query': {'is_active': true},
           'order_by': '-start_date',
           'limit': limit,
           'offset': offset,
