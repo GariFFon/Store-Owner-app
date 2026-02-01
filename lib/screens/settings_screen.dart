@@ -1502,6 +1502,24 @@ class _SettingsScreenState extends State<SettingsScreen>
           final data = response['data'];
           if (data['status'] == 200) {
             return true;
+          } else if (data['status'] == 403) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                useRootNavigator: true,
+                builder: (context) => AlertDialog(
+                  title: const Text('Permission Denied'),
+                  content: Text(data['response'] ?? 'Permission denied'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return false;
           } else {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1514,6 +1532,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           if (mounted) {
             showDialog(
               context: context,
+              useRootNavigator: true,
               builder: (context) => AlertDialog(
                 title: const Text('Permission Denied'),
                 content: Text(
