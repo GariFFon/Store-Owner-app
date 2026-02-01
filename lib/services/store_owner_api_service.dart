@@ -1096,7 +1096,8 @@ class StoreOwnerApiService {
         useBearerToken: true,
       );
 
-      if (response['statusCode'] == 201 && response['data'] != null) {
+      if ((response['statusCode'] == 200 || response['statusCode'] == 201) &&
+          response['data'] != null) {
         final data = response['data'];
         if (data['status'] == 201) {
           return true;
@@ -1217,10 +1218,7 @@ class StoreOwnerApiService {
     try {
       final response = await ApiService.put(
         '/coupons/',
-        body: {
-          'coupon_id': couponId,
-          'data': data,
-        },
+        body: {'coupon_id': couponId, 'data': data},
         useBearerToken: true,
       );
 

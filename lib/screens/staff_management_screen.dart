@@ -171,178 +171,181 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           : LayoutBuilder(
               builder: (context, constraints) {
                 final isMobile = constraints.maxWidth < 800;
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header Section
-                      if (isMobile)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Staff Management',
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
+                return RefreshIndicator(
+                  onRefresh: _fetchData,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header Section
+                        if (isMobile)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Staff Management',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Manage your team members and their roles',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: _showAddStaffBottomSheet,
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const TranslatedText('Add Staff Member'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.black87,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
                                   ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Manage your team members and their roles',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: _showAddStaffBottomSheet,
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const TranslatedText('Add Staff Member'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.black87,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        )
-                      else
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            ],
+                          )
+                        else
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Staff Management',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Manage your team members and their roles',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: _showAddStaffBottomSheet,
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const TranslatedText('Add Staff Member'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.black87,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 24),
+
+                        // Stats Cards
+                        if (isMobile)
+                          SizedBox(
+                            height: 110,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
                               children: [
-                                Text(
-                                  'Staff Management',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
+                                SizedBox(
+                                  width: 160,
+                                  child: _buildStatCard(
+                                    icon: Icons.people_outline,
+                                    title: 'TOTAL STAFF',
+                                    value: '${_staffList.length}',
+                                    iconColor: Colors.blue,
+                                    isSmall: true,
+                                  ),
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Manage your team members and their roles',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 14,
+                                const SizedBox(width: 12),
+                                SizedBox(
+                                  width: 160,
+                                  child: _buildStatCard(
+                                    icon: Icons.person_outline,
+                                    title: 'PRESENT',
+                                    value: '0',
+                                    iconColor: Colors.green,
+                                    isSmall: true,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                SizedBox(
+                                  width: 160,
+                                  child: _buildStatCard(
+                                    icon: Icons.person_off_outlined,
+                                    title: 'ABSENT',
+                                    value: '0',
+                                    iconColor: Colors.red,
+                                    isSmall: true,
                                   ),
                                 ),
                               ],
                             ),
-                            ElevatedButton.icon(
-                              onPressed: _showAddStaffBottomSheet,
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const TranslatedText('Add Staff Member'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.black87,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      const SizedBox(height: 24),
-
-                      // Stats Cards
-                      if (isMobile)
-                        SizedBox(
-                          height: 110,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
+                          )
+                        else
+                          Row(
                             children: [
-                              SizedBox(
-                                width: 160,
+                              Expanded(
                                 child: _buildStatCard(
                                   icon: Icons.people_outline,
                                   title: 'TOTAL STAFF',
                                   value: '${_staffList.length}',
                                   iconColor: Colors.blue,
-                                  isSmall: true,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 160,
+                              const SizedBox(width: 16),
+                              Expanded(
                                 child: _buildStatCard(
                                   icon: Icons.person_outline,
-                                  title: 'PRESENT',
+                                  title: 'PRESENT TODAY',
                                   value: '0',
                                   iconColor: Colors.green,
-                                  isSmall: true,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 160,
+                              const SizedBox(width: 16),
+                              Expanded(
                                 child: _buildStatCard(
                                   icon: Icons.person_off_outlined,
-                                  title: 'ABSENT',
+                                  title: 'ABSENT TODAY',
                                   value: '0',
                                   iconColor: Colors.red,
-                                  isSmall: true,
                                 ),
                               ),
                             ],
                           ),
-                        )
-                      else
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                icon: Icons.people_outline,
-                                title: 'TOTAL STAFF',
-                                value: '${_staffList.length}',
-                                iconColor: Colors.blue,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildStatCard(
-                                icon: Icons.person_outline,
-                                title: 'PRESENT TODAY',
-                                value: '0',
-                                iconColor: Colors.green,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildStatCard(
-                                icon: Icons.person_off_outlined,
-                                title: 'ABSENT TODAY',
-                                value: '0',
-                                iconColor: Colors.red,
-                              ),
-                            ),
-                          ],
-                        ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                      // Team Members List
-                      if (isMobile)
-                        _buildMobileList()
-                      else
-                        _buildDesktopTable(),
-                    ],
+                        // Team Members List
+                        if (isMobile)
+                          _buildMobileList()
+                        else
+                          _buildDesktopTable(),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -882,10 +885,16 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   Future<void> _handleAddStaff(String phoneNumber, String roleId) async {
     setState(() => _isLoading = true);
+
+    // Add country code 91 default for India
+    final formattedPhoneNumber = phoneNumber.length == 10
+        ? '91$phoneNumber'
+        : phoneNumber;
+
     try {
       final success = await StoreOwnerApiService.createStoreStaff(
         storeId: widget.storeId,
-        phoneNumber: phoneNumber,
+        phoneNumber: formattedPhoneNumber,
         roleId: roleId,
       );
       if (mounted) {

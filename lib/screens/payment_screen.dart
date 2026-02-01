@@ -141,549 +141,568 @@ class _PaymentScreenState extends State<PaymentScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _fetchPayments,
-          ),
-        ],
+        actions: [],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Search Bar
-                  TextField(
-                    controller: _searchController,
-                    onSubmitted: (_) => _fetchPayments(),
-                    decoration: InputDecoration(
-                      hintText: 'Search by voucher number...',
-                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                      ),
-                      suffixIcon: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _showFilters = !_showFilters;
-                          });
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _showFilters
-                                ? Colors.blue.withOpacity(0.2)
-                                : Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(
-                            Icons.filter_list,
-                            color: _showFilters
-                                ? Colors.blue.shade800
-                                : Colors.blue,
-                            size: 20,
+          : RefreshIndicator(
+              onRefresh: _fetchPayments,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Search Bar
+                    TextField(
+                      controller: _searchController,
+                      onSubmitted: (_) => _fetchPayments(),
+                      decoration: InputDecoration(
+                        hintText: 'Search by voucher number...',
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Colors.grey,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Filters Row
-                  if (_showFilters)
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFilterField(
-                                  label: "Date From",
-                                  child: InkWell(
-                                    onTap: () => _selectDate(context, true),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: Colors.grey.shade300,
-                                        ),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            _fromDate != null
-                                                ? DateFormat(
-                                                    'MM/dd/yyyy',
-                                                  ).format(_fromDate!)
-                                                : 'MM/DD/YYYY',
-                                            style: TextStyle(
-                                              color: _fromDate != null
-                                                  ? Colors.black
-                                                  : Colors.grey,
-                                            ),
-                                          ),
-                                          const Icon(
-                                            Icons.calendar_today,
-                                            size: 16,
-                                            color: Colors.grey,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFilterField(
-                                  label: "Date To",
-                                  child: InkWell(
-                                    onTap: () => _selectDate(context, false),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: Colors.grey.shade300,
-                                        ),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            _toDate != null
-                                                ? DateFormat(
-                                                    'MM/dd/yyyy',
-                                                  ).format(_toDate!)
-                                                : 'MM/DD/YYYY',
-                                            style: TextStyle(
-                                              color: _toDate != null
-                                                  ? Colors.black
-                                                  : Colors.grey,
-                                            ),
-                                          ),
-                                          const Icon(
-                                            Icons.calendar_today,
-                                            size: 16,
-                                            color: Colors.grey,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
                           ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildFilterField(
-                                  label: "Party ID",
-                                  child: TextField(
-                                    controller: _partyIdController,
-                                    onSubmitted: (val) {
-                                      _partyId = val.isEmpty ? null : val;
-                                      _fetchPayments();
-                                    },
-                                    decoration: InputDecoration(
-                                      hintText: 'Enter party ID',
-                                      hintStyle: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 13,
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 12,
-                                          ),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(6),
-                                        borderSide: BorderSide(
-                                          color: Colors.grey.shade300,
-                                        ),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(6),
-                                        borderSide: BorderSide(
-                                          color: Colors.grey.shade300,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildFilterField(
-                                  label: "Posted Status",
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: _postedStatus,
-                                        isExpanded: true,
-                                        items: ['All', 'Posted', 'Not Posted']
-                                            .map(
-                                              (e) => DropdownMenuItem(
-                                                value: e,
-                                                child: Text(e),
-                                              ),
-                                            )
-                                            .toList(),
-                                        onChanged: (val) {
-                                          if (val != null) {
-                                            setState(() => _postedStatus = val);
-                                            _fetchPayments();
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  const SizedBox(height: 24),
-
-                  // Summary Cards
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSummaryCard(
-                          'Total Payments',
-                          '$_totalCount',
-                          Colors.black,
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildSummaryCard(
-                          'Posted',
-                          '$_postedCount',
-                          Colors.green,
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildSummaryCard(
-                          'Total Amount',
-                          '₹${_totalAmount.toStringAsFixed(2)}',
-                          Colors.black,
-                          isLarge: true,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Horizontally scrollable table
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Column(
-                      children: [
-                        // List Header
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                            horizontal: 16,
-                          ),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            border: Border(
-                              bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                        suffixIcon: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _showFilters = !_showFilters;
+                            });
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _showFilters
+                                  ? Colors.blue.withOpacity(0.2)
+                                  : Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Icon(
+                              Icons.filter_list,
+                              color: _showFilters
+                                  ? Colors.blue.shade800
+                                  : Colors.blue,
+                              size: 20,
                             ),
                           ),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 120,
-                                child: Text(
-                                  "VOUCHER",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 100,
-                                child: Text(
-                                  "DATE",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 120,
-                                child: Text(
-                                  "PARTY",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 100,
-                                child: Text(
-                                  "AMOUNT",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 150,
-                                child: Text(
-                                  "PAYMENT ACCOUNT",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 100,
-                                child: Text(
-                                  "STATUS",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
-                        // List Items
-                        SizedBox(
-                          width: 722, // Total width (690) + Padding (32)
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _vouchers.length,
-                            itemBuilder: (context, index) {
-                              final v = _vouchers[index];
-                              return InkWell(
-                                onTap: () => showDialog(
-                                  context: context,
-                                  builder: (_) =>
-                                      PaymentDetailsDialog(voucher: v),
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                    horizontal: 16,
-                                  ),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: Color(0xFFF1F5F9),
+                    // Filters Row
+                    if (_showFilters)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildFilterField(
+                                    label: "Date From",
+                                    child: InkWell(
+                                      onTap: () => _selectDate(context, true),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              _fromDate != null
+                                                  ? DateFormat(
+                                                      'MM/dd/yyyy',
+                                                    ).format(_fromDate!)
+                                                  : 'MM/DD/YYYY',
+                                              style: TextStyle(
+                                                color: _fromDate != null
+                                                    ? Colors.black
+                                                    : Colors.grey,
+                                              ),
+                                            ),
+                                            const Icon(
+                                              Icons.calendar_today,
+                                              size: 16,
+                                              color: Colors.grey,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 120,
-                                        child: Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.receipt_long_outlined,
-                                              size: 14,
-                                              color: Colors.blue,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text(
-                                                v.voucherNumber,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w500,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildFilterField(
+                                    label: "Date To",
+                                    child: InkWell(
+                                      onTap: () => _selectDate(context, false),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 12,
                                         ),
-                                      ),
-                                      SizedBox(
-                                        width: 100,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
                                         child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
-                                            const Icon(
-                                              Icons.calendar_today_outlined,
-                                              size: 12,
-                                              color: Colors.grey,
-                                            ),
-                                            const SizedBox(width: 4),
                                             Text(
-                                              DateFormat(
-                                                'MMM d, y',
-                                              ).format(DateTime.parse(v.date)),
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey,
+                                              _toDate != null
+                                                  ? DateFormat(
+                                                      'MM/dd/yyyy',
+                                                    ).format(_toDate!)
+                                                  : 'MM/DD/YYYY',
+                                              style: TextStyle(
+                                                color: _toDate != null
+                                                    ? Colors.black
+                                                    : Colors.grey,
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Row(
-                                          children: [
                                             const Icon(
-                                              Icons.person_outline,
-                                              size: 14,
+                                              Icons.calendar_today,
+                                              size: 16,
                                               color: Colors.grey,
                                             ),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text(
-                                                v.partyName,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
                                           ],
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 100,
-                                        child: Text(
-                                          '₹${v.amount.toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 150,
-                                        child: Text(
-                                          v.paymentAccount,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 100,
-                                        child: Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 4,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: v.isPosted
-                                                  ? Colors.green.withOpacity(
-                                                      0.1,
-                                                    )
-                                                  : Colors.orange.withOpacity(
-                                                      0.1,
-                                                    ),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (v.isPosted)
-                                                  const Icon(
-                                                    Icons.check,
-                                                    size: 10,
-                                                    color: Colors.green,
-                                                  ),
-                                                if (v.isPosted)
-                                                  const SizedBox(width: 2),
-                                                Text(
-                                                  v.isPosted
-                                                      ? 'Posted'
-                                                      : 'Draft',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    color: v.isPosted
-                                                        ? Colors.green
-                                                        : Colors.orange,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 ),
-                              );
-                            },
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildFilterField(
+                                    label: "Party ID",
+                                    child: TextField(
+                                      controller: _partyIdController,
+                                      onSubmitted: (val) {
+                                        _partyId = val.isEmpty ? null : val;
+                                        _fetchPayments();
+                                      },
+                                      decoration: InputDecoration(
+                                        hintText: 'Enter party ID',
+                                        hintStyle: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 13,
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 12,
+                                            ),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildFilterField(
+                                    label: "Posted Status",
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.grey.shade300,
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<String>(
+                                          value: _postedStatus,
+                                          isExpanded: true,
+                                          items: ['All', 'Posted', 'Not Posted']
+                                              .map(
+                                                (e) => DropdownMenuItem(
+                                                  value: e,
+                                                  child: Text(e),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: (val) {
+                                            if (val != null) {
+                                              setState(
+                                                () => _postedStatus = val,
+                                              );
+                                              _fetchPayments();
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    const SizedBox(height: 24),
+
+                    // Summary Cards
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSummaryCard(
+                            'Total Payments',
+                            '$_totalCount',
+                            Colors.black,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildSummaryCard(
+                            'Posted',
+                            '$_postedCount',
+                            Colors.green,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildSummaryCard(
+                            'Total Amount',
+                            '₹${_totalAmount.toStringAsFixed(2)}',
+                            Colors.black,
+                            isLarge: true,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 24),
+
+                    // Horizontally scrollable table
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Column(
+                        children: [
+                          // List Header
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              border: Border(
+                                bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 120,
+                                  child: Text(
+                                    "VOUCHER",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 100,
+                                  child: Text(
+                                    "DATE",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 120,
+                                  child: Text(
+                                    "PARTY",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 100,
+                                  child: Text(
+                                    "AMOUNT",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 150,
+                                  child: Text(
+                                    "PAYMENT ACCOUNT",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 100,
+                                  child: Text(
+                                    "STATUS",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // List Items
+                          SizedBox(
+                            width: 722, // Total width (690) + Padding (32)
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _vouchers.length,
+                              itemBuilder: (context, index) {
+                                final v = _vouchers[index];
+                                return InkWell(
+                                  onTap: () => showDialog(
+                                    context: context,
+                                    builder: (_) =>
+                                        PaymentDetailsDialog(voucher: v),
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                      horizontal: 16,
+                                    ),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: Color(0xFFF1F5F9),
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 120,
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.receipt_long_outlined,
+                                                size: 14,
+                                                color: Colors.blue,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  v.voucherNumber,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: 100,
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.calendar_today_outlined,
+                                                size: 12,
+                                                color: Colors.grey,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                DateFormat('MMM d, y').format(
+                                                  DateTime.parse(v.date),
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: 120,
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.person_outline,
+                                                size: 14,
+                                                color: Colors.grey,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  v.partyName,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: 100,
+                                          child: Text(
+                                            '₹${v.amount.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: 150,
+                                          child: Text(
+                                            v.paymentAccount,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: 100,
+                                          child: Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: v.isPosted
+                                                    ? Colors.green.withOpacity(
+                                                        0.1,
+                                                      )
+                                                    : Colors.orange.withOpacity(
+                                                        0.1,
+                                                      ),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (v.isPosted)
+                                                    const Icon(
+                                                      Icons.check,
+                                                      size: 10,
+                                                      color: Colors.green,
+                                                    ),
+                                                  if (v.isPosted)
+                                                    const SizedBox(width: 2),
+                                                  Text(
+                                                    v.isPosted
+                                                        ? 'Posted'
+                                                        : 'Draft',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      color: v.isPosted
+                                                          ? Colors.green
+                                                          : Colors.orange,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
     );
