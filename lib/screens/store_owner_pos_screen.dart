@@ -23,6 +23,7 @@ import 'package:exanor/screens/customers_list_screen.dart';
 import 'package:exanor/screens/financial_years_screen.dart';
 import 'package:exanor/screens/staff_management_screen.dart';
 import 'package:exanor/screens/gst_reports_screen.dart';
+import 'package:exanor/screens/settings_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -2007,7 +2008,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              SettingsScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 20),
