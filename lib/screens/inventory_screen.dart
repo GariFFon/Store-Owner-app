@@ -114,7 +114,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     Widget addButton = ElevatedButton.icon(
       onPressed: () {
-        // TODO: Implement Add Godown
+        _showAddGodownSheet();
       },
       icon: const Icon(Icons.add, size: 20),
       label: const TranslatedText('Add Godown'),
@@ -416,6 +416,294 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showAddGodownSheet() {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final addressController = TextEditingController();
+    bool isPrimary = false;
+    bool isActive = true;
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const TranslatedText(
+                          'Create New Godown',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.grey),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+
+                  // Form
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildTextField(
+                            controller: nameController,
+                            label: 'Godown Name *',
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: descriptionController,
+                            label: 'Description',
+                            maxLines: 4,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: addressController,
+                            label: 'Address',
+                            maxLines: 3,
+                          ),
+                          const SizedBox(height: 24),
+
+                          _buildSwitch(
+                            title: 'Primary Godown',
+                            subtitle: 'Set as the main warehouse',
+                            value: isPrimary,
+                            onChanged: (val) {
+                              setSheetState(() => isPrimary = val);
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _buildSwitch(
+                            title: 'Active Status',
+                            subtitle: 'Enable or disable this godown',
+                            value: isActive,
+                            onChanged: (val) {
+                              setSheetState(() => isActive = val);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border(
+                        top: BorderSide(color: Colors.grey.shade200),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Spacer(), // Spacer
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            side: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          child: const TranslatedText(
+                            'Cancel',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  if (nameController.text.trim().isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Godown Name is required',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  setSheetState(() => isSubmitting = true);
+
+                                  try {
+                                    await StoreOwnerApiService.createGodown(
+                                      storeId: widget.storeId,
+                                      name: nameController.text.trim(),
+                                      description: descriptionController.text
+                                          .trim(),
+                                      address: addressController.text.trim(),
+                                      isActive: isActive,
+                                      isPrimary: isPrimary,
+                                    );
+
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      _fetchData(); // Refresh list
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Godown created successfully',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text('Error: $e')),
+                                      );
+                                    }
+                                  } finally {
+                                    if (context.mounted) {
+                                      setSheetState(() => isSubmitting = false);
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF007BFF),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: isSubmitting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const TranslatedText(
+                                  'Create',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        hintText: label,
+        hintStyle: TextStyle(color: Colors.grey[400]),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF007BFF)),
+        ),
+        contentPadding: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Widget _buildSwitch({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Row(
+      children: [
+        Transform.scale(
+          scale: 0.8,
+          child: Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: const Color(0xFF007BFF),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -268,6 +268,41 @@ class StoreOwnerApiService {
     }
   }
 
+  /// Create godown
+  /// POST /godowns/
+  static Future<Map<String, dynamic>> createGodown({
+    required String storeId,
+    required String name,
+    required String description,
+    required String address,
+    required bool isActive,
+    required bool isPrimary,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/godowns/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'create': true,
+          'name': name,
+          'description': description,
+          'address': address,
+          'is_active': isActive,
+          'is_primary': isPrimary,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to create godown: $e');
+    }
+  }
+
   /// Fetch racks
   /// POST /racks/
   static Future<List<Map<String, dynamic>>> getRacks(String storeId) async {
