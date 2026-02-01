@@ -297,8 +297,9 @@ class StoreOwnerApiService {
   /// Fetch store bank details
   /// POST /store-bank-details/
   static Future<List<Map<String, dynamic>>> getStoreBankDetails(
-    String storeId,
-  ) async {
+    String storeId, {
+    String? financialYearId,
+  }) async {
     try {
       final body = {
         'store_id': storeId,
@@ -307,6 +308,10 @@ class StoreOwnerApiService {
         'order_by': 'bank_name',
         'limit': 50,
       };
+
+      if (financialYearId != null) {
+        body['financial_year_id'] = financialYearId;
+      }
 
       debugPrint('Fetching bank details with body: $body');
 

@@ -642,6 +642,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     try {
       final accounts = await StoreOwnerApiService.getStoreBankDetails(
         widget.storeId,
+        financialYearId: _selectedFinancialYearId,
       );
       setState(() {
         _payoutAccounts = accounts
@@ -2022,6 +2023,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 setState(() {
                                   _selectedFinancialYearId = val;
                                 });
+                                _fetchPayoutAccounts();
                               },
                             ),
                           ),
@@ -2065,26 +2067,35 @@ class _SettingsScreenState extends State<SettingsScreen>
         LayoutBuilder(
           builder: (context, constraints) {
             // Responsive Grid
-            int crossAxisCount = constraints.maxWidth > 800 ? 2 : 1;
-
-            // If we have just a few items, we can just use a Wrap or Column for simplicity logic with LayoutBuilder
-            // But GridView is cleaner for 2 columns.
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 24,
-                mainAxisSpacing: 24,
-                childAspectRatio: 1.8, // Adjust based on content
-                mainAxisExtent: 260, // Fixed height for cards
-              ),
-              itemCount: _payoutAccounts.length,
-              itemBuilder: (context, index) {
-                final account = _payoutAccounts[index];
-                return _buildPayoutAccountCard(account);
-              },
-            );
+            if (constraints.maxWidth > 800) {
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 24,
+                  mainAxisSpacing: 24,
+                  mainAxisExtent: 320, // Increased height for desktop
+                ),
+                itemCount: _payoutAccounts.length,
+                itemBuilder: (context, index) {
+                  final account = _payoutAccounts[index];
+                  return _buildPayoutAccountCard(account);
+                },
+              );
+            } else {
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _payoutAccounts.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 16),
+                itemBuilder: (context, index) {
+                  final account = _payoutAccounts[index];
+                  return _buildPayoutAccountCard(account);
+                },
+              );
+            }
           },
         ),
       ],
@@ -2208,10 +2219,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      account.accountHolderType,
-                      style: const TextStyle(
+                      account.accountHolderType.toUpperCase(),
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF1976D2),
+                        color: Colors.blue[700],
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -2220,29 +2231,89 @@ class _SettingsScreenState extends State<SettingsScreen>
               ),
             ],
           ),
-          if (isDefault) ...[
-            const Spacer(),
+
+          if (account.openingBalance != null) ...[
+            const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(4),
+                color: const Color(0xFFF0FFF4), // Light green
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green[100]!),
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.check, size: 14, color: Colors.green),
-                  SizedBox(width: 4),
                   Text(
-                    'Default',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.green,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    'Opening Balance',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        '₹${account.openingBalance!.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[800],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green[800],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Active',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
+            ),
+          ],
+
+          if (isDefault) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check, size: 14, color: Colors.green[700]),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Default',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ],

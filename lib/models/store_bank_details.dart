@@ -16,6 +16,7 @@ class StoreBankDetails {
   final bool isDeleted;
   final bool isVerified;
   final bool isBlocked;
+  final double? openingBalance;
 
   StoreBankDetails({
     required this.id,
@@ -35,6 +36,7 @@ class StoreBankDetails {
     required this.isDeleted,
     required this.isVerified,
     required this.isBlocked,
+    this.openingBalance,
   });
 
   factory StoreBankDetails.fromJson(Map<String, dynamic> json) {
@@ -56,6 +58,9 @@ class StoreBankDetails {
       isDeleted: json['is_deleted'] ?? false,
       isVerified: json['is_verified'] ?? false,
       isBlocked: json['is_blocked'] ?? false,
+      openingBalance: json['opening_balance'] != null
+          ? double.tryParse(json['opening_balance'].toString())
+          : null,
     );
   }
 }
