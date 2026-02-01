@@ -250,6 +250,7 @@ class StoreOwnerApiService {
           'store_id': storeId,
           'store_access': true,
           'create': false,
+          'order_by': 'name',
           'limit': 50,
         },
         useBearerToken: true,
@@ -277,7 +278,8 @@ class StoreOwnerApiService {
           'store_id': storeId,
           'store_access': true,
           'create': false,
-          'limit': 100,
+          'order_by': 'name',
+          'limit': 1000,
         },
         useBearerToken: true,
       );

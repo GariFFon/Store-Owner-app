@@ -25,6 +25,7 @@ import 'package:exanor/screens/staff_management_screen.dart';
 import 'package:exanor/screens/gst_reports_screen.dart';
 import 'package:exanor/screens/settings_screen.dart';
 import 'package:exanor/screens/coupons_screen.dart';
+import 'package:exanor/screens/inventory_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1746,7 +1747,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.warehouse_outlined,
                     title: 'Inventory',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              InventoryScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
                   _buildDrawerItem(
                     theme,
