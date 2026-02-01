@@ -39,6 +39,11 @@ class _SettingsScreenState extends State<SettingsScreen>
   List<Map<String, dynamic>> _paymentMethodTemplates = [];
   bool _isPaymentTemplatesLoading = false;
 
+  // Notification Tab State
+  Map<String, dynamic> _notificationSettings = {};
+  bool _isNotificationsLoading = false;
+  String? _notificationsError;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +68,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     } else if (_tabController.index == 2 && !_tabController.indexIsChanging) {
       // 2 is the index for 'PAYMENTS' tab
       _fetchPaymentMethods();
+    } else if (_tabController.index == 5 && !_tabController.indexIsChanging) {
+      // 5 is the index for 'NOTIFICATIONS' tab
+      _fetchNotificationSettings();
     }
   }
 
@@ -499,6 +507,99 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
   }
 
+  Future<void> _fetchNotificationSettings() async {
+    setState(() {
+      _isNotificationsLoading = true;
+      _notificationsError = null;
+    });
+
+    try {
+      final response = await ApiService.put(
+        '/update-store-settings/',
+        body: {
+          "store_id": widget.storeId,
+          "data_to_be_updated": {},
+          "view": true,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        // Check for nested response or direct current_state
+        if (data['current_state'] != null) {
+          setState(() {
+            _notificationSettings = Map<String, dynamic>.from(
+              data['current_state'],
+            );
+            _isNotificationsLoading = false;
+          });
+        } else {
+          setState(() => _isNotificationsLoading = false);
+        }
+      } else {
+        setState(() {
+          _notificationsError = 'Failed to load settings';
+          _isNotificationsLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _notificationsError = 'Error: $e';
+        _isNotificationsLoading = false;
+      });
+    }
+  }
+
+  Future<void> _updateNotificationSetting(String key, bool value) async {
+    // Optimistic Update
+    final previousValue = _notificationSettings[key];
+    setState(() {
+      _notificationSettings[key] = value;
+    });
+
+    try {
+      final response = await ApiService.put(
+        '/update-store-settings/',
+        body: {
+          "store_id": widget.storeId,
+          "data_to_be_updated": {key: value},
+          "view": true,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 &&
+          response['data'] != null &&
+          response['data']['current_state'] != null) {
+        setState(() {
+          _notificationSettings = Map<String, dynamic>.from(
+            response['data']['current_state'],
+          );
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Store system settings updated successfully.'),
+            ),
+          );
+        }
+      } else {
+        throw Exception('Failed to update');
+      }
+    } catch (e) {
+      // Revert
+      setState(() {
+        _notificationSettings[key] = previousValue;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -592,7 +693,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       _buildPaymentsTab(),
                       _buildPlaceholderTab('Payouts'),
                       _buildPlaceholderTab('Shipping'),
-                      _buildPlaceholderTab('Notifications'),
+                      _buildNotificationsTab(),
                     ],
                   );
                 },
@@ -1615,5 +1716,118 @@ class _SettingsScreenState extends State<SettingsScreen>
       ).showSnackBar(SnackBar(content: Text('Error: $e')));
       return false;
     }
+  }
+
+  Widget _buildNotificationsTab() {
+    if (_isNotificationsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_notificationsError != null) {
+      return Center(
+        child: Column(
+          children: [
+            Text(
+              _notificationsError!,
+              style: const TextStyle(color: Colors.red),
+            ),
+            ElevatedButton(
+              onPressed: _fetchNotificationSettings,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Define the list of settings to display
+    final settingsList = [
+      {'key': 'is_accepting_web_orders', 'title': 'Is Accepting Web Orders'},
+      {'key': 'is_accepting_pos_orders', 'title': 'Is Accepting Pos Orders'},
+      {'key': 'enable_branded_invoice', 'title': 'Enable Branded Invoice'},
+      {
+        'key': 'enable_branded_marketing_materials',
+        'title': 'Enable Branded Marketing Materials',
+      },
+      {'key': 'send_invoice_in_email', 'title': 'Send Invoice In Email'},
+      {'key': 'send_invoice_in_sms', 'title': 'Send Invoice In Sms'},
+      {
+        'key': 'send_invoice_in_push_notification',
+        'title': 'Send Invoice In Push Notification',
+      },
+      {'key': 'is_sponsored', 'title': 'Is Sponsored'},
+      {'key': 'is_featured', 'title': 'Is Featured'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(
+          title: 'Notification settings',
+          description: 'Manage notification settings here',
+        ),
+        const SizedBox(height: 24),
+        Divider(height: 1, color: Colors.grey[200]),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: settingsList.length,
+          separatorBuilder: (context, index) =>
+              Divider(height: 1, color: Colors.grey[100]),
+          itemBuilder: (context, index) {
+            final setting = settingsList[index];
+            final key = setting['key']!;
+            final title = setting['title']!;
+            final value = _notificationSettings[key] ?? false;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Toggle ${title.toLowerCase()} (charges apply)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Switch(
+                    value: value,
+                    onChanged: (val) => _updateNotificationSetting(key, val),
+                    activeColor: Colors.white,
+                    activeTrackColor: const Color(0xFF1976D2),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 30, // Fixed width for alignment
+                    child: Text(
+                      value ? 'On' : 'Off',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
   }
 }
