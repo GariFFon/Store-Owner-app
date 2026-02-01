@@ -796,4 +796,43 @@ class StoreOwnerApiService {
       throw Exception('Failed to create store staff: $e');
     }
   }
+
+  /// Generate GST Report
+  /// POST /gst-report/
+  static Future<Map<String, dynamic>> generateGstReport({
+    required String storeId,
+    required String reportType,
+    required String startDate,
+    required String endDate,
+    required String fileType,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/gst-report/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'report_type': reportType,
+          'start_date': startDate,
+          'end_date': endDate,
+          'file_type': fileType, // 'pdf', 'xlsx', 'csv', 'json'
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        // The sample response has "status": 200 at the top level of 'data' usually,
+        // but based on previous methods, ApiService.post returns a wrapper.
+        // Previous methods check data['status'] == 200.
+        // Sample response provided by user: { "status": 200, "report": ..., "file": ... }
+        if (data['status'] == 200) {
+          return Map<String, dynamic>.from(data);
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to generate GST report: $e');
+    }
+  }
 }

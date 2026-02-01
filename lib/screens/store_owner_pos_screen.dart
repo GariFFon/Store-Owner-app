@@ -22,6 +22,7 @@ import 'package:exanor/screens/gst_rates_screen.dart';
 import 'package:exanor/screens/customers_list_screen.dart';
 import 'package:exanor/screens/financial_years_screen.dart';
 import 'package:exanor/screens/staff_management_screen.dart';
+import 'package:exanor/screens/gst_reports_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1968,7 +1969,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           icon: Icons.bar_chart,
                           title: 'GST Reports',
                           small: true,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    GstReportsScreen(storeId: widget.storeId),
+                              ),
+                            );
+                          },
                         ),
                         // Add more sub-reports as needed
                       ],
