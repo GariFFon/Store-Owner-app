@@ -1,6 +1,7 @@
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/models/coupon.dart';
 import 'package:exanor/screens/create_coupon_bottom_sheet.dart';
+import 'package:exanor/screens/edit_coupon_bottom_sheet.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -468,13 +469,19 @@ class _CouponsScreenState extends State<CouponsScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        // TODO: Edit functionality
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: TranslatedText('Edit Coupon Clicked'),
+                      onPressed: () async {
+                        final result = await showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => EditCouponBottomSheet(
+                            coupon: coupon,
                           ),
                         );
+
+                        if (result == true) {
+                          _fetchCoupons();
+                        }
                       },
                       icon: const Icon(
                         Icons.edit,

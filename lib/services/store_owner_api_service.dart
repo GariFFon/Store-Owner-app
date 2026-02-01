@@ -1206,4 +1206,32 @@ class StoreOwnerApiService {
       throw Exception('Failed to create coupon: $e');
     }
   }
+
+  /// Update an existing coupon
+  /// PUT /coupons/
+  static Future<bool> updateCoupon({
+    required String couponId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final response = await ApiService.put(
+        '/coupons/',
+        body: {
+          'coupon_id': couponId,
+          'data': data,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final responseData = response['data'];
+        if (responseData['status'] == 200) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Failed to update coupon: $e');
+    }
+  }
 }
