@@ -973,4 +973,36 @@ class StoreOwnerApiService {
       throw Exception('Failed to generate GST report: $e');
     }
   }
+
+  /// Fetch coupons
+  /// POST /coupons/
+  static Future<Map<String, dynamic>> getCoupons({
+    required String storeId,
+    int page = 1,
+    String orderBy = '-expiry_timestamp',
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/coupons/',
+        body: {
+          'store_id': storeId,
+          // 'store_access': true, // Not present in sample payload but usually required, sticking to sample payload for now + store_access if needed
+          'query': {},
+          'order_by': orderBy,
+          'page': page,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          return Map<String, dynamic>.from(data);
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch coupons: $e');
+    }
+  }
 }

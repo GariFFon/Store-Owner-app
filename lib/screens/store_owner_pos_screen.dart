@@ -24,6 +24,7 @@ import 'package:exanor/screens/financial_years_screen.dart';
 import 'package:exanor/screens/staff_management_screen.dart';
 import 'package:exanor/screens/gst_reports_screen.dart';
 import 'package:exanor/screens/settings_screen.dart';
+import 'package:exanor/screens/coupons_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1766,10 +1767,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.confirmation_number_outlined,
                     title: 'Coupons',
-                    iconColor: Colors.pinkAccent,
-                    backgroundColor: Colors.blue.withOpacity(0.05),
-                    textColor: Colors.blue,
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              CouponsScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
 
                   // Accounting Expansion Tile
