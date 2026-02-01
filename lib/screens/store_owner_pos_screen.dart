@@ -17,7 +17,15 @@ import 'package:exanor/screens/overview_screen.dart';
 import 'package:exanor/screens/sales_screen.dart';
 import 'package:exanor/screens/payment_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
+import 'package:exanor/screens/suppliers_list_screen.dart';
 import 'package:exanor/screens/gst_rates_screen.dart';
+import 'package:exanor/screens/customers_list_screen.dart';
+import 'package:exanor/screens/financial_years_screen.dart';
+import 'package:exanor/screens/staff_management_screen.dart';
+import 'package:exanor/screens/gst_reports_screen.dart';
+import 'package:exanor/screens/settings_screen.dart';
+import 'package:exanor/screens/coupons_screen.dart';
+import 'package:exanor/screens/inventory_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1739,7 +1747,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.warehouse_outlined,
                     title: 'Inventory',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              InventoryScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
                   _buildDrawerItem(
                     theme,
@@ -1760,10 +1777,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.confirmation_number_outlined,
                     title: 'Coupons',
-                    iconColor: Colors.pinkAccent,
-                    backgroundColor: Colors.blue.withOpacity(0.05),
-                    textColor: Colors.blue,
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              CouponsScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
 
                   // Accounting Expansion Tile
@@ -1822,14 +1845,34 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           icon: Icons.storefront_outlined,
                           title: 'Suppliers',
                           small: true,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SuppliersListScreen(
+                                  storeId: widget.storeId,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         _buildDrawerItem(
                           theme,
                           icon: Icons.people_outline,
                           title: 'Customers',
                           small: true,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CustomersListScreen(
+                                  storeId: widget.storeId,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         _buildDrawerItem(
                           theme,
@@ -1877,36 +1920,48 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           small: true,
                           onTap: () {},
                         ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.insert_chart_outlined,
+                          title: 'Reports',
+                          small: true,
+                          onTap: () {},
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.calendar_month_outlined,
+                          title: 'Financial Years',
+                          small: true,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FinancialYearsScreen(
+                                  storeId: widget.storeId,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildDrawerItem(
+                          theme,
+                          icon: Icons.percent,
+                          title: 'GST Rates',
+                          small: true,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    GstRatesScreen(storeId: widget.storeId),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
-                  ),
-
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.insert_chart_outlined,
-                    title: 'Reports',
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.calendar_month_outlined,
-                    title: 'Financial Years',
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    theme,
-                    icon: Icons.percent,
-                    title: 'GST Rates',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              GstRatesScreen(storeId: widget.storeId),
-                        ),
-                      );
-                    },
                   ),
 
                   // Reports Expansion Tile (Second one in image list)
@@ -1930,9 +1985,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         _buildDrawerItem(
                           theme,
                           icon: Icons.bar_chart,
-                          title: 'Sales Report',
+                          title: 'GST Reports',
                           small: true,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    GstReportsScreen(storeId: widget.storeId),
+                              ),
+                            );
+                          },
                         ),
                         // Add more sub-reports as needed
                       ],
@@ -1943,7 +2007,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.manage_accounts_outlined,
                     title: 'Staff Management',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              StaffManagementScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
 
                   const Divider(height: 32),
@@ -1952,7 +2025,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              SettingsScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 20),
