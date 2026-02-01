@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:exanor/components/translation_widget.dart';
+import 'package:exanor/screens/rack_details_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
   final String storeId;
@@ -395,24 +396,42 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _buildRackItem(Map<String, dynamic> rack) {
-    return Container(
-      width: 100,
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAF5FF), // Light purple tint from image
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF3E8FF)),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Center(
-        child: Text(
-          rack['name'] ?? 'Rack',
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Color(0xFF9333EA), // Purple text
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+    return InkWell(
+      onTap: () {
+        if (rack['id'] != null && rack['godown'] != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RackDetailsScreen(
+                storeId: widget.storeId,
+                rackId: rack['id'],
+                godownId: rack['godown'],
+                rackName: rack['name'] ?? 'Rack Details',
+              ),
+            ),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 100,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAF5FF), // Light purple tint from image
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFF3E8FF)),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Center(
+          child: Text(
+            rack['name'] ?? 'Rack',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF9333EA), // Purple text
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
           ),
         ),
       ),

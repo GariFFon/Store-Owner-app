@@ -374,6 +374,38 @@ class StoreOwnerApiService {
     }
   }
 
+  /// Fetch product inventory
+  /// POST /product-inventory/
+  static Future<Map<String, dynamic>> getProductInventory(
+    String storeId,
+    String rackId,
+    String godownId, {
+    int page = 1,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/product-inventory/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'query': {'rack_id': rackId, 'godown_id': godownId},
+          'filters': {},
+          'order_by': '-purchase_timestamp',
+          'page': page,
+          'limit': 25,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch product inventory: $e');
+    }
+  }
+
   /// Fetch racks
   /// POST /racks/
   static Future<List<Map<String, dynamic>>> getRacks(String storeId) async {
