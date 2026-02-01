@@ -626,7 +626,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                           const SizedBox(height: 8),
                                           Text(
                                             _formatCurrency(
-                                              productData['sale_price'],
+                                              product['mrp'],
                                             ), // Using sale price or MRP for big display
                                             style: const TextStyle(
                                               fontSize: 24,
