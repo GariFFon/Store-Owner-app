@@ -457,12 +457,36 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      itemCount: _filteredStores.length,
-      itemBuilder: (context, index) {
-        final store = _filteredStores[index];
-        return _buildStructuredCard(store);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 600) {
+          // Tablet / Desktop: Grid Layout
+          return GridView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 500,
+              mainAxisSpacing: 24,
+              crossAxisSpacing: 24,
+              mainAxisExtent: 290,
+            ),
+            itemCount: _filteredStores.length,
+            itemBuilder: (context, index) {
+              final store = _filteredStores[index];
+              return _buildStructuredCard(store);
+            },
+          );
+        } else {
+          // Mobile: List Layout
+          return ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            itemCount: _filteredStores.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 24),
+            itemBuilder: (context, index) {
+              final store = _filteredStores[index];
+              return _buildStructuredCard(store);
+            },
+          );
+        }
       },
     );
   }
@@ -484,7 +508,6 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
         storeImage.isNotEmpty);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: radius,
@@ -506,8 +529,27 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // SECTION 1: Header (Store Icon + Name)
-              Padding(
+              // SECTION 1: Header (Store Icon + Name) - SUBTLE PREMIUM LIGHT
+              Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFFE0F2FE), // Sky 100
+                      Color(0xFFDBEAFE), // Blue 100
+                    ],
+                  ),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.blue.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 16,
@@ -517,13 +559,20 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.orange[50],
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.store_mall_directory_rounded,
                         size: 20,
-                        color: Colors.orange[800],
+                        color: Color(0xFF0284C7), // Sky 600
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -533,10 +582,23 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
+                          color: Color(0xFF0F172A), // Slate 900
+                          letterSpacing: -0.3,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 14,
+                        color: Color(0xFF64748B), // Slate 500
                       ),
                     ),
                   ],
@@ -666,21 +728,33 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
               // DIVIDER 2
               _buildDashedDivider(),
 
-              // SECTION 3: Footer
-              Padding(
+              // SECTION 3: Footer - SUBTLE LIGHT GREY
+              Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC), // Slate 50
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(20),
+                  ),
+                  border: Border(
+                    top: BorderSide(
+                      color: Color(0xFFF1F5F9), // Slate 100
+                      width: 1,
+                    ),
+                  ),
+                ),
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE2E8F0), // Slate 200
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.location_on_rounded,
                         size: 16,
-                        color: Colors.blue[600],
+                        color: Color(0xFF64748B), // Slate 500
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -693,18 +767,18 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF334155),
+                              color: Color(0xFF334155), // Slate 700
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
                             city,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: Colors.grey[500],
+                              color: Color(0xFF94A3B8), // Slate 400
                             ),
                           ),
                         ],

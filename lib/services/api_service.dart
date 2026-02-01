@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'package:exanor/services/performance_service.dart';
@@ -18,13 +19,16 @@ class ApiService {
       'https://development.api.exanor.com/api/v1';
   static const String _defaultBareBaseUrl =
       'https://development.api.exanor.com';
-  static const int _defaultTimeoutSeconds = 120;
+  static const int _defaultTimeoutSeconds = 30;
 
   // Cached values (initialized once)
   static String? _cachedBaseUrl;
   static String? _cachedBareBaseUrl;
   static int? _cachedTimeoutSeconds;
   static bool _isConfigurationCached = false;
+
+  // Secure storage instance
+  static const _secureStorage = FlutterSecureStorage();
 
   /// Initialize API configuration (call once during app startup)
   static Future<void> initializeConfiguration() async {
@@ -420,26 +424,22 @@ class ApiService {
       performanceMetric.putAttribute('auth_refresh_attempted', 'true');
 
       try {
-        // First, check if we have a valid refresh token
-        final hasTokens = await isLoggedIn();
-        if (!hasTokens) {
-          _log('❌ No valid tokens available - cannot refresh');
-          performanceMetric.putAttribute('auth_refresh_result', 'no_tokens');
-          await performanceMetric.stop();
-          await _clearTokens();
-          await _navigateToPhoneRegistration();
-          throw ApiAuthException(
-            'Authentication required',
-            statusCode: 401,
-            response: data,
-            requiresRegistration: true,
-          );
-        }
-
-        // Get current refresh token
+        // Check token availability with detailed logging
+        final currentAccessToken = await _getAccessToken();
         final currentRefreshToken = await _getRefreshToken();
+
+        _log('🔍 Token Status Check:');
+        _log(
+          '   Access Token: ${currentAccessToken != null ? "Present (${currentAccessToken.length} chars)" : "Missing"}',
+        );
+        _log(
+          '   Refresh Token: ${currentRefreshToken != null ? "Present (${currentRefreshToken.length} chars)" : "Missing"}',
+        );
+
+        // Check if we have a refresh token (access token being expired is expected)
         if (currentRefreshToken == null) {
-          _log('❌ No refresh token available for refresh');
+          _log('❌ No refresh token available - cannot refresh');
+          _log('💡 User needs to re-authenticate');
           performanceMetric.putAttribute(
             'auth_refresh_result',
             'no_refresh_token',
@@ -455,7 +455,7 @@ class ApiService {
           );
         }
 
-        _log('🔑 Using refresh token to get new access token');
+        _log('🔑 Refresh token found - Attempting token refresh...');
         final refreshSuccess = await _refreshTokens();
 
         if (refreshSuccess) {
@@ -915,8 +915,15 @@ class ApiService {
   /// Get refresh token from storage
   static Future<String?> _getRefreshToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('refresh_token');
+      final token = await _secureStorage.read(key: 'refresh_token');
+      if (token != null) {
+        _log(
+          '🔑 Refresh token retrieved from secure storage (${token.length} chars)',
+        );
+      } else {
+        _log('⚠️ No refresh token found in secure storage');
+      }
+      return token;
     } catch (e) {
       _log('❌ Error getting refresh token: $e');
       return null;
@@ -928,8 +935,8 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('access_token');
-      await prefs.remove('refresh_token');
       await prefs.remove('csrf_token');
+      await _secureStorage.delete(key: 'refresh_token');
       _log('🗑️ All tokens cleared from storage');
     } catch (e) {
       _log('❌ Error clearing tokens: $e');
@@ -939,15 +946,65 @@ class ApiService {
   /// Update access and refresh tokens
   static Future<void> _updateTokens(
     String accessToken,
-    String refreshToken,
+    String? refreshToken,
   ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('access_token', accessToken);
-      await prefs.setString('refresh_token', refreshToken);
+
+      if (refreshToken != null) {
+        await _secureStorage.write(key: 'refresh_token', value: refreshToken);
+      }
+
       _log('🔄 Tokens updated successfully');
     } catch (e) {
       _log('❌ Error updating tokens: $e');
+    }
+  }
+
+  /// Public method to store tokens (e.g. from sign up/login)
+  static Future<void> storeTokens({
+    required String accessToken,
+    required String? refreshToken,
+    String? csrfToken,
+  }) async {
+    try {
+      _log('💾 Storing tokens...');
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('access_token', accessToken);
+      _log('   ✅ Access token stored (${accessToken.length} chars)');
+
+      if (csrfToken != null) {
+        await prefs.setString('csrf_token', csrfToken);
+        _log('   ✅ CSRF token stored');
+      }
+
+      if (refreshToken != null) {
+        await _secureStorage.write(key: 'refresh_token', value: refreshToken);
+        _log(
+          '   ✅ Refresh token stored in secure storage (${refreshToken.length} chars)',
+        );
+
+        // Verify the refresh token was actually written
+        final verifyRefreshToken = await _secureStorage.read(
+          key: 'refresh_token',
+        );
+        if (verifyRefreshToken != null) {
+          _log('   ✅ Refresh token verified in storage');
+        } else {
+          _log(
+            '   ⚠️ WARNING: Refresh token verification failed - token not found after write!',
+          );
+        }
+      } else {
+        _log('   ⚠️ No refresh token provided to store');
+      }
+
+      _log('✅ Token storage completed');
+    } catch (e) {
+      _log('❌ Error storing tokens: $e');
+      rethrow; // Re-throw to let caller know storage failed
     }
   }
 
@@ -963,19 +1020,20 @@ class ApiService {
       _log('🔄 Refreshing tokens...');
 
       // Make refresh request without Bearer token to avoid infinite loop
-      _log('📤 Sending refresh token request to $_bareBaseUrl/refresh-token/');
-      _log(
-        '📦 Request body: {"refresh": "${refreshToken.substring(0, 20)}..."}',
-      );
+      _log('📤 Sending refresh token request to $_baseUrl/auth/refresh/');
+
+      final body = {'is_app': true, 'refresh_token': refreshToken};
+
+      _log('📦 Request body: ${jsonEncode(body)}');
 
       final response = await http
           .post(
-            Uri.parse('$_bareBaseUrl/refresh-token/'),
+            Uri.parse('$_baseUrl/auth/refresh/'),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: jsonEncode({'refresh': refreshToken}),
+            body: jsonEncode(body),
           )
           .timeout(_timeout);
 
@@ -986,17 +1044,20 @@ class ApiService {
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         final newAccessToken = responseData['access'];
-        final newRefreshToken = responseData['refresh'];
+        final newRefreshToken =
+            responseData['refresh_token']; // Changed from 'refresh'
 
         _log('🔑 New Access Token: ${newAccessToken?.substring(0, 20)}...');
-        _log('🔑 New Refresh Token: ${newRefreshToken?.substring(0, 20)}...');
+        if (newRefreshToken != null) {
+          _log('🔑 New Refresh Token: ${newRefreshToken.substring(0, 20)}...');
+        }
 
-        if (newAccessToken != null && newRefreshToken != null) {
+        if (newAccessToken != null) {
           await _updateTokens(newAccessToken, newRefreshToken);
           _log('✅ Tokens refreshed successfully');
           return true;
         } else {
-          _log('❌ Invalid refresh response format - missing tokens');
+          _log('❌ Invalid refresh response format - missing access token');
           return false;
         }
       } else if (response.statusCode == 401) {
@@ -1026,6 +1087,34 @@ class ApiService {
     final accessToken = await _getAccessToken();
     final refreshToken = await _getRefreshToken();
     return accessToken != null && refreshToken != null;
+  }
+
+  /// Debug method to check and log current token status
+  /// Useful for troubleshooting authentication issues
+  static Future<Map<String, dynamic>> getTokenStatus() async {
+    final accessToken = await _getAccessToken();
+    final refreshToken = await _getRefreshToken();
+
+    final status = {
+      'hasAccessToken': accessToken != null,
+      'hasRefreshToken': refreshToken != null,
+      'accessTokenLength': accessToken?.length ?? 0,
+      'refreshTokenLength': refreshToken?.length ?? 0,
+      'isLoggedIn': accessToken != null && refreshToken != null,
+    };
+
+    _log('📊 Token Status:');
+    final hasAccessToken = status['hasAccessToken'] as bool;
+    final hasRefreshToken = status['hasRefreshToken'] as bool;
+    _log(
+      '   Access Token: ${hasAccessToken ? "Present (${status['accessTokenLength']} chars)" : "Missing"}',
+    );
+    _log(
+      '   Refresh Token: ${hasRefreshToken ? "Present (${status['refreshTokenLength']} chars)" : "Missing"}',
+    );
+    _log('   Logged In: ${status['isLoggedIn']}');
+
+    return status;
   }
 
   // Global navigator key for navigation from services

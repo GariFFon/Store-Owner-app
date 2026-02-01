@@ -4,9 +4,13 @@ import 'package:exanor/screens/product_details_screen.dart';
 import 'package:exanor/screens/purchase_details_screen.dart';
 import 'package:exanor/screens/supplier_details_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
+import 'package:exanor/services/api_service.dart';
+import 'package:exanor/components/store_main_drawer.dart';
 import 'package:exanor/screens/intelligence_upload_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 
 class PurchaseScreen extends StatefulWidget {
   final String storeId;
@@ -18,11 +22,11 @@ class PurchaseScreen extends StatefulWidget {
 }
 
 class _PurchaseScreenState extends State<PurchaseScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
   List<dynamic> _vouchers = [];
   bool _isLoading = true;
   bool _isLoadingMore = false;
-  // ignore: unused_field
   bool _hasNextPage = false;
   int _limit = 50;
   int _offset = 0;
@@ -30,11 +34,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
   DateTimeRange? _selectedDateRange;
   String? _errorMessage;
+  String? _storeName;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_scrollListener);
+    _fetchStoreName();
     _fetchPurchases();
   }
 
@@ -42,6 +48,24 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchStoreName() async {
+    try {
+      final response = await ApiService.get(
+        '/stores/${widget.storeId}/',
+        useBearerToken: true,
+      );
+      if (response['data'] != null &&
+          response['data']['status'] == 200 &&
+          mounted) {
+        setState(() {
+          _storeName = response['data']['response']['name'];
+        });
+      }
+    } catch (e) {
+      print("❌ Error fetching store name: $e");
+    }
   }
 
   void _scrollListener() {
@@ -98,9 +122,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           _hasNextPage = _vouchers.length < _count;
           _isLoading = false;
           _isLoadingMore = false;
+          _errorMessage = null;
         });
       }
     } catch (e) {
+      print('Error fetching purchases: $e');
       if (mounted) {
         setState(() {
           _errorMessage = e.toString();
@@ -112,11 +138,24 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   }
 
   Future<void> _selectDateRange() async {
-    final picked = await showDateRangePicker(
+    final DateTime now = DateTime.now();
+    final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 365)),
       initialDateRange: _selectedDateRange,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.blue,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null && picked != _selectedDateRange) {
@@ -125,13 +164,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       });
       _fetchPurchases();
     }
-  }
-
-  void _clearFilter() {
-    setState(() {
-      _selectedDateRange = null;
-    });
-    _fetchPurchases();
   }
 
   Color _getStatusColor(String status) {
@@ -157,7 +189,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     );
 
     if (result != null && result is Map<String, dynamic> && mounted) {
-      // Navigate to Supplier Details Screen
       final supplierResult = await Navigator.push<Map<String, dynamic>>(
         context,
         MaterialPageRoute(
@@ -166,7 +197,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         ),
       );
 
-      // If user clicked Continue on Supplier Details, show Product Details
       if (supplierResult != null &&
           supplierResult['continue'] == true &&
           mounted) {
@@ -183,180 +213,362 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           ),
         );
 
-        // If user clicked Continue on Product Details, go to Add Purchase Order Screen with data
         if (productContinue == true && mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddPurchaseOrderScreen(
-                storeId: widget.storeId,
-                aiData: result,
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AddPurchaseOrderScreen(
+                  storeId: widget.storeId,
+                  aiData: result,
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
       }
     }
+  }
+
+  void _showAddPurchaseMenu() {
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'New Purchase',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.edit_note, color: Colors.blue),
+              ),
+              title: const Text('Manually'),
+              subtitle: const Text('Enter details manually'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        AddPurchaseOrderScreen(storeId: widget.storeId),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.auto_awesome, color: Colors.purple),
+              ),
+              title: const Text('With AI'),
+              subtitle: const Text('Scan or upload invoice'),
+              onTap: () {
+                Navigator.pop(context);
+                _handleAiPurchase();
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const TranslatedText(
-          'Purchases',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        elevation: 0,
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: theme.colorScheme.onSurface,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'manual') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          AddPurchaseOrderScreen(storeId: widget.storeId),
-                    ),
-                  );
-                } else if (value == 'ai') {
-                  _handleAiPurchase();
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.primaryColor,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.add, size: 18, color: Colors.white),
-                    const SizedBox(width: 8),
-                    const TranslatedText(
-                      'New Purchase',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.arrow_drop_down,
-                      size: 18,
-                      color: Colors.white,
-                    ),
-                  ],
-                ),
-              ),
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(
-                  value: 'manual',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_note, color: theme.colorScheme.primary),
-                      const SizedBox(width: 12),
-                      const TranslatedText('Manually'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'ai',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.auto_awesome,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      const TranslatedText('With AI'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
       ),
-      body: Column(
-        children: [
-          _buildFilterBar(theme),
-          Expanded(child: _buildBody(theme)),
-        ],
+      child: Scaffold(
+        key: _scaffoldKey,
+        extendBodyBehindAppBar: true,
+        primary: false,
+        backgroundColor: Colors.grey[50],
+        drawer: StoreMainDrawer(
+          storeId: widget.storeId,
+          storeName: _storeName ?? 'Store',
+        ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildExpandedBanner(theme),
+            Expanded(child: _buildBody(theme)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFilterBar(ThemeData theme) {
+  Widget _buildExpandedBanner(ThemeData theme) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: theme.colorScheme.surface,
-      child: Row(
-        children: [
-          Expanded(
-            child: InkWell(
-              onTap: _selectDateRange,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: theme.dividerColor),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _selectedDateRange != null
-                            ? '${DateFormat('MMM d, yyyy').format(_selectedDateRange!.start)} - ${DateFormat('MMM d, yyyy').format(_selectedDateRange!.end)}'
-                            : 'Filter by Date',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ),
-                    if (_selectedDateRange != null)
-                      GestureDetector(
-                        onTap: () {
-                          // Prevent triggering the parent onTap
-                          // But here onTap is on InkWell, so we might need a separate button
-                        },
-                        child: InkWell(
-                          onTap: _clearFilter,
-                          child: Icon(
-                            Icons.close,
-                            size: 16,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      )
-                    else
-                      Icon(
-                        Icons.arrow_drop_down,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                  ],
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.shopping_bag_outlined,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.6),
                 ),
               ),
             ),
-          ),
-        ],
+
+            // Content
+            Padding(
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top + 8,
+                bottom: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ROW 1: HEADER (Back/Menu, Title, filters)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        // Menu Button (Replaced Back)
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              'MENU',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.menu_rounded,
+                                color: Colors.blueGrey,
+                                size: 32,
+                              ),
+                              onPressed: () {
+                                _scaffoldKey.currentState?.openDrawer();
+                              },
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+
+                        // Title
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TranslatedText(
+                                'Purchases',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                  height: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: Colors.blue.withOpacity(0.2),
+                                  ),
+                                ),
+                                child: const TranslatedText(
+                                  'HISTORY',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.blue,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Date Filter Button
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              _selectedDateRange != null ? 'CLEAR' : 'DATE',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: _selectedDateRange != null
+                                    ? Colors.red[400]
+                                    : Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () {
+                                if (_selectedDateRange != null) {
+                                  setState(() {
+                                    _selectedDateRange = null;
+                                  });
+                                  _fetchPurchases();
+                                } else {
+                                  _selectDateRange();
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _selectedDateRange != null
+                                      ? Colors.red[50]
+                                      : Colors.white,
+                                  border: Border.all(
+                                    color: _selectedDateRange != null
+                                        ? Colors.red.withOpacity(0.2)
+                                        : Colors.white,
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.blueGrey.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  _selectedDateRange != null
+                                      ? Icons.close
+                                      : Icons.calendar_today_rounded,
+                                  size: 20,
+                                  color: _selectedDateRange != null
+                                      ? Colors.red
+                                      : Colors.blueGrey[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+
+                        // New Purchase Button (Enhanced)
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              'NEW',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: _showAddPurchaseMenu,
+                              borderRadius: BorderRadius.circular(30),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      theme.primaryColor,
+                                      theme.primaryColor.withOpacity(0.8),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: theme.primaryColor.withOpacity(
+                                        0.4,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.add,
+                                  size: 22,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -375,7 +587,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(_errorMessage!, textAlign: TextAlign.center),
+              child: Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyLarge,
+              ),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -395,19 +611,24 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             Icon(
               Icons.shopping_bag_outlined,
               size: 64,
-              color: theme.colorScheme.onSurface.withOpacity(0.2),
+              color: Colors.black.withOpacity(0.1),
             ),
             const SizedBox(height: 16),
             TranslatedText(
               'No purchases found',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                color: Colors.black.withOpacity(0.4),
               ),
             ),
             if (_selectedDateRange != null) ...[
               const SizedBox(height: 8),
               TextButton(
-                onPressed: _clearFilter,
+                onPressed: () {
+                  setState(() {
+                    _selectedDateRange = null;
+                  });
+                  _fetchPurchases();
+                },
                 child: const TranslatedText('Clear Filter'),
               ),
             ],
@@ -416,44 +637,53 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => _fetchPurchases(),
-      child: ListView.separated(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(16),
-        itemCount: _vouchers.length + (_isLoadingMore ? 1 : 0),
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          if (index == _vouchers.length) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
+    return ListView.separated(
+      controller: _scrollController,
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 30, left: 16, right: 16, top: 16),
+      itemCount: _vouchers.length + (_isLoadingMore ? 1 : 0),
+      separatorBuilder: (context, index) => const SizedBox(height: 16),
+      itemBuilder: (context, index) {
+        if (index == _vouchers.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          final voucher = _vouchers[index];
-          return _buildPurchaseCard(theme, voucher);
-        },
-      ),
+        return _buildPremiumPurchaseCard(theme, _vouchers[index]);
+      },
     );
   }
 
-  Widget _buildPurchaseCard(ThemeData theme, dynamic voucher) {
+  Widget _buildPremiumPurchaseCard(ThemeData theme, dynamic voucher) {
     final paymentStatus =
         voucher['payment_info']?['payment_status'] ?? 'UNKNOWN';
     final statusColor = _getStatusColor(paymentStatus);
     final supplierName = voucher['supplier']?['name'] ?? 'Unknown Supplier';
+    final voucherNumber = voucher['voucher_number'] ?? 'No Voucher #';
+
+    final grandTotal = voucher['grand_total'];
+    final amount = '₹$grandTotal';
+
+    final dateStr = voucher['date'] ?? '';
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: theme.shadowColor.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+            spreadRadius: 0,
           ),
         ],
       ),
@@ -471,99 +701,137 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               ),
             );
           },
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Container(
+                      height: 48,
+                      width: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.05),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.store_mall_directory_rounded,
+                        color: Colors.blue,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             supplierName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E293B),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '#${voucher['voucher_number']}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                            '#$voucherNumber',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.blueGrey[300],
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
                     ),
+
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '₹${voucher['grand_total']}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.primaryColor,
+                          amount,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.5,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          voucher['date'] ?? '',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          dateStr,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.blueGrey[400],
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Divider(height: 1, color: theme.dividerColor.withOpacity(0.1)),
-                const SizedBox(height: 12),
+
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 16),
+
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
+                        horizontal: 10,
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: statusColor.withOpacity(0.2),
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         paymentStatus,
-                        style: theme.textTheme.labelSmall?.copyWith(
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                           color: statusColor,
-                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    if (voucher['status'] == 'PENDING')
+
+                    if (voucher['status'] == 'PENDING') ...[
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
+                          horizontal: 10,
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.orange.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.orange.withOpacity(0.2),
+                            width: 1,
+                          ),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Verify Pending',
-                          style: theme.textTheme.labelSmall?.copyWith(
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                             color: Colors.orange,
-                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ),
               ],
