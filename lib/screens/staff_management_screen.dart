@@ -882,10 +882,16 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   Future<void> _handleAddStaff(String phoneNumber, String roleId) async {
     setState(() => _isLoading = true);
+
+    // Add country code 91 default for India
+    final formattedPhoneNumber = phoneNumber.length == 10
+        ? '91$phoneNumber'
+        : phoneNumber;
+
     try {
       final success = await StoreOwnerApiService.createStoreStaff(
         storeId: widget.storeId,
-        phoneNumber: phoneNumber,
+        phoneNumber: formattedPhoneNumber,
         roleId: roleId,
       );
       if (mounted) {
