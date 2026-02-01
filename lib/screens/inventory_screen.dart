@@ -274,7 +274,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ),
                   TextButton.icon(
                     onPressed: () {
-                      // TODO: Add Rack
+                      _showAddRackSheet(godownId: godownId);
                     },
                     icon: const Icon(Icons.add, size: 16),
                     label: const TranslatedText('Add Rack'),
@@ -659,14 +659,225 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+  void _showAddRackSheet({required String godownId}) {
+    final nameController = TextEditingController();
+    final levelController = TextEditingController(text: '1');
+    final descriptionController = TextEditingController();
+    bool isActive = true;
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const TranslatedText(
+                          'Create New Rack',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.grey),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+
+                  // Form
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildTextField(
+                            controller: nameController,
+                            label: 'Rack Name *',
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: levelController,
+                            label: 'Level',
+                            keyboardType: TextInputType.number,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: descriptionController,
+                            label: 'Description',
+                            maxLines: 4,
+                          ),
+                          const SizedBox(height: 24),
+                          _buildSwitch(
+                            title: 'Active Status',
+                            subtitle: 'Enable or disable this rack',
+                            value: isActive,
+                            onChanged: (val) {
+                              setSheetState(() => isActive = val);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border(
+                        top: BorderSide(color: Colors.grey.shade200),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Spacer(), // Spacer
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            side: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          child: const TranslatedText(
+                            'Cancel',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  if (nameController.text.trim().isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Rack Name is required'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  setSheetState(() => isSubmitting = true);
+
+                                  try {
+                                    await StoreOwnerApiService.createRack(
+                                      storeId: widget.storeId,
+                                      godownId: godownId,
+                                      name: nameController.text.trim(),
+                                      level:
+                                          int.tryParse(levelController.text) ??
+                                          1,
+                                      description: descriptionController.text
+                                          .trim(),
+                                      isActive: isActive,
+                                    );
+
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      _fetchData(); // Refresh list
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Rack created successfully',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text('Error: $e')),
+                                      );
+                                    }
+                                  } finally {
+                                    if (context.mounted) {
+                                      setSheetState(() => isSubmitting = false);
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF007BFF),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: isSubmitting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const TranslatedText(
+                                  'Create',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     int maxLines = 1,
+    TextInputType? keyboardType,
   }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
+      keyboardType: keyboardType,
       decoration: InputDecoration(
         hintText: label,
         hintStyle: TextStyle(color: Colors.grey[400]),

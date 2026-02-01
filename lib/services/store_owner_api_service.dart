@@ -339,6 +339,41 @@ class StoreOwnerApiService {
     }
   }
 
+  /// Create rack
+  /// POST /racks/
+  static Future<Map<String, dynamic>> createRack({
+    required String storeId,
+    required String godownId,
+    required String name,
+    required int level,
+    required String description,
+    required bool isActive,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/racks/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'create': true,
+          'godown': godownId,
+          'name': name,
+          'level': level,
+          'description': description,
+          'is_active': isActive,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to create rack: $e');
+    }
+  }
+
   /// Fetch racks
   /// POST /racks/
   static Future<List<Map<String, dynamic>>> getRacks(String storeId) async {
