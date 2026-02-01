@@ -1006,4 +1006,32 @@ class StoreOwnerApiService {
       throw Exception('Failed to fetch coupons: $e');
     }
   }
+
+  /// Create a new coupon
+  /// POST /add-coupon/
+  static Future<bool> createCoupon(Map<String, dynamic> couponData) async {
+    try {
+      // Add modified_on_timestamp if not present
+      if (!couponData.containsKey('modified_on_timestamp')) {
+        couponData['modified_on_timestamp'] =
+            (DateTime.now().millisecondsSinceEpoch / 1000).round();
+      }
+
+      final response = await ApiService.post(
+        '/add-coupon/',
+        body: couponData,
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Failed to create coupon: $e');
+    }
+  }
 }

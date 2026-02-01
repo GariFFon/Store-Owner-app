@@ -1,5 +1,6 @@
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/models/coupon.dart';
+import 'package:exanor/screens/create_coupon_bottom_sheet.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -132,13 +133,18 @@ class _CouponsScreenState extends State<CouponsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () {
-              // TODO: Implement create coupon
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: TranslatedText('Create Coupon to be implemented'),
-                ),
+            onPressed: () async {
+              final result = await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) =>
+                    CreateCouponBottomSheet(storeId: widget.storeId),
               );
+
+              if (result == true) {
+                _fetchCoupons();
+              }
             },
           ),
         ],
