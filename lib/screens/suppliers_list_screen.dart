@@ -487,27 +487,33 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
       children: [
         if (isDesktop) _buildTableHeader(theme),
         Expanded(
-          child: ListView.separated(
-            controller: _scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            itemCount: _parties.length + (_isLoadingMore ? 1 : 0),
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              if (index == _parties.length) {
-                return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-
-              final party = _parties[index];
-              return _buildClickableItem(
-                party: party,
-                child: isDesktop
-                    ? _buildDesktopListItem(party, theme)
-                    : _buildMobileListItem(party, theme),
-              );
+          child: RefreshIndicator(
+            onRefresh: () async {
+              await _fetchParties();
             },
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              itemCount: _parties.length + (_isLoadingMore ? 1 : 0),
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                if (index == _parties.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                final party = _parties[index];
+                return _buildClickableItem(
+                  party: party,
+                  child: isDesktop
+                      ? _buildDesktopListItem(party, theme)
+                      : _buildMobileListItem(party, theme),
+                );
+              },
+            ),
           ),
         ),
       ],

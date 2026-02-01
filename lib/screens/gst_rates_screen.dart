@@ -152,9 +152,7 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchRates),
-        ],
+        actions: [],
       ),
       body: Column(
         children: [
@@ -184,71 +182,75 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
           ),
 
           Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Stats Cards
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          'Total GST Rates',
-                          '$_totalCount',
-                          Colors.blue.shade700,
-                          bgColor: Colors.blue.shade50,
+            child: RefreshIndicator(
+              onRefresh: _fetchRates,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Stats Cards
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            'Total GST Rates',
+                            '$_totalCount',
+                            Colors.blue.shade700,
+                            bgColor: Colors.blue.shade50,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildStatCard(
-                          'Active Rates',
-                          '$_activeCount', // This is only for the current page, ideally should be total active from API
-                          Colors.green.shade700,
-                          bgColor: Colors.green.shade50,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Active Rates',
+                            '$_activeCount', // This is only for the current page, ideally should be total active from API
+                            Colors.green.shade700,
+                            bgColor: Colors.green.shade50,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildStatCard(
-                          'Loaded',
-                          '${_rates.length} / $_totalCount',
-                          Colors.blue.shade700,
-                          bgColor: Colors.blue.shade50,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Loaded',
+                            '${_rates.length} / $_totalCount',
+                            Colors.blue.shade700,
+                            bgColor: Colors.blue.shade50,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Table
-                  _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildRatesTable(),
-
-                  if (_isLoadingMore)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Center(child: CircularProgressIndicator()),
+                      ],
                     ),
 
-                  if (!_hasMore && !_isLoading && _rates.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24.0),
-                      child: Center(
-                        child: Text(
-                          "No more rates to load",
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 12,
+                    const SizedBox(height: 24),
+
+                    // Table
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildRatesTable(),
+
+                    if (_isLoadingMore)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+
+                    if (!_hasMore && !_isLoading && _rates.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24.0),
+                        child: Center(
+                          child: Text(
+                            "No more rates to load",
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

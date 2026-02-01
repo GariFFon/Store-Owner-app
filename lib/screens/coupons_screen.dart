@@ -252,25 +252,31 @@ class _CouponsScreenState extends State<CouponsScreen> {
                   )
                 : Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: GridView.builder(
-                      controller: _scrollController,
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 400,
-                            childAspectRatio: 0.60,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                          ),
-                      itemCount: _coupons.length + (_hasNextPage ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == _coupons.length) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        final coupon = _coupons[index];
-                        return _buildCouponCard(coupon);
+                    child: RefreshIndicator(
+                      onRefresh: () async {
+                        await _fetchCoupons();
                       },
+                      child: GridView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        controller: _scrollController,
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 400,
+                              childAspectRatio: 0.60,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                        itemCount: _coupons.length + (_hasNextPage ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == _coupons.length) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+                          final coupon = _coupons[index];
+                          return _buildCouponCard(coupon);
+                        },
+                      ),
                     ),
                   ),
           ),
@@ -474,9 +480,8 @@ class _CouponsScreenState extends State<CouponsScreen> {
                           context: context,
                           isScrollControlled: true,
                           backgroundColor: Colors.transparent,
-                          builder: (context) => EditCouponBottomSheet(
-                            coupon: coupon,
-                          ),
+                          builder: (context) =>
+                              EditCouponBottomSheet(coupon: coupon),
                         );
 
                         if (result == true) {
