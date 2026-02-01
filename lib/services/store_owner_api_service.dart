@@ -679,4 +679,97 @@ class StoreOwnerApiService {
       throw Exception('Failed to create financial year: $e');
     }
   }
+
+  /// View User Roles
+  /// POST /view-user-roles/
+  static Future<List<Map<String, dynamic>>> viewUserRoles(
+    String storeId,
+  ) async {
+    try {
+      final response = await ApiService.post(
+        '/view-user-roles/',
+        body: {'store_id': storeId},
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return List<Map<String, dynamic>>.from(data['response']);
+        }
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to fetch user roles: $e');
+    }
+  }
+
+  /// Get Store Staff
+  /// POST /store-staff/
+  static Future<List<Map<String, dynamic>>> getStoreStaff(
+    String storeId,
+  ) async {
+    try {
+      final response = await ApiService.post(
+        '/store-staff/',
+        body: {
+          'store_id': storeId,
+          'view': true,
+          'create': false,
+          'staff_data': {},
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return List<Map<String, dynamic>>.from(data['response']);
+        }
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to fetch store staff: $e');
+    }
+  }
+
+  /// Update Store Staff
+  /// POST /store-staff/
+  static Future<bool> updateStoreStaff({
+    required String storeId,
+    required String staffId,
+    required String phoneNumber,
+    required String roleId,
+    required Map<String, dynamic> dataToBeUpdated,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/store-staff/',
+        body: {
+          'store_id': storeId,
+          'staff_id': staffId,
+          'view': false,
+          'create': false,
+          'update': true,
+          'staff_data': {
+            'phone_number': phoneNumber,
+            'country_code': '+91', // Adding default country code just in case
+            'role_id': roleId,
+          },
+          'data_to_be_updated': dataToBeUpdated,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 || data['status'] == 201) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Failed to update store staff: $e');
+    }
+  }
 }

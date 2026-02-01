@@ -21,6 +21,7 @@ import 'package:exanor/screens/suppliers_list_screen.dart';
 import 'package:exanor/screens/gst_rates_screen.dart';
 import 'package:exanor/screens/customers_list_screen.dart';
 import 'package:exanor/screens/financial_years_screen.dart';
+import 'package:exanor/screens/staff_management_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1978,7 +1979,16 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     theme,
                     icon: Icons.manage_accounts_outlined,
                     title: 'Staff Management',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              StaffManagementScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
                   ),
 
                   const Divider(height: 32),
