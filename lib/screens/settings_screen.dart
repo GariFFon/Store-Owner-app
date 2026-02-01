@@ -30,6 +30,15 @@ class _SettingsScreenState extends State<SettingsScreen>
   List<Map<String, dynamic>> _orderMethodTemplates = [];
   bool _isTemplatesLoading = false;
 
+  // Payment Tab State
+  List<Map<String, dynamic>> _paymentMethods = [];
+  bool _isPaymentsLoading = false;
+  String? _paymentsError;
+
+  // Payment Method Templates
+  List<Map<String, dynamic>> _paymentMethodTemplates = [];
+  bool _isPaymentTemplatesLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +60,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (_tabController.index == 1 && !_tabController.indexIsChanging) {
       // 1 is the index for 'ORDERS' tab
       _fetchOrderMethods();
+    } else if (_tabController.index == 2 && !_tabController.indexIsChanging) {
+      // 2 is the index for 'PAYMENTS' tab
+      _fetchPaymentMethods();
     }
   }
 
@@ -559,6 +571,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                   onTap: (index) {
                     if (index == 1) {
                       _fetchOrderMethods();
+                    } else if (index == 2) {
+                      _fetchPaymentMethods();
                     }
                   },
                 ),
@@ -575,7 +589,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     children: [
                       _buildGeneralTab(),
                       _buildOrdersTab(),
-                      _buildPlaceholderTab('Payments'),
+                      _buildPaymentsTab(),
                       _buildPlaceholderTab('Payouts'),
                       _buildPlaceholderTab('Shipping'),
                       _buildPlaceholderTab('Notifications'),
@@ -977,5 +991,610 @@ class _SettingsScreenState extends State<SettingsScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _fetchPaymentMethods() async {
+    setState(() {
+      _isPaymentsLoading = true;
+      _paymentsError = null;
+    });
+
+    try {
+      final response = await ApiService.post(
+        '/payment-method/',
+        body: {
+          "view": true,
+          "store_id": widget.storeId,
+          "query": {"is_enabled": true},
+          "order_by": "id",
+          "limit": 500,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          setState(() {
+            _paymentMethods = List<Map<String, dynamic>>.from(data['response']);
+            _isPaymentsLoading = false;
+          });
+        } else {
+          setState(() {
+            _isPaymentsLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          _paymentsError = 'Failed to load payment methods';
+          _isPaymentsLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _paymentsError = 'Error: $e';
+        _isPaymentsLoading = false;
+      });
+    }
+  }
+
+  Future<void> _fetchPaymentMethodTemplates() async {
+    setState(() {
+      _isPaymentTemplatesLoading = true;
+    });
+
+    try {
+      final response = await ApiService.post(
+        '/payment-method-template/',
+        body: {"store_id": widget.storeId},
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          setState(() {
+            _paymentMethodTemplates = List<Map<String, dynamic>>.from(
+              data['response'],
+            );
+            _isPaymentTemplatesLoading = false;
+          });
+        } else {
+          setState(() => _isPaymentTemplatesLoading = false);
+        }
+      } else {
+        setState(() => _isPaymentTemplatesLoading = false);
+      }
+    } catch (e) {
+      print('Error fetching payment templates: $e');
+      setState(() => _isPaymentTemplatesLoading = false);
+    }
+  }
+
+  Widget _buildPaymentsTab() {
+    if (_isPaymentsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_paymentsError != null) {
+      return Center(
+        child: Column(
+          children: [
+            Text(_paymentsError!, style: const TextStyle(color: Colors.red)),
+            ElevatedButton(
+              onPressed: _fetchPaymentMethods,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // Tab Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: _buildSectionHeader(
+                title: 'Payment settings',
+                description: 'Update your payment methods here',
+              ),
+            ),
+            OutlinedButton(
+              onPressed: () {
+                _showPaymentMethodBottomSheet();
+              },
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                side: const BorderSide(color: Colors.blue),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              child: const Text(
+                '+ ADD PAYMENT METHOD',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Divider(height: 1, color: Colors.grey[300]),
+        const SizedBox(height: 24),
+
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Payment Methods',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose your payment methods (charges apply)',
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // List of Payment Methods
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _paymentMethods.length,
+          separatorBuilder: (context, index) =>
+              Divider(color: Colors.grey[200]),
+          itemBuilder: (context, index) {
+            final method = _paymentMethods[index];
+            final imgUrl = method['img_url'];
+            final isEnabled = method['is_enabled'] ?? false;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  // Toggle
+                  Switch(
+                    value: isEnabled,
+                    onChanged: (val) {
+                      _updatePaymentMethodStatus(method['id'], val);
+                    },
+                    activeColor: Colors.white,
+                    activeTrackColor: Colors.blue,
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Icon/Image
+                  if (imgUrl != null)
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                        image: DecorationImage(
+                          image: NetworkImage(imgUrl),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(Icons.payment, color: Colors.grey),
+                    ),
+
+                  const SizedBox(width: 16),
+
+                  // Name
+                  Expanded(
+                    child: Text(
+                      method['payment_method_name'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+
+                  // Edit Button
+                  TextButton(
+                    onPressed: () {
+                      _showPaymentMethodBottomSheet(paymentMethod: method);
+                    },
+                    child: const Text('EDIT'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _updatePaymentMethodStatus(String id, bool isEnabled) async {
+    // Optimistic Update
+    setState(() {
+      final index = _paymentMethods.indexWhere(
+        (element) => element['id'] == id,
+      );
+      if (index != -1) {
+        _paymentMethods[index]['is_enabled'] = isEnabled;
+      }
+    });
+
+    try {
+      final response = await ApiService.put(
+        '/payment-method/',
+        body: {
+          "store_id": widget.storeId,
+          "payment_method_id": id,
+          "data_to_be_updated": {"is_enabled": isEnabled},
+        },
+        useBearerToken: true,
+      );
+
+      bool success = false;
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        if (response['data']['status'] == 200) {
+          success = true;
+        }
+      }
+
+      if (!success) {
+        // Revert on failure response
+        setState(() {
+          final index = _paymentMethods.indexWhere(
+            (element) => element['id'] == id,
+          );
+          if (index != -1) {
+            _paymentMethods[index]['is_enabled'] = !isEnabled;
+          }
+        });
+
+        if (mounted) {
+          String errorMessage = 'Failed to update status';
+          if (response['data'] != null &&
+              response['data']['response'] != null) {
+            errorMessage = response['data']['response'].toString();
+          }
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(errorMessage)));
+        }
+      }
+    } catch (e) {
+      // Revert on exception
+      setState(() {
+        final index = _paymentMethods.indexWhere(
+          (element) => element['id'] == id,
+        );
+        if (index != -1) {
+          _paymentMethods[index]['is_enabled'] = !isEnabled;
+        }
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating status: $e')));
+      }
+    }
+  }
+
+  Future<void> _showPaymentMethodBottomSheet({
+    Map<String, dynamic>? paymentMethod,
+  }) async {
+    final isEditing = paymentMethod != null;
+
+    // Fetch templates if not already loaded
+    if (_paymentMethodTemplates.isEmpty) {
+      await _fetchPaymentMethodTemplates();
+    }
+
+    if (!mounted) return;
+
+    String? selectedTemplateId = paymentMethod?['payment_method_template_id'];
+    bool levyCharges =
+        paymentMethod?['levy_payment_gateway_charges_on_customer'] ?? false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isEditing ? 'Edit Payment Method' : 'Add Payment Method',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Levy Charges Checkbox
+                  Row(
+                    children: [
+                      SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: Checkbox(
+                          value: levyCharges,
+                          onChanged: (val) {
+                            setSheetState(() {
+                              levyCharges = val ?? false;
+                            });
+                          },
+                          side: const BorderSide(color: Colors.grey, width: 2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Flexible(
+                        child: Text(
+                          'Levy payment gateway charges on customer',
+                          style: TextStyle(fontSize: 16, color: Colors.black87),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  if (_isPaymentTemplatesLoading)
+                    const Center(child: CircularProgressIndicator())
+                  else
+                    InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'Payment Method Template',
+                        labelStyle: TextStyle(color: Colors.blue[700]),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: Colors.blue[700]!,
+                            width: 1.5,
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedTemplateId,
+                          isExpanded: true,
+                          hint: const Text('Select a template'),
+                          icon: const Icon(Icons.arrow_drop_down),
+                          items: _paymentMethodTemplates.map((template) {
+                            return DropdownMenuItem<String>(
+                              value: template['id'],
+                              child: Text(
+                                template['payment_method_name'] ?? 'Unknown',
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: isEditing
+                              ? null
+                              : (val) {
+                                  setSheetState(() {
+                                    selectedTemplateId = val;
+                                  });
+                                },
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'CANCEL',
+                          style: TextStyle(color: Colors.blue),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (selectedTemplateId == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please select a template'),
+                              ),
+                            );
+                            return;
+                          }
+                          bool success = await _submitPaymentMethod(
+                            context: context,
+                            isEditing: isEditing,
+                            paymentMethodId: paymentMethod?['id'],
+                            templateId: selectedTemplateId!,
+                            levyCharges: levyCharges,
+                          );
+
+                          if (success && mounted) {
+                            Navigator.pop(context);
+                            _fetchPaymentMethods();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1976D2),
+                        ),
+                        child: const Text(
+                          'SUBMIT',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool> _submitPaymentMethod({
+    required BuildContext context,
+    required bool isEditing,
+    String? paymentMethodId,
+    required String templateId,
+    required bool levyCharges,
+  }) async {
+    try {
+      if (isEditing) {
+        final response = await ApiService.put(
+          '/payment-method/',
+          body: {
+            "store_id": widget.storeId,
+            "payment_method_id": paymentMethodId,
+            "payment_method_creation_data": {
+              "payment_method_template_id": templateId,
+              "levy_payment_gateway_charges_on_customer": levyCharges,
+            },
+          },
+          useBearerToken: true,
+        );
+
+        if (response['statusCode'] == 200) {
+          final data = response['data'];
+          if (data['status'] == 200) {
+            return true;
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(data['response'] ?? 'Failed to update')),
+              );
+            }
+            return false;
+          }
+        } else if (response['statusCode'] == 403) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Permission Denied'),
+                content: Text(
+                  response['data']?['response'] ?? 'Permission denied',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+          return false;
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Error: ${response['data']?['response'] ?? 'Unknown error'}',
+                ),
+              ),
+            );
+          }
+          return false;
+        }
+      } else {
+        final response = await ApiService.post(
+          '/payment-method/',
+          body: {
+            "store_id": widget.storeId,
+            "create": true,
+            "view": false,
+            "payment_method_creation_data": {
+              "payment_method_template_id": templateId,
+              "is_enabled": true,
+              "levy_payment_gateway_charges_on_customer": levyCharges,
+            },
+          },
+          useBearerToken: true,
+        );
+
+        if (response['statusCode'] == 409) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Duplicate Payment Method'),
+                content: const Text('Payment Method Already exists'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+          return false;
+        } else if (response['statusCode'] == 200 ||
+            response['statusCode'] == 201) {
+          return true;
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Error: ${response['data']?['response'] ?? 'Unknown error'}',
+                ),
+              ),
+            );
+          }
+          return false;
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      return false;
+    }
   }
 }
