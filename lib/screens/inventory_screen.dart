@@ -114,7 +114,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     Widget addButton = ElevatedButton.icon(
       onPressed: () {
-        _showAddGodownSheet();
+        _showGodownSheet();
       },
       icon: const Icon(Icons.add, size: 20),
       label: const TranslatedText('Add Godown'),
@@ -253,7 +253,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       color: Colors.grey.shade500,
                     ),
                     onPressed: () {
-                      // TODO: Edit Godown
+                      _showGodownSheet(godown: godown);
                     },
                   ),
                 ],
@@ -419,12 +419,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  void _showAddGodownSheet() {
-    final nameController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final addressController = TextEditingController();
-    bool isPrimary = false;
-    bool isActive = true;
+  void _showGodownSheet({Map<String, dynamic>? godown}) {
+    final isEdit = godown != null;
+    final nameController = TextEditingController(text: godown?['name'] ?? '');
+    final descriptionController = TextEditingController(
+      text: godown?['description'] ?? '',
+    );
+    final addressController = TextEditingController(
+      text: godown?['address'] ?? '',
+    );
+    bool isPrimary = godown?['is_primary'] ?? false;
+    bool isActive = godown?['is_active'] ?? true;
     bool isSubmitting = false;
 
     showModalBottomSheet(
@@ -451,9 +456,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const TranslatedText(
-                          'Create New Godown',
-                          style: TextStyle(
+                        TranslatedText(
+                          isEdit ? 'Edit Godown' : 'Create New Godown',
+                          style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
@@ -563,15 +568,28 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                   setSheetState(() => isSubmitting = true);
 
                                   try {
-                                    await StoreOwnerApiService.createGodown(
-                                      storeId: widget.storeId,
-                                      name: nameController.text.trim(),
-                                      description: descriptionController.text
-                                          .trim(),
-                                      address: addressController.text.trim(),
-                                      isActive: isActive,
-                                      isPrimary: isPrimary,
-                                    );
+                                    if (isEdit) {
+                                      await StoreOwnerApiService.updateGodown(
+                                        storeId: widget.storeId,
+                                        godownId: godown['id'],
+                                        name: nameController.text.trim(),
+                                        description: descriptionController.text
+                                            .trim(),
+                                        address: addressController.text.trim(),
+                                        isActive: isActive,
+                                        isPrimary: isPrimary,
+                                      );
+                                    } else {
+                                      await StoreOwnerApiService.createGodown(
+                                        storeId: widget.storeId,
+                                        name: nameController.text.trim(),
+                                        description: descriptionController.text
+                                            .trim(),
+                                        address: addressController.text.trim(),
+                                        isActive: isActive,
+                                        isPrimary: isPrimary,
+                                      );
+                                    }
 
                                     if (context.mounted) {
                                       Navigator.pop(context);
@@ -579,9 +597,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
-                                        const SnackBar(
+                                        SnackBar(
                                           content: Text(
-                                            'Godown created successfully',
+                                            isEdit
+                                                ? 'Godown updated successfully'
+                                                : 'Godown created successfully',
                                           ),
                                         ),
                                       );
@@ -619,9 +639,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const TranslatedText(
-                                  'Create',
-                                  style: TextStyle(
+                              : TranslatedText(
+                                  isEdit ? 'Update' : 'Create',
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
                                   ),
