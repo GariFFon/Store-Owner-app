@@ -99,9 +99,15 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
             onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
           );
         } else if (id == 'purchases') {
-          return PurchaseScreen(storeId: widget.storeId);
+          return PurchaseScreen(
+            storeId: widget.storeId,
+            onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          );
         } else if (id == 'receipts') {
-          return ReceiptsScreen(storeId: widget.storeId);
+          return ReceiptsScreen(
+            storeId: widget.storeId,
+            onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          );
         }
         return Container(); // Fallback for unknown IDs
       }).toList();

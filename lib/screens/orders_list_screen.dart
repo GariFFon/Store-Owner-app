@@ -84,6 +84,16 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     }
   }
 
+  // Default fallback status options
+  static const List<Map<String, dynamic>> _defaultStatusOptions = [
+    {'status': 'order_placed', 'status_title_for_seller': 'Order Placed'},
+    {'status': 'order_confirmed', 'status_title_for_seller': 'Confirmed'},
+    {'status': 'order_preparing', 'status_title_for_seller': 'Preparing'},
+    {'status': 'order_ready', 'status_title_for_seller': 'Ready'},
+    {'status': 'order_completed', 'status_title_for_seller': 'Completed'},
+    {'status': 'order_cancelled', 'status_title_for_seller': 'Cancelled'},
+  ];
+
   Future<void> _fetchStatusOptions() async {
     if (_effectiveStoreId == null) return;
 
@@ -101,16 +111,32 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       if (response['data'] != null &&
           response['data']['status'] == 200 &&
           mounted) {
+        final List<dynamic> apiOptions = response['data']['response'] ?? [];
         setState(() {
-          _statusOptions = response['data']['response'] ?? [];
+          // Use API options if available, otherwise use defaults
+          _statusOptions = apiOptions.isNotEmpty
+              ? apiOptions
+              : _defaultStatusOptions;
           _isLoadingStatusOptions = false;
         });
       } else {
-        if (mounted) setState(() => _isLoadingStatusOptions = false);
+        // API failed, use default options
+        if (mounted) {
+          setState(() {
+            _statusOptions = _defaultStatusOptions;
+            _isLoadingStatusOptions = false;
+          });
+        }
       }
     } catch (e) {
       print("❌ Error fetching status options: $e");
-      if (mounted) setState(() => _isLoadingStatusOptions = false);
+      // On error, use default options
+      if (mounted) {
+        setState(() {
+          _statusOptions = _defaultStatusOptions;
+          _isLoadingStatusOptions = false;
+        });
+      }
     }
   }
 
@@ -347,100 +373,104 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
 
             // Content
             Padding(
-              padding: EdgeInsets.only(
-                top: MediaQuery.of(context).padding.top + 8,
+              padding: EdgeInsets.fromLTRB(
+                12,
+                MediaQuery.of(context).padding.top + 8,
+                12,
+                12,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // ROW 1: HEADER (Menu, Title, Search)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        // Menu Button
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Menu Button
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TranslatedText(
+                            'MENU',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.menu_rounded,
+                              color: Colors.blueGrey,
+                              size: 32,
+                            ),
+                            onPressed: () {
+                              if (widget.onMenuPressed != null) {
+                                widget.onMenuPressed!();
+                              } else {
+                                _scaffoldKey.currentState?.openDrawer();
+                              }
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            style: IconButton.styleFrom(
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Title
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             TranslatedText(
-                              'MENU',
+                              'Store Orders',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.blueGrey[400],
-                                letterSpacing: 1.2,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1E293B),
+                                letterSpacing: -0.5,
+                                height: 1.0,
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.menu_rounded,
-                                color: Colors.blueGrey,
-                                size: 32,
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
                               ),
-                              onPressed: () {
-                                if (widget.onMenuPressed != null) {
-                                  widget.onMenuPressed!();
-                                } else {
-                                  _scaffoldKey.currentState?.openDrawer();
-                                }
-                              },
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              style: IconButton.styleFrom(
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Colors.blue.withOpacity(0.2),
+                                ),
+                              ),
+                              child: TranslatedText(
+                                'HISTORY',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.blue,
+                                  letterSpacing: 1.2,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(width: 16),
+                      ),
 
-                        // Title
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              TranslatedText(
-                                'Store Orders',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF1E293B),
-                                  letterSpacing: -0.5,
-                                  height: 1.0,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: Colors.blue.withOpacity(0.2),
-                                  ),
-                                ),
-                                child: TranslatedText(
-                                  'HISTORY',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.blue,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Date Filter Button
-                        Column(
+                      // Date Filter Button
+                      SizedBox(
+                        width: 70,
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TranslatedText(
@@ -453,6 +483,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                     : Colors.blueGrey[400],
                                 letterSpacing: 1.2,
                               ),
+                              textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 4),
                             InkWell(
@@ -468,7 +499,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                               },
                               borderRadius: BorderRadius.circular(30),
                               child: Container(
-                                padding: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: _selectedDateRange != null
@@ -492,7 +523,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                   _selectedDateRange != null
                                       ? Icons.close
                                       : Icons.calendar_today_rounded,
-                                  size: 20,
+                                  size: 24,
                                   color: _selectedDateRange != null
                                       ? Colors.red
                                       : Colors.blueGrey[700],
@@ -501,10 +532,13 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(width: 16),
+                      ),
+                      const SizedBox(width: 8),
 
-                        // Search Button
-                        Column(
+                      // Search Button
+                      SizedBox(
+                        width: 70,
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TranslatedText(
@@ -515,6 +549,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                 color: Colors.blueGrey[400],
                                 letterSpacing: 1.2,
                               ),
+                              textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 4),
                             InkWell(
@@ -529,7 +564,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                               },
                               borderRadius: BorderRadius.circular(30),
                               child: Container(
-                                padding: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: Colors.white,
@@ -549,23 +584,21 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                   _isSearchExpanded
                                       ? Icons.close
                                       : Icons.search_rounded,
-                                  size: 20,
+                                  size: 24,
                                   color: Colors.blueGrey[700],
                                 ),
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
                   // ROW 2 & 3: Status Buttons (Embedded)
                   _buildStatusButtonsGrid(theme),
-
-                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -597,18 +630,17 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     ];
 
     return SizedBox(
-      height: 40, // Compact height
+      height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         itemCount: allOptions.length,
         separatorBuilder: (context, index) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
           final opt = allOptions[index];
           final isSelected = _selectedStatus == opt['id'];
           return Center(
-            // Center the item vertically in the 48 height
             child: InkWell(
               onTap: () {
                 if (!isSelected) {
@@ -620,7 +652,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                height: 32, // Fixed height for pills
+                height: 32,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
@@ -706,36 +738,65 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       );
     }
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
-        child: ListView.separated(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(
-            bottom: 30,
-            left: 16,
-            right: 16,
-            top: 16,
-          ),
-          itemCount: _orders.length + (_isLoadingMore ? 1 : 0),
-          separatorBuilder: (context, index) => const SizedBox(height: 16),
-          itemBuilder: (context, index) {
-            if (index == _orders.length) {
-              return const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Use GridView for Tablet/Desktop (width > 600)
+        if (constraints.maxWidth > 600) {
+          return GridView.builder(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 400, // Slightly narrower for better density
+              mainAxisExtent: 260, // Reduced height for more compact view
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: _orders.length + (_isLoadingMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == _orders.length) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return _buildPremiumOrderCard(
+                theme,
+                _orders[index],
+                isGrid: true,
               );
-            }
-
-            return _buildPremiumOrderCard(theme, _orders[index]);
-          },
-        ),
-      ),
+            },
+          );
+        } else {
+          // Use ListView for Mobile
+          return ListView.separated(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(
+              bottom: 30,
+              left: 16,
+              right: 16,
+              top: 16,
+            ),
+            itemCount: _orders.length + (_isLoadingMore ? 1 : 0),
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              if (index == _orders.length) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              return _buildPremiumOrderCard(theme, _orders[index]);
+            },
+          );
+        }
+      },
     );
   }
 
-  Widget _buildPremiumOrderCard(ThemeData theme, dynamic order) {
+  Widget _buildPremiumOrderCard(
+    ThemeData theme,
+    dynamic order, {
+    bool isGrid = false,
+  }) {
     final status = order['status'] ?? 'Unknown';
 
     // User Info (Instead of Store Info)
@@ -789,18 +850,17 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     final statusColor = _getStatusColor(status);
 
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.zero,
         boxShadow: [
-          // Ambient Shadow (Soft, large spread)
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
             blurRadius: 24,
             offset: const Offset(0, 8),
             spreadRadius: 0,
           ),
-          // Key Shadow (Sharper, defines edge)
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 4,
@@ -809,249 +869,366 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => OrderDetailsScreen(
-                  orderId: order['id'],
-                  storeId: order['store_id'] ?? _effectiveStoreId ?? '',
-                ),
+      child: Stack(
+        children: [
+          // Left accent strip - visual status indicator
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: BorderRadius.zero,
               ),
-            );
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Column(
-            children: [
-              // 1. Header: User Image + Name + Status
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // User Image or Icon
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.grey[100],
-                        image: userImage != null
-                            ? DecorationImage(
-                                image: NetworkImage(userImage),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
-                      ),
-                      child: userImage == null
-                          ? Icon(
-                              Icons.person_rounded,
-                              color: Colors.grey[400],
-                              size: 26,
-                            )
-                          : null,
+            ),
+          ),
+          // Main card content
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OrderDetailsScreen(
+                      orderId: order['id'],
+                      storeId: order['store_id'] ?? _effectiveStoreId ?? '',
                     ),
-                    const SizedBox(width: 12),
-                    // User Details
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 2.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              userName,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                                letterSpacing: -0.3,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              userAddress,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[500],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Status Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: statusColor.withOpacity(0.2)),
-                      ),
-                      child: Text(
-                        (order['order_status_title'] ?? status)
-                            .toString()
-                            .toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: statusColor,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildDashedLine(theme),
-              ),
-
-              // 2. Items List
-              if (items.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
                   ),
-                  child: Column(
-                    children: [
-                      ...items.take(3).map<Widget>((item) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[300],
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  "${item['quantity'] ?? 1} x ${item['product_name'] ?? item['name'] ?? ''}",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87.withOpacity(0.7),
-                                    fontWeight: FontWeight.w500,
+                );
+              },
+              borderRadius: BorderRadius.zero,
+              child: Column(
+                mainAxisSize: isGrid ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  // 1. Header: User Image + Name + Status
+                  Padding(
+                    padding: isGrid
+                        ? const EdgeInsets.fromLTRB(16, 12, 16, 8)
+                        : const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.grey[100],
+                            image: userImage != null
+                                ? DecorationImage(
+                                    image: NetworkImage(userImage),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          child: userImage == null
+                              ? Icon(
+                                  Icons.person_rounded,
+                                  color: Colors.grey[400],
+                                  size: 26,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 2.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  userName,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                    letterSpacing: -0.3,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      if (items.length > 3)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, left: 18),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              "+ ${items.length - 3} more items",
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: theme.primaryColor,
-                              ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  userAddress,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildDashedLine(theme),
-              ),
-
-              // 3. Footer: Date, Total
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          date,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          total,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.black87,
                           ),
                         ),
                       ],
                     ),
+                  ),
 
-                    // View Details Button (Small)
-                    SizedBox(
-                      height: 36,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => OrderDetailsScreen(
-                                orderId: order['id'],
-                                storeId:
-                                    order['store_id'] ??
-                                    _effectiveStoreId ??
-                                    '',
-                              ),
+                  // Status Badge (Moved outside header for grid or kept similar?)
+                  // For consistent height, maybe keep it fixed or absolute?
+                  // Let's keep layout simple.
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(child: _buildDashedLine(theme)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: statusColor.withOpacity(0.2),
                             ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.grey.withOpacity(0.3)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            (order['order_status_title'] ?? status)
+                                .toString()
+                                .toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: statusColor,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                        child: const Text(
-                          "Details",
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
+                      ],
+                    ),
+                  ),
+
+                  // 2. Items List
+                  if (isGrid) ...[
+                    // Fixed height/content for grid to prevent scatter
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4, // Reduced padding
                         ),
+                        child: items.isEmpty
+                            ? Center(
+                                child: Text(
+                                  "No Items",
+                                  style: TextStyle(color: Colors.grey[400]),
+                                ),
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ...items.take(2).map<Widget>((item) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 2,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 4,
+                                            height: 4,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[400],
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              "${item['quantity'] ?? 1} x ${item['product_name'] ?? item['name'] ?? ''}",
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.black87
+                                                    .withOpacity(0.7),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                  if (items.length > 2)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 4,
+                                        left: 12,
+                                      ),
+                                      child: Text(
+                                        "+ ${items.length - 2} more",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: theme.primaryColor,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                       ),
                     ),
+                  ] else ...[
+                    // Mobile layout (Flexible)
+                    if (items.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Column(
+                          children: [
+                            ...items.take(3).map<Widget>((item) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[300],
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        "${item['quantity'] ?? 1} x ${item['product_name'] ?? item['name'] ?? ''}",
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black87.withOpacity(
+                                            0.7,
+                                          ),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                            if (items.length > 3)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 8,
+                                  left: 18,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    "+ ${items.length - 3} more items",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: theme.primaryColor,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                   ],
-                ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _buildDashedLine(theme),
+                  ),
+
+                  // 3. Footer: Date, Total
+                  // For Grid, push this to bottom
+                  if (isGrid) const SizedBox(height: 8),
+
+                  Padding(
+                    padding: isGrid
+                        ? const EdgeInsets.fromLTRB(16, 8, 16, 12)
+                        : const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              date,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              total,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // View Details Button (Small)
+                        SizedBox(
+                          height: 36,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => OrderDetailsScreen(
+                                    orderId: order['id'],
+                                    storeId:
+                                        order['store_id'] ??
+                                        _effectiveStoreId ??
+                                        '',
+                                  ),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: Colors.grey.withOpacity(0.3),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              "Details",
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

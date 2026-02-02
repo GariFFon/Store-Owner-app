@@ -10,7 +10,7 @@ import 'package:exanor/services/notification_service.dart';
 import 'package:exanor/services/translation_service.dart';
 import 'package:exanor/screens/SplashScreen.dart';
 import 'package:exanor/screens/onboarding_screen.dart';
-import 'package:exanor/screens/phone_registration_screen.dart';
+import 'package:exanor/screens/simple_phone_registration_screen.dart';
 import 'package:exanor/screens/simple_otp_verification_screen.dart';
 import 'package:exanor/screens/location_selection_screen.dart';
 import 'package:exanor/screens/saved_addresses_screen.dart';
@@ -592,7 +592,7 @@ class _MyAppState extends State<MyApp> {
             routes: {
               '/onboarding': (context) => const OnboardingScreen(),
               '/phone_registration': (context) =>
-                  const PhoneRegistrationScreen(),
+                  const SimplePhoneRegistrationScreen(),
               '/otp_verification': (context) =>
                   const SimpleOTPVerificationScreen(phoneNumber: ''),
               '/home': (context) => const StoreSelectionScreen(),

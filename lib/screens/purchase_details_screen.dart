@@ -1,5 +1,5 @@
+import 'dart:math' as math;
 import 'package:exanor/components/translation_widget.dart';
-
 import 'package:flutter/material.dart';
 
 class PurchaseDetailsScreen extends StatefulWidget {
@@ -29,27 +29,10 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
   }
 
   Future<void> _fetchPurchaseDetails() async {
-    // Optional: Implement refresh logic here if needed,
-    // but for now we rely on the passed data.
     setState(() {
       _purchaseData = widget.purchaseData;
       _isLoading = false;
     });
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'PAID':
-        return Colors.green;
-      case 'PENDING':
-        return Colors.orange;
-      case 'PARTIAL':
-        return Colors.blue;
-      case 'CREDIT':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
   }
 
   String _formatCurrency(dynamic amount) {
@@ -57,54 +40,156 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
     return '₹${double.tryParse(amount.toString())?.toStringAsFixed(2).replaceAll(RegExp(r"([.]*0+)(?!.*\d)"), "") ?? amount}';
   }
 
-  // To format larger numbers with commas if needed, but keeping it simple for now as per request.
-  // Using basic logic to match formatting style in image (e.g., ₹1,00,000) requires NumberFormat
-  // but I'll stick to a simple formatted string or improve if I add intl package import.
-  // Actually, I should use NumberFormat for better aesthetics.
-  // Let's rely on basic string manipulation or standard intl if available.
-  // I updated to use RegExp to trim trailing zeros for a clean look, or keep 2 decimals if non-zero.
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
+    // Use a lighter/white background for modern look
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: Colors.grey[50], // Light background
+      body: Column(
+        children: [
+          _buildTopBanner(theme),
+          Expanded(child: _buildBody(theme)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBanner(ThemeData theme) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
+    final supplierName = _purchaseData?['supplier'] != null
+        ? _purchaseData!['supplier']['name']
+        : 'Unknown Supplier';
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
           children: [
-            const TranslatedText(
-              'Purchase Details',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.receipt_long_rounded,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.6),
+                ),
+              ),
             ),
-            Text(
-              _purchaseData?['voucher_number']?.toString() ?? '',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+
+            // Content
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                16 + MediaQuery.of(context).padding.top,
+                12,
+                16,
+              ),
+              child: SizedBox(
+                height: 64, // Same height as Order Details
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Back Button
+                    InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.blueGrey.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: 2),
+                            child: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.blueGrey,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+
+                    // Title
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TranslatedText(
+                            supplierName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E293B), // Slate 800
+                              letterSpacing: -0.5,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.blue.withOpacity(0.2),
+                              ),
+                            ),
+                            child: const TranslatedText(
+                              'PURCHASE DETAILS',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1565C0),
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-        centerTitle: false,
-        elevation: 0,
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: theme.colorScheme.onSurface,
-        automaticallyImplyLeading:
-            false, // Using close button instead of back arrow
       ),
-      body: _buildBody(theme, isDark),
     );
   }
 
-  Widget _buildBody(ThemeData theme, bool isDark) {
+  Widget _buildBody(ThemeData theme) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -131,471 +216,107 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
       return const Center(child: TranslatedText('No data available'));
     }
 
-    final data = _purchaseData!;
-    final supplier = data['supplier'] ?? {};
-    final paymentInfo = data['payment_info'] ?? {};
-    final taxBreakdown = data['tax_breakdown'] ?? {};
-    final items = data['items'] as List<dynamic>? ?? [];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 900;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Summary Cards
-          Row(
-            children: [
-              Expanded(
-                child: _buildInfoCard(
-                  theme,
-                  'Date',
-                  data['date'] != null
-                      ? data['date']
-                            .toString()
-                            .split('-')
-                            .reversed
-                            .join('-') // formatting as DD-MM-YYYY roughly
-                      // Ideally use DateFormat('MMM d, yyyy').format(DateTime.parse(data['date']))
-                      // Assuming data['date'] is YYYY-MM-DD
-                      : '',
-                  isHighlight: true,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildInfoCard(
-                  theme,
-                  'Total Amount',
-                  _formatCurrency(data['total_amount']),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildInfoCard(
-                  theme,
-                  'Tax',
-                  _formatCurrency(taxBreakdown['total_tax']),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildInfoCard(
-                  theme,
-                  'Grand Total',
-                  _formatCurrency(data['grand_total']),
-                  textColor: Colors.orange,
-                  isBold: true,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          // Supplier Info Card
-          _buildSectionCard(
-            theme,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        if (isWide) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // LEFT COLUMN
                     Expanded(
-                      flex: 2,
-                      child: _buildLabelValue(
-                        theme,
-                        'Supplier',
-                        supplier['name'] ?? 'Unknown',
-                        titleStyle: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 1,
-                      child: _buildLabelValue(
-                        theme,
-                        'Invoice Number',
-                        data['supplier_invoice_number'] ?? '',
-                        titleStyle: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
+                      flex: 4,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          TranslatedText(
-                            'Payment Status',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.6,
+                          _buildInformationCard(theme),
+                          const SizedBox(height: 16),
+                          _buildPaymentInfoCard(theme),
+                          const SizedBox(height: 16),
+                          if (_purchaseData!['narration'] != null &&
+                              _purchaseData!['narration'].toString().isNotEmpty)
+                            _buildSectionCard(
+                              theme,
+                              title: 'Narration',
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildDashedDivider(),
+                                  Text(
+                                    _purchaseData!['narration'],
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildStatusPill(
-                            theme,
-                            paymentInfo['payment_status'] ?? 'UNKNOWN',
-                            _getStatusColor(
-                              paymentInfo['payment_status'] ?? '',
-                            ),
-                            isSolid: true,
-                          ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 24),
+                    // RIGHT COLUMN
                     Expanded(
+                      flex: 6,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          TranslatedText(
-                            'Voucher Status',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.6,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildStatusPill(
-                            theme,
-                            data['status'] ?? 'UNKNOWN',
-                            Colors.grey,
-                            isSolid: false,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TranslatedText(
-                            'Posted',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.6,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildStatusPill(
-                            theme,
-                            data['is_posted'] == true ? 'Yes' : 'No',
-                            data['is_posted'] == true
-                                ? Colors.green
-                                : Colors.red,
-                            isSolid: false,
-                          ),
+                          _buildItemsList(theme),
+                          const SizedBox(height: 16),
+                          _buildPriceBreakdownCard(theme),
                         ],
                       ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
+          );
+        }
 
-          const SizedBox(height: 24),
-
-          // Payment Information
-          _buildSectionCard(
-            theme,
-            title: 'Payment Information',
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: _buildLabelValue(
-                    theme,
-                    'Amount Paid',
-                    _formatCurrency(paymentInfo['amount_paid']),
-                    valueColor: Colors.green,
-                    isBold: true,
-                  ),
-                ),
-                Expanded(
-                  child: _buildLabelValue(
-                    theme,
-                    'Amount Due',
-                    _formatCurrency(paymentInfo['amount_due']),
-                    valueColor: Colors.red,
-                    isBold: true,
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TranslatedText(
-                        'Status',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        paymentInfo['payment_status'] ?? '',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Tax Breakdown
-          _buildSectionCard(
-            theme,
-            title: 'Tax Breakdown',
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: _buildLabelValue(
-                    theme,
-                    'CGST',
-                    _formatCurrency(taxBreakdown['total_cgst']),
-                  ),
-                ),
-                Expanded(
-                  child: _buildLabelValue(
-                    theme,
-                    'SGST',
-                    _formatCurrency(taxBreakdown['total_sgst']),
-                  ),
-                ),
-                Expanded(
-                  child: _buildLabelValue(
-                    theme,
-                    'IGST',
-                    _formatCurrency(taxBreakdown['total_igst']),
-                  ),
-                ),
-                Expanded(
-                  child: _buildLabelValue(
-                    theme,
-                    'CESS',
-                    _formatCurrency(taxBreakdown['total_cess']),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Items List
-          Container(
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.shadowColor.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TranslatedText(
-                  'Items (${items.length})',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest
-                        .withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: _buildTableHeader(theme, 'Product'),
-                      ),
-                      Expanded(flex: 2, child: _buildTableHeader(theme, 'Qty')),
-                      Expanded(
-                        flex: 2,
-                        child: _buildTableHeader(theme, 'Rate'),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: _buildTableHeader(theme, 'Amount'),
-                      ),
-                      Expanded(flex: 2, child: _buildTableHeader(theme, 'HSN')),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...items
-                    .map(
-                      (item) => Column(
+        // Mobile Layout
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInformationCard(theme),
+                  const SizedBox(height: 16),
+                  _buildItemsList(theme),
+                  const SizedBox(height: 16),
+                  _buildPaymentInfoCard(theme),
+                  const SizedBox(height: 16),
+                  _buildPriceBreakdownCard(theme),
+                  if (_purchaseData!['narration'] != null &&
+                      _purchaseData!['narration'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _buildSectionCard(
+                      theme,
+                      title: 'Narration',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 8,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item['product']?['name'] ?? 'Unknown',
-                                        style: theme.textTheme.bodyMedium,
-                                      ),
-                                      Text(
-                                        item['product']?['brand'] ?? '',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              color: theme.colorScheme.onSurface
-                                                  .withOpacity(0.5),
-                                              fontSize: 10,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    '${item['quantity']} ${item['unit']?['name'] ?? 'units'}',
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    _formatCurrency(item['rate']),
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    _formatCurrency(item['amount']),
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    item['hsn_code'] ??
-                                        item['inventory']?['hsn_code'] ??
-                                        item['product']?['hsn_code'] ??
-                                        '-',
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Divider(
-                            height: 1,
-                            color: theme.dividerColor.withOpacity(0.1),
+                          _buildDashedDivider(),
+                          Text(
+                            _purchaseData!['narration'],
+                            style: theme.textTheme.bodyMedium,
                           ),
                         ],
                       ),
-                    )
-                    .toList(),
-              ],
+                    ),
+                  ],
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           ),
-
-          const SizedBox(height: 24),
-
-          // Narration
-          _buildSectionCard(
-            theme,
-            title: 'Narration',
-            child: Text(
-              data['narration'] ?? '-',
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoCard(
-    ThemeData theme,
-    String label,
-    String value, {
-    Color? textColor,
-    bool isBold = false,
-    bool isHighlight = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isHighlight
-            ? theme.primaryColor.withOpacity(0.05)
-            : theme.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TranslatedText(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: isBold || isHighlight
-                  ? FontWeight.bold
-                  : FontWeight.normal,
-              color: textColor ?? theme.colorScheme.onSurface,
-              fontSize: 18,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -606,27 +327,44 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
   }) {
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: theme.shadowColor.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.25), // Strong/Darker Shadow
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
-      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (title != null) ...[
-            TranslatedText(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                TranslatedText(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    letterSpacing: -0.5,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
           ],
@@ -636,68 +374,382 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
     );
   }
 
-  Widget _buildLabelValue(
+  Widget _buildInformationCard(ThemeData theme) {
+    return _buildSectionCard(
+      theme,
+      title: 'Purchase Information',
+      child: Column(
+        children: [
+          // Added dashed divider above the first item (Voucher Number) as requested
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Voucher Number',
+            _purchaseData!['voucher_number'] ?? '-',
+            Icons.receipt_rounded,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Supplier Invoice',
+            _purchaseData!['supplier_invoice_number'] ?? '-',
+            Icons.description_outlined,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Date',
+            _purchaseData!['date'] ?? '-',
+            Icons.calendar_today_rounded,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Posted',
+            _purchaseData!['is_posted'] == true ? 'Yes' : 'No',
+            Icons.check_circle_outline_rounded,
+            valueColor: _purchaseData!['is_posted'] == true
+                ? Colors.green
+                : Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentInfoCard(ThemeData theme) {
+    final paymentInfo =
+        _purchaseData!['payment_info'] as Map<String, dynamic>? ?? {};
+    return _buildSectionCard(
+      theme,
+      title: 'Payment Status',
+      child: Column(
+        children: [
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Status',
+            paymentInfo['payment_status'] ?? 'UNKNOWN',
+            Icons.payment_rounded,
+            isBold: true,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Amount Paid',
+            _formatCurrency(paymentInfo['amount_paid']),
+            Icons.add_circle_outline_rounded,
+            valueColor: Colors.green,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Amount Due',
+            _formatCurrency(paymentInfo['amount_due']),
+            Icons.remove_circle_outline_rounded,
+            valueColor: Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemsList(ThemeData theme) {
+    final items = _purchaseData!['items'] as List<dynamic>? ?? [];
+
+    return _buildSectionCard(
+      theme,
+      title: 'Items Purchased (${items.length})',
+      child: items.isEmpty
+          ? const Center(child: Text('No items'))
+          : Column(
+              children: items.map((item) {
+                return Column(
+                  children: [
+                    if (item == items.first) _buildDashedDivider(),
+                    _buildItemRow(theme, item),
+                    if (item != items.last) _buildDashedDivider(),
+                  ],
+                );
+              }).toList(),
+            ),
+    );
+  }
+
+  Widget _buildItemRow(ThemeData theme, Map<String, dynamic> item) {
+    final unitName = item['unit']?['name'] ?? '';
+    final quantity = item['quantity'] ?? 0;
+    final rate = _formatCurrency(item['rate']);
+    final amount = _formatCurrency(item['amount']);
+    final productName = item['product']?['name'] ?? 'Unknown Item';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Product Name - Prominent at top
+          Text(
+            productName,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Rate per unit - Subtle info row
+          Row(
+            children: [
+              Icon(
+                Icons.sell_outlined,
+                size: 14,
+                color: theme.colorScheme.onSurface.withOpacity(0.5),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$rate${unitName.isNotEmpty ? ' per $unitName' : ' each'}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Quantity and Total - Two equal columns
+          Row(
+            children: [
+              // Quantity Column
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'QTY',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary.withOpacity(0.7),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$quantity${unitName.isNotEmpty ? ' $unitName' : ''}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Total Column
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'TOTAL',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700.withOpacity(0.7),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        amount,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceBreakdownCard(ThemeData theme) {
+    final taxBreakdown =
+        _purchaseData!['tax_breakdown'] as Map<String, dynamic>? ?? {};
+
+    return _buildSectionCard(
+      theme,
+      title: 'Price Breakdown',
+      child: Column(
+        children: [
+          _buildDashedDivider(),
+          _buildSummaryRow(
+            theme,
+            'Total Amount',
+            _formatCurrency(_purchaseData!['total_amount']),
+          ),
+          const SizedBox(height: 8),
+          if (taxBreakdown.isNotEmpty) ...[
+            _buildSummaryRow(
+              theme,
+              'Total Tax',
+              _formatCurrency(taxBreakdown['total_tax']),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'CGST: ${_formatCurrency(taxBreakdown['total_cgst'])} | SGST: ${_formatCurrency(taxBreakdown['total_sgst'])} | IGST: ${_formatCurrency(taxBreakdown['total_igst'])}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          _buildDashedDivider(),
+          _buildSummaryRow(
+            theme,
+            'Grand Total',
+            _formatCurrency(_purchaseData!['grand_total']),
+            isTotal: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(
     ThemeData theme,
     String label,
     String value, {
-    Color? valueColor,
-    bool isBold = false,
-    TextStyle? titleStyle,
+    bool isTotal = false,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         TranslatedText(
           label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+            fontSize: isTotal ? 16 : 14,
+            color: isTotal
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.onSurface.withOpacity(0.7),
           ),
         ),
-        const SizedBox(height: 4),
         Text(
           value,
-          style:
-              titleStyle ??
-              theme.textTheme.titleMedium?.copyWith(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                color: valueColor ?? theme.colorScheme.onSurface,
-              ),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+            fontSize: isTotal ? 18 : 14,
+            color: isTotal ? theme.colorScheme.primary : null,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildStatusPill(
+  Widget _buildInfoRow(
     ThemeData theme,
-    String status,
-    Color color, {
-    bool isSolid = false,
+    String label,
+    String value,
+    IconData icon, {
+    Color? valueColor,
+    bool isBold = false,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: isSolid ? color : Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: isSolid ? Colors.white : color,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+          ),
         ),
-      ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TranslatedText(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                fontSize: 11,
+              ),
+            ),
+            Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+                color: valueColor ?? theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _buildTableHeader(ThemeData theme, String text) {
-    return Text(
-      text,
-      style: theme.textTheme.bodySmall?.copyWith(
-        fontWeight: FontWeight.bold,
-        color: theme.colorScheme.onSurface.withOpacity(0.7),
-      ),
+  Widget _buildDashedDivider() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boxWidth = constraints.constrainWidth();
+        const dashWidth = 4.0;
+        const dashHeight = 1.0;
+        final dashCount = (boxWidth / (2 * dashWidth)).floor();
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Flex(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            direction: Axis.horizontal,
+            children: List.generate(dashCount, (_) {
+              return SizedBox(
+                width: dashWidth,
+                height: dashHeight,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(color: Colors.grey[300]),
+                ),
+              );
+            }),
+          ),
+        );
+      },
     );
   }
 }

@@ -2,18 +2,22 @@ import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/receipt_details_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 
 class ReceiptsScreen extends StatefulWidget {
   final String storeId;
+  final VoidCallback? onMenuPressed;
 
-  const ReceiptsScreen({super.key, required this.storeId});
+  const ReceiptsScreen({super.key, required this.storeId, this.onMenuPressed});
 
   @override
   State<ReceiptsScreen> createState() => _ReceiptsScreenState();
 }
 
 class _ReceiptsScreenState extends State<ReceiptsScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -28,6 +32,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
 
   // Debounce search
   // Timer? _debounce;
+  bool _isSearchExpanded = false;
 
   @override
   void initState() {
@@ -127,108 +132,320 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: GestureDetector(
-          onTap: () {
-            FocusScope.of(context).unfocus();
-          },
-          child: Column(
-            children: [
-              // Header Section
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        key: _scaffoldKey,
+        extendBodyBehindAppBar: true,
+        primary: false,
+        backgroundColor: Colors.grey[50],
+        body: Column(
+          children: [
+            _buildExpandedBanner(theme),
+
+            // Search Bar (Conditional)
+            if (_isSearchExpanded)
               Container(
                 padding: const EdgeInsets.all(16),
-                color: theme.colorScheme.surface,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.receipt_long,
-                            color: Colors.green,
-                          ),
+                color: Colors.white,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 800),
+                    child: TextField(
+                      controller: _searchController,
+                      style: const TextStyle(fontSize: 14),
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Search by voucher number...',
+                        hintStyle: TextStyle(
+                          color: Colors.blueGrey[300],
+                          fontSize: 14,
                         ),
-                        const SizedBox(width: 12),
-                        Column(
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: Colors.blueGrey[400],
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        isDense: true,
+                      ),
+                      onSubmitted: (_) => _fetchReceipts(),
+                    ),
+                  ),
+                ),
+              ),
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                },
+                child: _buildBody(theme),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedBanner(ThemeData theme) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.receipt_long_outlined,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.6),
+                ),
+              ),
+            ),
+
+            // Content
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                MediaQuery.of(context).padding.top + 8,
+                12,
+                24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ROW 1: HEADER (Menu, Title)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Menu Button
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TranslatedText(
+                            'MENU',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.menu_rounded,
+                              color: Colors.blueGrey,
+                              size: 32,
+                            ),
+                            onPressed: () {
+                              if (widget.onMenuPressed != null) {
+                                widget.onMenuPressed!();
+                              } else {
+                                Scaffold.maybeOf(context)?.openDrawer();
+                              }
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            style: IconButton.styleFrom(
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+
+                      // Title
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
+                            TranslatedText(
                               'Receipts',
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1E293B),
+                                letterSpacing: -0.5,
+                                height: 1.0,
                               ),
                             ),
-                            Text(
-                              'View and manage receipt entries',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.textTheme.bodyMedium?.color
-                                    ?.withOpacity(0.6),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.green.withOpacity(0.2),
+                                ),
+                              ),
+                              child: const TranslatedText(
+                                'HISTORY',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.green,
+                                  letterSpacing: 1.2,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                      ),
 
-                    // Search Bar
-                    TextField(
-                      focusNode: _searchFocusNode,
-                      controller: _searchController,
-                      onSubmitted: (_) {
-                        _fetchReceipts();
-                        FocusScope.of(
-                          context,
-                        ).unfocus(); // Unfocus after submit
-                      },
-                      textInputAction: TextInputAction
-                          .search, // Action for keyboard search button
-                      autofocus: false, // Ensure not auto-focused
-                      decoration: InputDecoration(
-                        hintText: 'Search by voucher number...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.tune), // Filter icon
-                          onPressed: () {
-                            // Implement filters if needed
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Filters coming soon'),
+                      // Filter Button
+                      SizedBox(
+                        width: 70,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              'FILTER',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
                               ),
-                            );
-                          },
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: theme.dividerColor),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: theme.dividerColor),
-                        ),
-                        filled: true,
-                        fillColor: theme.cardColor,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Filters coming soon'),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.blueGrey.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.tune_rounded,
+                                  size: 24,
+                                  color: Colors.blueGrey[700],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                      const SizedBox(width: 8),
 
-              Expanded(child: _buildBody(theme)),
-            ],
-          ),
+                      // Search Button
+                      SizedBox(
+                        width: 70,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              'SEARCH',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _isSearchExpanded = !_isSearchExpanded;
+                                  if (!_isSearchExpanded) {
+                                    _searchController.clear();
+                                    _fetchReceipts();
+                                  }
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.blueGrey.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  _isSearchExpanded
+                                      ? Icons.close
+                                      : Icons.search_rounded,
+                                  size: 24,
+                                  color: Colors.blueGrey[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -270,191 +487,288 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => _fetchReceipts(),
-      child: ListView.separated(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(16),
-        itemCount: _receipts.length + (_isLoadingMore ? 1 : 0),
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          if (index == _receipts.length) {
-            return const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          final receipt = _receipts[index];
-          return _buildReceiptRow(theme, receipt);
-        },
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 600) {
+          // Grid View for larger screens
+          return RefreshIndicator(
+            onRefresh: () => _fetchReceipts(),
+            child: GridView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 500,
+                mainAxisExtent: 200,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: _receipts.length + (_isLoadingMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == _receipts.length) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final receipt = _receipts[index];
+                return _buildReceiptRow(theme, receipt);
+              },
+            ),
+          );
+        } else {
+          // List View for mobile
+          return RefreshIndicator(
+            onRefresh: () => _fetchReceipts(),
+            child: ListView.separated(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              itemCount: _receipts.length + (_isLoadingMore ? 1 : 0),
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                if (index == _receipts.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final receipt = _receipts[index];
+                return _buildReceiptRow(theme, receipt);
+              },
+            ),
+          );
+        }
+      },
     );
   }
 
   Widget _buildReceiptRow(ThemeData theme, dynamic receipt) {
-    // Desktop/Table view style for mobile is basically a card
+    // Premium Card Style
+    final isPosted = receipt['is_posted'] == true;
+    final statusColor = isPosted ? Colors.green : Colors.orange;
+
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blueGrey.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+            spreadRadius: 0,
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: () async {
-          // Unfocus keyboard if open to prevent it from popping up when returning
-          _searchFocusNode.unfocus();
-          FocusScope.of(context).unfocus();
-          await Future.delayed(
-            const Duration(milliseconds: 100),
-          ); // Allow keyboard to hide
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            // Unfocus keyboard if open to prevent it from popping up when returning
+            _searchFocusNode.unfocus();
+            FocusScope.of(context).unfocus();
+            await Future.delayed(
+              const Duration(milliseconds: 100),
+            ); // Allow keyboard to hide
 
-          if (!mounted) return;
+            if (!mounted) return;
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ReceiptDetailsScreen(receipt: receipt),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // Top Row: Voucher - Date - Status
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.receipt,
-                      size: 20,
-                      color: Colors.green,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          receipt['voucher_number'] ?? '',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today,
-                              size: 12,
-                              color: theme.disabledColor,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatDate(receipt['date']),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.disabledColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Status Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          (receipt['is_posted'] == true
-                                  ? Colors.green
-                                  : Colors.orange)
-                              .withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (receipt['is_posted'] == true)
-                          const Icon(
-                            Icons.check,
-                            size: 12,
-                            color: Colors.green,
-                          ),
-                        if (receipt['is_posted'] == true)
-                          const SizedBox(width: 4),
-                        Text(
-                          receipt['is_posted'] == true ? 'Posted' : 'Unposted',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: receipt['is_posted'] == true
-                                ? Colors.green
-                                : Colors.orange,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ReceiptDetailsScreen(receipt: receipt),
               ),
-              const SizedBox(height: 12),
-              const Divider(),
-              const SizedBox(height: 8),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. Left Color Strip
+                Container(
+                  width: 6,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                    ),
+                  ),
+                ),
 
-              // Bottom Row: Party - Account - Amount
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Top Row: Voucher - Date - Status Badge
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.person_outline,
-                              size: 16,
-                              color: theme.disabledColor,
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                receipt['party_name'] ?? 'Unknown',
-                                style: theme.textTheme.bodyMedium,
-                                overflow: TextOverflow.ellipsis,
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                shape: BoxShape.rectangle,
+                              ),
+                              child: const Icon(
+                                Icons.receipt_outlined,
+                                size: 20,
+                                color: Colors.green,
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.account_balance_wallet_outlined,
-                              size: 16,
-                              color: theme.disabledColor,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    receipt['voucher_number'] ?? '',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.calendar_today_rounded,
+                                        size: 14,
+                                        color: Colors.blueGrey[400],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _formatDate(receipt['date']),
+                                        style: TextStyle(
+                                          color: Colors.blueGrey[500],
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                receipt['receipt_account'] ?? '',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.disabledColor,
+                            // Status Badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: statusColor.withOpacity(0.2),
                                 ),
-                                overflow: TextOverflow.ellipsis,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isPosted)
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 12,
+                                      color: statusColor,
+                                    ),
+                                  if (isPosted) const SizedBox(width: 4),
+                                  Text(
+                                    isPosted ? 'POSTED' : 'UNPOSTED',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: statusColor,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        Divider(height: 1, color: Colors.grey[200]),
+                        const SizedBox(height: 12),
+
+                        // Bottom Row: Party - Account - Amount
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.person_outline_rounded,
+                                        size: 16,
+                                        color: Colors.blueGrey[400],
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          receipt['party_name'] ?? 'Unknown',
+                                          style: TextStyle(
+                                            color: Colors.blueGrey[700],
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.account_balance_wallet_outlined,
+                                        size: 16,
+                                        color: Colors.blueGrey[400],
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          receipt['receipt_account'] ?? '',
+                                          style: TextStyle(
+                                            color: Colors.blueGrey[500],
+                                            fontSize: 13,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Amount (Large)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey[200]!),
+                              ),
+                              child: Text(
+                                _formatCurrency(receipt['amount']),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                  color: Color(0xFF0F172A),
+                                ),
                               ),
                             ),
                           ],
@@ -462,16 +776,9 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                       ],
                     ),
                   ),
-                  // Amount
-                  Text(
-                    _formatCurrency(receipt['amount']),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
