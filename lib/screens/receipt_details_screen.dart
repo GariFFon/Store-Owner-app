@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:exanor/components/translation_widget.dart';
 import 'package:flutter/material.dart';
 
@@ -63,314 +64,576 @@ class ReceiptDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final voucherNumber = receipt['voucher_number'] ?? '';
-    final date = receipt['date'];
-    final formattedDate = _formatDate(date);
 
+    // Use a lighter/white background for modern look
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              voucherNumber,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            if (formattedDate.isNotEmpty)
-              Text(
-                formattedDate,
-                style: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
-              ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.close),
+      backgroundColor: Colors.grey[50],
+      body: Column(
+        children: [
+          _buildTopBanner(context, theme),
+          Expanded(child: _buildBody(theme)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBanner(BuildContext context, ThemeData theme) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
+    final partyName = receipt['party_name'] ?? 'Unknown Party';
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRect(
+        child: Stack(
           children: [
-            // Party Information
-            _buildSectionCard(
-              theme,
-              title: 'Party Information',
-              child: Column(
-                children: [
-                  _buildLabelValueRow(
-                    theme,
-                    'Name:',
-                    receipt['party_name'] ?? 'Unknown',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildLabelValueRow(theme, 'Type:', 'USER'),
-                ],
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.receipt_long_rounded,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.6),
+                ),
               ),
             ),
-            const SizedBox(height: 16),
 
-            // Receipt Summary
-            _buildSectionCard(
-              theme,
-              title: 'Receipt Summary',
-              child: Column(
-                children: [
-                  _buildLabelValueRow(
-                    theme,
-                    'Amount:',
-                    _formatCurrency(receipt['amount']),
-                    valueColor: Colors.green,
-                    isBoldValue: true,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildLabelValueRow(
-                    theme,
-                    'Status:',
-                    receipt['is_posted'] == true ? 'Posted' : 'Unposted',
-                    isStatus: true,
-                    statusColor: receipt['is_posted'] == true
-                        ? Colors.green
-                        : Colors.orange,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildLabelValueRow(
-                    theme,
-                    'Financial Year:',
-                    _getFinancialYear(date),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildLabelValueRow(theme, 'Voucher Type:', 'RECEIPT'),
-                ],
+            // Content
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                16 + MediaQuery.of(context).padding.top,
+                12,
+                16,
               ),
-            ),
-            const SizedBox(height: 16),
+              child: SizedBox(
+                height: 64, // Same height as Order Details
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Back Button
+                    InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.blueGrey.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: 2),
+                            child: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.blueGrey,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
 
-            // Narration
-            _buildSectionCard(
-              theme,
-              title: 'Narration',
-              child: Text(
-                receipt['narration'] ?? 'No narration',
-                style: theme.textTheme.bodyMedium,
+                    // Title
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TranslatedText(
+                            partyName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E293B), // Slate 800
+                              letterSpacing: -0.5,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.blue.withOpacity(0.2),
+                              ),
+                            ),
+                            child: const TranslatedText(
+                              'RECEIPT DETAILS',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1565C0),
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-
-            // Ledger Entries
-            _buildSectionCard(
-              theme,
-              title: 'Ledger Entries',
-              child: Column(
-                children: [
-                  // Header
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            'ACCOUNT',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: Text(
-                            'DEBIT',
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: Text(
-                            'CREDIT',
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(),
-                  // Row 1 (Cash/Bank - Debit)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            receipt['receipt_account'] ?? 'Unknown Account',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: Text(
-                            _formatCurrency(receipt['amount']),
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors
-                                  .red, // Usually debits are standard, but image showed red maybe? Image showed red for debit amount 150.00
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: Text(
-                            '-',
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  // Row 2 (Customer - Credit)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            'Customer - ${receipt['party_name']}',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: Text(
-                            '-',
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: Text(
-                            _formatCurrency(receipt['amount']),
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors
-                                  .green, // Credit usually green or standard
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildBody(ThemeData theme) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 900;
+
+        if (isWide) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // LEFT COLUMN
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        children: [
+                          _buildPartyInfoCard(theme),
+                          const SizedBox(height: 16),
+                          if (receipt['narration'] != null &&
+                              receipt['narration'].toString().isNotEmpty)
+                            _buildSectionCard(
+                              theme,
+                              title: 'Narration',
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildDashedDivider(),
+                                  Text(
+                                    receipt['narration']!,
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    // RIGHT COLUMN
+                    Expanded(
+                      flex: 6,
+                      child: Column(
+                        children: [
+                          _buildSummaryCard(theme),
+                          const SizedBox(height: 16),
+                          _buildLedgerEntriesCard(theme),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        // Mobile Layout
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildPartyInfoCard(theme),
+                  const SizedBox(height: 16),
+                  _buildSummaryCard(theme),
+                  const SizedBox(height: 16),
+                  _buildLedgerEntriesCard(theme),
+                  if (receipt['narration'] != null &&
+                      receipt['narration'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _buildSectionCard(
+                      theme,
+                      title: 'Narration',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildDashedDivider(),
+                          Text(
+                            receipt['narration']!,
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildSectionCard(
     ThemeData theme, {
-    required String title,
+    String? title,
     required Widget child,
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: theme.shadowColor.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.25), // Strong/Darker Shadow
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
+          if (title != null) ...[
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                TranslatedText(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    letterSpacing: -0.5,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
           child,
         ],
       ),
     );
   }
 
-  Widget _buildLabelValueRow(
-    ThemeData theme,
-    String label,
-    String value, {
-    Color? valueColor,
-    bool isBoldValue = false,
-    bool isStatus = false,
-    Color? statusColor,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
-        ),
-        if (isStatus)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: (statusColor ?? Colors.grey).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: statusColor ?? Colors.grey),
-            ),
+  Widget _buildPartyInfoCard(ThemeData theme) {
+    return _buildSectionCard(
+      theme,
+      title: 'Party Information',
+      child: Column(
+        children: [
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Name',
+            receipt['party_name'] ?? 'Unknown',
+            Icons.person_outline_rounded,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Type',
+            'USER', // Assuming fixed as per original code
+            Icons.category_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(ThemeData theme) {
+    return _buildSectionCard(
+      theme,
+      title: 'Receipt Summary',
+      child: Column(
+        children: [
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Voucher Number',
+            receipt['voucher_number'] ?? '',
+            Icons.receipt_rounded,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Amount',
+            _formatCurrency(receipt['amount']),
+            Icons.attach_money_rounded,
+            valueColor: Colors.green,
+            isBold: true,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Date',
+            _formatDate(receipt['date']),
+            Icons.calendar_today_rounded,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Financial Year',
+            _getFinancialYear(receipt['date']),
+            Icons.event_note_rounded,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Status',
+            receipt['is_posted'] == true ? 'Posted' : 'Unposted',
+            Icons.check_circle_outline_rounded,
+            valueColor: receipt['is_posted'] == true
+                ? Colors.green
+                : Colors.orange,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLedgerEntriesCard(ThemeData theme) {
+    return _buildSectionCard(
+      theme,
+      title: 'Ledger Entries',
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                if (statusColor == Colors.green)
-                  const Icon(Icons.check, size: 14, color: Colors.green),
-                if (statusColor == Colors.green) const SizedBox(width: 4),
-                Text(
-                  value,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'ACCOUNT',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    'DEBIT',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    'CREDIT',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
                   ),
                 ),
               ],
             ),
-          )
-        else
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: valueColor,
-              fontWeight: isBoldValue ? FontWeight.bold : FontWeight.normal,
+          ),
+          const Divider(),
+          // Row 1 (Cash/Bank - Debit)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    receipt['receipt_account'] ?? 'Unknown Account',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    _formatCurrency(receipt['amount']),
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    '-',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ],
             ),
           ),
+          _buildDashedDivider(),
+          // Row 2 (Customer - Credit)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Customer - ${receipt['party_name']}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    '-',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    _formatCurrency(receipt['amount']),
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(
+    ThemeData theme,
+    String label,
+    String value,
+    IconData icon, {
+    Color? valueColor,
+    bool isBold = false,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TranslatedText(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                fontSize: 11,
+              ),
+            ),
+            Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+                color: valueColor ?? theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
       ],
+    );
+  }
+
+  Widget _buildDashedDivider() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boxWidth = constraints.constrainWidth();
+        const dashWidth = 4.0;
+        const dashHeight = 1.0;
+        final dashCount = (boxWidth / (2 * dashWidth)).floor();
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Flex(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            direction: Axis.horizontal,
+            children: List.generate(dashCount, (_) {
+              return SizedBox(
+                width: dashWidth,
+                height: dashHeight,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(color: Colors.grey[300]),
+                ),
+              );
+            }),
+          ),
+        );
+      },
     );
   }
 }

@@ -2347,15 +2347,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         },
       ),
       floatingActionButton: _totalProductsInCart > 0
-          ? FloatingActionButton.extended(
-              onPressed: _showCartBottomSheet,
-              backgroundColor: theme.primaryColor,
-              icon: const Icon(Icons.shopping_cart, color: Colors.white),
-              label: Text(
-                '$_totalProductsInCart Items • ₹${_grandTotal.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+          ? SizedBox(
+              height: 45,
+              child: FloatingActionButton.extended(
+                onPressed: _showCartBottomSheet,
+                backgroundColor: theme.primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 3,
+                icon: const Icon(Icons.shopping_cart, size: 18),
+                label: Text(
+                  '$_totalProductsInCart Items  •  ₹${_grandTotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             )
@@ -2369,7 +2374,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       return;
     }
 
-    final theme = Theme.of(context);
     final user = _currentCustomer!;
 
     // Extract data with fallbacks
@@ -2377,166 +2381,240 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     final lastName = user['last_name'] ?? '';
     final fullName = '$firstName $lastName'.trim();
     final phone = user['phone_number']?.toString() ?? 'N/A';
-    final email = user['email'] ?? 'unregistereduser@exanor.com';
 
-    // Scores (Using -1/Defaults if not present)
-    final creditScore = user['credit_score'] ?? -1;
-    final loyaltyScore = user['loyalty_score'] ?? -1;
-    final behaviourScore = user['behaviour_score'] ?? -1;
+    // Get tier color for avatar styling - matching App Design (Blue)
+    final creditScore = (user['credit_score'] ?? 0) as num;
+    final loyaltyScore = (user['loyalty_score'] ?? 0) as num;
+    final behaviourScore = (user['behaviour_score'] ?? 0) as num;
+
+    // Use app primary color
+    const primaryColor = Color(0xFF3B82F6);
 
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          width: 340, // Fixed width for consistent look
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Avatar
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  border: Border.all(
-                    color: Colors.blue.withOpacity(0.1),
-                    width: 1,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Compact Header with Avatar and Name
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 20),
+                  child: Column(
+                    children: [
+                      // Avatar at the top
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFEFF6FF), // Light blue bg
+                          border: Border.all(
+                            color: const Color(0xFFBFDBFE),
+                            width: 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            firstName.isNotEmpty
+                                ? firstName[0].toUpperCase()
+                                : 'G',
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w700,
+                              color: primaryColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Name
+                      Text(
+                        fullName,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E293B), // Slate 800
+                          letterSpacing: -0.3,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      // Phone number only
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9), // Slate 100
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.phone_rounded,
+                              size: 14,
+                              color: Color(0xFF64748B), // Slate 500
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '+$phone',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF475569), // Slate 600
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.blue.withOpacity(0.05),
-                      blurRadius: 10,
-                      spreadRadius: 2,
+                ),
+
+                // Simple Stats Row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC), // Slate 50
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                  ],
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.person_outline,
-                    size: 40,
-                    color: Colors.blue,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Name
-              TranslatedText(
-                fullName,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TranslatedText(
-                    '+$phone', // Assuming phone is number w/o + or has country code
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              TranslatedText(
-                email,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[500],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Change Customer Button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _showCustomerPhoneDialog();
-                  },
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const TranslatedText('Change Customer'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildSimpleStat('Credit', creditScore),
+                        Container(
+                          width: 1,
+                          height: 30,
+                          color: const Color(0xFFE2E8F0),
+                        ),
+                        _buildSimpleStat('Loyalty', loyaltyScore),
+                        Container(
+                          width: 1,
+                          height: 30,
+                          color: const Color(0xFFE2E8F0),
+                        ),
+                        _buildSimpleStat('Behavior', behaviourScore),
+                      ],
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 24),
-              const Divider(),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // Scores
-              _buildScoreRow(creditScore, loyaltyScore, behaviourScore),
-            ],
+                // Action Buttons
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            _showCustomerPhoneDialog();
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            foregroundColor: const Color(0xFF64748B),
+                          ),
+                          child: const Text(
+                            'Switch',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Continue',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildScoreRow(dynamic credit, dynamic loyalty, dynamic behaviour) {
+  Widget _buildSimpleStat(String label, num score) {
+    Color scoreColor;
+    if (score >= 80) {
+      scoreColor = const Color(0xFF16A34A); // Green
+    } else if (score >= 50) {
+      scoreColor = const Color(0xFF3B82F6); // Blue
+    } else {
+      scoreColor = const Color(0xFFF59E0B); // Amber
+    }
+
     return Column(
       children: [
-        _buildScoreItem(credit, 'Credit Score', 'Fair', Colors.blue),
-        const SizedBox(height: 16),
-        _buildScoreItem(loyalty, 'Loyalty Score', 'New', Colors.green),
-        const SizedBox(height: 16),
-        _buildScoreItem(
-          behaviour,
-          'Behaviour Score',
-          'Needs attention',
-          Colors.purple,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildScoreItem(
-    dynamic score,
-    String label,
-    String subLabel,
-    Color color,
-  ) {
-    return Row(
-      children: [
-        Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: color, width: 2),
-          ),
-          child: Center(
-            child: TranslatedText(
-              '$score',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
+        Text(
+          score.toString(),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: scoreColor,
           ),
         ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TranslatedText(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-            TranslatedText(
-              subLabel, // This might need logic based on score
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-            ),
-          ],
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF94A3B8), // Slate 400
+          ),
         ),
       ],
     );
@@ -2587,6 +2665,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Menu Button (with label)
                       Column(
@@ -2605,7 +2684,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                             icon: const Icon(
                               Icons.menu_rounded,
                               color: Colors.blueGrey,
-                              size: 28,
+                              size: 32,
                             ),
                             onPressed: () {
                               if (widget.onMenuPressed != null) {
@@ -2636,7 +2715,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 18,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF1E293B), // Slate 800
                                 letterSpacing: -0.5,
@@ -2671,26 +2750,23 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       ),
 
                       // Text Only Mode Toggle
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TranslatedText(
-                            _isTextOnlyMode ? 'SHOW IMAGES' : 'TEXT ONLY',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.blueGrey[400],
-                              letterSpacing: 1.2,
+                      SizedBox(
+                        width: 70,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              _isTextOnlyMode ? 'SHOW IMG' : 'TEXT ONLY',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Material(
-                            color: _isTextOnlyMode
-                                ? Colors.blue.withOpacity(0.1)
-                                : Colors.white,
-                            shape: const CircleBorder(),
-                            clipBehavior: Clip.hardEdge,
-                            child: InkWell(
+                            const SizedBox(height: 4),
+                            InkWell(
                               onTap: () async {
                                 final newValue = !_isTextOnlyMode;
                                 print("Toggling text mode to: $newValue");
@@ -2709,16 +2785,27 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                   print('Error saving view preference: $e');
                                 }
                               },
+                              borderRadius: BorderRadius.circular(30),
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
+                                  color: _isTextOnlyMode
+                                      ? Colors.blue.withOpacity(0.1)
+                                      : Colors.white,
                                   border: Border.all(
                                     color: _isTextOnlyMode
                                         ? Colors.blue
                                         : Colors.white,
                                     width: 2,
                                   ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.blueGrey.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
                                 child: Icon(
                                   _isTextOnlyMode
@@ -2731,55 +2818,59 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 8),
 
                       // Customer Profile Button (with label and bigger size)
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TranslatedText(
-                            customer_user_id != null
-                                ? 'USER STATS'
-                                : 'ADD USER',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.blueGrey[400],
-                              letterSpacing: 1.2,
+                      SizedBox(
+                        width: 70,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              customer_user_id != null
+                                  ? 'USER STATS'
+                                  : 'ADD USER',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          InkWell(
-                            onTap: _showCustomerProfileDialog,
-                            borderRadius: BorderRadius.circular(30),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                                border: Border.all(
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: _showCustomerProfileDialog,
+                              borderRadius: BorderRadius.circular(30),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
                                   color: Colors.white,
-                                  width: 2,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.blueGrey.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
                                   ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.person_rounded,
-                                color: Colors.blueGrey,
-                                size: 24, // Bigger size
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.blueGrey.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.person_rounded,
+                                  color: Colors.blueGrey,
+                                  size: 24,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -3482,9 +3573,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
+                padding: const EdgeInsets.only(
+                  left: 8,
+                  right: 8,
+                  top: 12,
+                  bottom: 120, // Added significant bottom padding
                 ),
                 sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
@@ -3941,93 +4034,243 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   void _showOrderMethodSelection() {
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (context) {
-        return AlertDialog(
-          title: const TranslatedText('Select Order Method'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: _orderMethods.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final method = _orderMethods[index];
-                final isSelected = method['id'] == _selectedOrderMethod?['id'];
-
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedOrderMethod = method;
-                    });
-                    Navigator.pop(context);
-                    // Re-validate cart with new method
-                    _validateCart();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isSelected
-                            ? Theme.of(context).primaryColor
-                            : Colors.grey[300]!,
-                        width: isSelected ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      color: isSelected
-                          ? Theme.of(context).primaryColor.withOpacity(0.05)
-                          : null,
-                    ),
-                    child: Row(
+        final theme = Theme.of(context);
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          backgroundColor:
+              Colors.transparent, // Transparent to let Container handle it
+          elevation: 0,
+          insetPadding: const EdgeInsets.all(20),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 420),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header with improved spacing and Cancel Button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (method['img_url'] != null)
-                          CustomCachedNetworkImage(
-                            imgUrl: method['img_url'],
-                            width: 32,
-                            height: 32,
-                          ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TranslatedText(
-                                method['order_method_name'] ?? '',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected
-                                      ? Theme.of(context).primaryColor
-                                      : Colors.black87,
-                                ),
-                              ),
-                              if (method['order_method_description'] != null)
-                                TranslatedText(
-                                  method['order_method_description'],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                            ],
+                        const TranslatedText(
+                          'Order Type',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B), // Slate 800
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        if (isSelected)
-                          Icon(
-                            Icons.check_circle,
-                            color: Theme.of(context).primaryColor,
+                        const SizedBox(height: 6),
+                        TranslatedText(
+                          'Select how to fulfill this order',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                            fontWeight: FontWeight.w500,
                           ),
+                        ),
                       ],
                     ),
+                    // Refined Close Button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => Navigator.pop(context),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            size: 20,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Options List
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: _orderMethods.map((method) {
+                        final isSelected =
+                            method['id'] == _selectedOrderMethod?['id'];
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _selectedOrderMethod = method;
+                                });
+                                Navigator.pop(context);
+                                _validateCart();
+                              },
+                              borderRadius: BorderRadius.circular(16),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? theme.primaryColor.withOpacity(0.04)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? theme.primaryColor
+                                        : Colors.grey[200]!,
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Icon Box
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey[50],
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? theme.primaryColor.withOpacity(
+                                                  0.1,
+                                                )
+                                              : Colors.transparent,
+                                        ),
+                                      ),
+                                      padding: const EdgeInsets.all(8),
+                                      child: method['img_url'] != null
+                                          ? ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: CustomCachedNetworkImage(
+                                                imgUrl: method['img_url'],
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.inventory_2_rounded,
+                                              color: isSelected
+                                                  ? theme.primaryColor
+                                                  : Colors.grey[400],
+                                              size: 28,
+                                            ),
+                                    ),
+                                    const SizedBox(width: 16),
+
+                                    // Text Content
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          TranslatedText(
+                                            method['order_method_name'] ??
+                                                'Unknown',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: isSelected
+                                                  ? const Color(0xFF1E293B)
+                                                  : const Color(0xFF334155),
+                                            ),
+                                          ),
+                                          if (method['order_method_description'] !=
+                                                  null &&
+                                              method['order_method_description']
+                                                  .toString()
+                                                  .isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                              ),
+                                              child: TranslatedText(
+                                                method['order_method_description'],
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.grey[500],
+                                                  height: 1.3,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    // Selection Indicator
+                                    const SizedBox(width: 12),
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? theme.primaryColor
+                                              : Colors.grey[300]!,
+                                          width: 2,
+                                        ),
+                                        color: isSelected
+                                            ? theme.primaryColor
+                                            : Colors.transparent,
+                                      ),
+                                      child: isSelected
+                                          ? const Icon(
+                                              Icons.check,
+                                              size: 16,
+                                              color: Colors.white,
+                                            )
+                                          : null,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const TranslatedText('Cancel'),
-            ),
-          ],
         );
       },
     );
