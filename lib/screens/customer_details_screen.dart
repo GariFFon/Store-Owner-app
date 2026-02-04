@@ -33,6 +33,346 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
   late DateTime _startDate;
   late DateTime _endDate;
 
+  // Transaction Filters
+  String _txnSearchQuery = "";
+  String _txnVoucherType = "All Voucher Types";
+  String _txnSortOption = "Sort by Date";
+
+  // --- Ledger Report Slivers ---
+  List<Widget> _buildLedgerSlivers(bool isDesktop) {
+    if (_ledgerReport == null) {
+      return [
+        const SliverToBoxAdapter(
+          child: Center(child: Text("No ledger data found")),
+        ),
+      ];
+    }
+
+    // Filter Logic
+    List transactions = List.from(_ledgerReport!['transactions'] ?? []);
+
+    // 1. Search
+    if (_txnSearchQuery.isNotEmpty) {
+      final q = _txnSearchQuery.toLowerCase();
+      transactions = transactions.where((t) {
+        final voucher = (t['voucher_number'] ?? "").toString().toLowerCase();
+        final type = (t['voucher_type'] ?? "").toString().toLowerCase();
+        return voucher.contains(q) || type.contains(q);
+      }).toList();
+    }
+
+    // 2. Voucher Type
+    if (_txnVoucherType != "All Voucher Types") {
+      transactions = transactions.where((t) {
+        // Map UI string to backend type if needed, or just match direct string
+        // Assuming backend types like 'Sales', 'Receipt' etc match or contain the string
+        // For now, let's assume exact match or contains
+        return (t['voucher_type'] ?? "").toString() == _txnVoucherType;
+      }).toList();
+    }
+
+    // 3. Sort
+    // Default is usually Date Descending from backend?
+    if (_txnSortOption == "Sort by Date") {
+      // Assuming date string yyyy-MM-dd
+      transactions.sort((a, b) {
+        final d1 = DateTime.tryParse(a['date'] ?? "") ?? DateTime(1900);
+        final d2 = DateTime.tryParse(b['date'] ?? "") ?? DateTime(1900);
+        return d2.compareTo(d1); // Descending
+      });
+    } else if (_txnSortOption == "Amount: High to Low") {
+      transactions.sort((a, b) {
+        final amtA =
+            double.tryParse(
+              (a['debit'] == '0.00' ? a['credit'] : a['debit']).toString(),
+            ) ??
+            0;
+        final amtB =
+            double.tryParse(
+              (b['debit'] == '0.00' ? b['credit'] : b['debit']).toString(),
+            ) ??
+            0;
+        return amtB.compareTo(amtA);
+      });
+    } else if (_txnSortOption == "Amount: Low to High") {
+      transactions.sort((a, b) {
+        final amtA =
+            double.tryParse(
+              (a['debit'] == '0.00' ? a['credit'] : a['debit']).toString(),
+            ) ??
+            0;
+        final amtB =
+            double.tryParse(
+              (b['debit'] == '0.00' ? b['credit'] : b['debit']).toString(),
+            ) ??
+            0;
+        return amtA.compareTo(amtB);
+      });
+    }
+
+    return [
+      // 1. Ledger Summary Stats (Opening, Debit, Credit, Closing)
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 600;
+              final tiles = [
+                _buildSummaryTile(
+                  "Opening Balance",
+                  _formatCurrency(_ledgerReport!['opening_balance']),
+                  isBold: true,
+                ),
+                _buildSummaryTile(
+                  "Total Debit",
+                  _formatCurrency(_ledgerReport!['total_debit']),
+                  color: Colors.red[50],
+                  textColor: Colors.red[700],
+                ),
+                _buildSummaryTile(
+                  "Total Credit",
+                  _formatCurrency(_ledgerReport!['total_credit']),
+                  color: Colors.green[50],
+                  textColor: Colors.green[700],
+                ),
+                _buildSummaryTile(
+                  "Closing Balance",
+                  _formatCurrency(_ledgerReport!['closing_balance']),
+                  isBold: true,
+                ),
+              ];
+
+              if (isWide) {
+                return Row(
+                  children: [
+                    Expanded(child: tiles[0]),
+                    const SizedBox(width: 12),
+                    Expanded(child: tiles[1]),
+                    const SizedBox(width: 12),
+                    Expanded(child: tiles[2]),
+                    const SizedBox(width: 12),
+                    Expanded(child: tiles[3]),
+                  ],
+                );
+              }
+              // Mobile Grid 2x2
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: tiles[0]),
+                      const SizedBox(width: 12),
+                      Expanded(child: tiles[3]),
+                    ],
+                  ), // Opening & Closing top
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(child: tiles[1]),
+                      const SizedBox(width: 12),
+                      Expanded(child: tiles[2]),
+                    ],
+                  ), // Debit & Credit below
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+
+      // 2. Filters Toolbar
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: _buildTransactionFilters(isDesktop),
+        ),
+      ),
+
+      // 3. Transactions
+      if (isDesktop)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _buildDesktopLedgerTable(transactions),
+          ),
+        )
+      else
+        SliverList(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildMobileTransactionCard(transactions[index]),
+            );
+          }, childCount: transactions.length),
+        ),
+    ];
+  }
+
+  Widget _buildTransactionFilters(bool isDesktop) {
+    if (!isDesktop) {
+      // Mobile Layout: Stacked or scrollable
+      return Column(
+        children: [
+          TextField(
+            onChanged: (v) => setState(() => _txnSearchQuery = v),
+            decoration: InputDecoration(
+              hintText: "Search transactions...",
+              prefixIcon: const Icon(
+                Icons.search,
+                size: 20,
+                color: Colors.grey,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterDropdown(
+                  value: _txnVoucherType,
+                  items: [
+                    "All Voucher Types",
+                    "Sales",
+                    "Receipt",
+                    "Payment",
+                    "Purchase",
+                  ],
+                  onChanged: (v) => setState(() => _txnVoucherType = v!),
+                ),
+                const SizedBox(width: 12),
+                _buildFilterDropdown(
+                  value: _txnSortOption,
+                  items: [
+                    "Sort by Date",
+                    "Amount: High to Low",
+                    "Amount: Low to High",
+                  ],
+                  onChanged: (v) => setState(() => _txnSortOption = v!),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Desktop Layout
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: TextField(
+            onChanged: (v) => setState(() => _txnSearchQuery = v),
+            decoration: InputDecoration(
+              hintText: "Search transactions...",
+              prefixIcon: const Icon(
+                Icons.search,
+                size: 20,
+                color: Colors.grey,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 0,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        _buildFilterDropdown(
+          value: _txnVoucherType,
+          items: [
+            "All Voucher Types",
+            "Sales",
+            "Receipt",
+            "Payment",
+            "Purchase",
+          ],
+          onChanged: (v) => setState(() => _txnVoucherType = v!),
+        ),
+        const SizedBox(width: 16),
+        _buildFilterDropdown(
+          value: _txnSortOption,
+          items: ["Sort by Date", "Amount: High to Low", "Amount: Low to High"],
+          onChanged: (v) => setState(() => _txnSortOption = v!),
+        ),
+        const SizedBox(width: 16),
+        Container(
+          height: 48,
+          width: 48,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.tune_rounded),
+            color: Colors.grey[600],
+            onPressed: () {
+              // Additional filters if needed
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterDropdown({
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged, // Correct type here
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: items.contains(value) ? value : items.first,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.grey,
+          ),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+          items: items
+              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -497,108 +837,6 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
         ],
       ),
     );
-  }
-
-  // --- Ledger Report Slivers ---
-  List<Widget> _buildLedgerSlivers(bool isDesktop) {
-    if (_ledgerReport == null) {
-      return [
-        const SliverToBoxAdapter(
-          child: Center(child: Text("No ledger data found")),
-        ),
-      ];
-    }
-
-    return [
-      // 1. Ledger Summary Stats (Opening, Debit, Credit, Closing)
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 600;
-              final tiles = [
-                _buildSummaryTile(
-                  "Opening Balance",
-                  _formatCurrency(_ledgerReport!['opening_balance']),
-                  isBold: true,
-                ),
-                _buildSummaryTile(
-                  "Total Debit",
-                  _formatCurrency(_ledgerReport!['total_debit']),
-                  color: Colors.red[50],
-                  textColor: Colors.red[700],
-                ),
-                _buildSummaryTile(
-                  "Total Credit",
-                  _formatCurrency(_ledgerReport!['total_credit']),
-                  color: Colors.green[50],
-                  textColor: Colors.green[700],
-                ),
-                _buildSummaryTile(
-                  "Closing Balance",
-                  _formatCurrency(_ledgerReport!['closing_balance']),
-                  isBold: true,
-                ),
-              ];
-
-              if (isWide) {
-                return Row(
-                  children: [
-                    Expanded(child: tiles[0]),
-                    const SizedBox(width: 12),
-                    Expanded(child: tiles[1]),
-                    const SizedBox(width: 12),
-                    Expanded(child: tiles[2]),
-                    const SizedBox(width: 12),
-                    Expanded(child: tiles[3]),
-                  ],
-                );
-              }
-              // Mobile Grid 2x2
-              return Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: tiles[0]),
-                      const SizedBox(width: 12),
-                      Expanded(child: tiles[3]),
-                    ],
-                  ), // Opening & Closing top
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(child: tiles[1]),
-                      const SizedBox(width: 12),
-                      Expanded(child: tiles[2]),
-                    ],
-                  ), // Debit & Credit below
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-
-      // 2. Transactions
-      if (isDesktop)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: _buildDesktopLedgerTable(_ledgerReport!['transactions']),
-          ),
-        )
-      else
-        SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final txns = _ledgerReport!['transactions'] as List;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildMobileTransactionCard(txns[index]),
-            );
-          }, childCount: (_ledgerReport!['transactions'] as List).length),
-        ),
-    ];
   }
 
   Widget _buildSummaryTile(

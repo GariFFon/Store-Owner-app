@@ -818,28 +818,75 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth > 600) {
-          // Tablet/Desktop Grid Layout
-          return GridView.builder(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 400,
-              mainAxisExtent: 190, // Increased to prevent overflow
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-            itemCount: _vouchers.length + (_isLoadingMore ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index == _vouchers.length) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return _buildPremiumPurchaseCard(
-                theme,
-                _vouchers[index],
-                isGrid: true,
-              );
-            },
+          // Table Layout for larger screens
+          return Column(
+            children: [
+              // Table Header
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.05),
+                      offset: const Offset(0, 2),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(flex: 2, child: _buildTableHeaderText('DATE')),
+                    Expanded(flex: 2, child: _buildTableHeaderText('VOUCHER')),
+                    Expanded(flex: 4, child: _buildTableHeaderText('SUPPLIER')),
+                    Expanded(flex: 2, child: _buildTableHeaderText('AMOUNT')),
+                    Expanded(flex: 2, child: _buildTableHeaderText('PAYMENT')),
+                    Expanded(
+                      flex: 2,
+                      child: _buildTableHeaderText('VERIFICATION'),
+                    ),
+                    const SizedBox(width: 40), // Action
+                  ],
+                ),
+              ),
+              // Table Body
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => _fetchPurchases(),
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount: _vouchers.length + (_isLoadingMore ? 1 : 0),
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1, thickness: 0.5),
+                    itemBuilder: (context, index) {
+                      if (index == _vouchers.length) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+                      final voucher = _vouchers[index];
+                      return _buildTabletPurchaseRow(
+                        theme,
+                        voucher,
+                        index == _vouchers.length - 1,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
           );
         } else {
           // Mobile List Layout
@@ -866,6 +913,206 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           );
         }
       },
+    );
+  }
+
+  Widget _buildTableHeaderText(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey[500],
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+
+  Widget _buildTabletPurchaseRow(
+    ThemeData theme,
+    dynamic voucher,
+    bool isLast,
+  ) {
+    final paymentStatus =
+        voucher['payment_info']?['payment_status'] ?? 'UNKNOWN';
+    final statusColor = _getStatusColor(paymentStatus);
+    final supplierName = voucher['supplier']?['name'] ?? 'Unknown Supplier';
+    final voucherNumber = voucher['voucher_number'] ?? 'N/A';
+    final verificationStatus = voucher['status'] ?? '';
+    final grandTotal = voucher['grand_total'];
+    final amount = '₹${grandTotal ?? 0}';
+    final dateStr = voucher['date'] ?? '';
+
+    // Determine verification badge details
+    Color verifyColor = Colors.grey;
+    String verifyText = '';
+    IconData verifyIcon = Icons.help_outline;
+
+    if (verificationStatus == 'PENDING') {
+      verifyColor = Colors.orange;
+      verifyText = 'Pending';
+      verifyIcon = Icons.hourglass_empty_rounded;
+    } else if (verificationStatus == 'VERIFIED') {
+      verifyColor = Colors.green;
+      verifyText = 'Verified';
+      verifyIcon = Icons.verified_rounded;
+    } else if (verificationStatus == 'REJECTED') {
+      verifyColor = Colors.red;
+      verifyText = 'Rejected';
+      verifyIcon = Icons.cancel_outlined;
+    }
+
+    return Material(
+      color: Colors.white,
+      shape: isLast
+          ? const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+            )
+          : null,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PurchaseDetailsScreen(
+                storeId: widget.storeId,
+                purchaseData: voucher as Map<String, dynamic>,
+              ),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Colors.grey.withOpacity(0.1)),
+              left: BorderSide(color: Colors.grey.withOpacity(0.1)),
+              right: BorderSide(color: Colors.grey.withOpacity(0.1)),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Date
+              Expanded(
+                flex: 2,
+                child: Text(
+                  dateStr,
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Voucher
+              Expanded(
+                flex: 2,
+                child: Text(
+                  "#$voucherNumber",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Supplier
+              Expanded(
+                flex: 4,
+                child: Text(
+                  supplierName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1E293B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Amount
+              Expanded(
+                flex: 2,
+                child: Text(
+                  amount,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1E293B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Payment Status
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      paymentStatus,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Verification Status
+              Expanded(
+                flex: 2,
+                child: verifyText.isNotEmpty
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: verifyColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(verifyIcon, size: 12, color: verifyColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                verifyText,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: verifyColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : const SizedBox(),
+              ),
+              // Action
+              SizedBox(
+                width: 40,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.grey[400],
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

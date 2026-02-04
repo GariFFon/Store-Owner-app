@@ -23,6 +23,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
   String? _storeId;
   List<dynamic> _parties = [];
   bool _isLoading = true;
+  bool _isSearchExpanded = false;
   bool _isLoadingMore = false;
   bool _hasNextPage = false;
   int _currentPage = 1;
@@ -184,6 +185,29 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
         body: Column(
           children: [
             _buildInteractiveBanner(primaryColor, lightBg, watermarkColor),
+
+            // Search Bar (Conditional)
+            if (_isSearchExpanded)
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.white,
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, GSTIN...',
+                    prefixIcon: Icon(Icons.search, color: primaryColor),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+              ),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () async => await _fetchParties(),
@@ -354,63 +378,224 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Customers",
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: -0.5,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Customers",
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.5,
+                            ),
                           ),
-                        ),
+                          Text(
+                            "Manage Relationships",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Sort Button
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
-                          "Manage Relationships",
+                          'SORT',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: primary,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.blueGrey[400],
+                            letterSpacing: 1.2,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        InkWell(
+                          onTap: () => _showSortOptions(context),
+                          borderRadius: BorderRadius.circular(30),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border: Border.all(
+                                color: Colors.indigo.withOpacity(0.1),
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.indigo.withOpacity(0.05),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.sort_rounded,
+                              size: 24,
+                              color: Colors.indigo[400],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                    const SizedBox(width: 16),
+                    // Search Button
+                    SizedBox(
+                      width: 50, // Reduced width since text is small
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'SEARCH',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                _isSearchExpanded = !_isSearchExpanded;
+                                if (!_isSearchExpanded) {
+                                  _searchController.clear();
+                                  _fetchParties();
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(30),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blueGrey.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                _isSearchExpanded
+                                    ? Icons.close
+                                    : Icons.search_rounded,
+                                size: 24,
+                                color: Colors.blueGrey[700],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: 'Search by name, GSTIN...',
-                      hintStyle: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[400],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: Icon(Icons.search_rounded, color: primary),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSortOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Text(
+                'SORT CUSTOMERS BY',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.grey,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            _buildSortOption('Name (A-Z)', 'name', 'asc'),
+            _buildSortOption('Name (Z-A)', 'name', 'desc'),
+            _buildSortOption(
+              'Outstanding (High to Low)',
+              'total_outstanding',
+              'desc',
+            ),
+            _buildSortOption(
+              'Outstanding (Low to High)',
+              'total_outstanding',
+              'asc',
+            ),
+            _buildSortOption(
+              'Recently Created',
+              'created_at',
+              'desc',
+            ), // Assuming created_at exists
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortOption(String label, String value, String order) {
+    final isSelected = _sortBy == value && _sortOrder == order;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _sortBy = value;
+          _sortOrder = order;
+        });
+        Navigator.pop(context);
+        _fetchParties();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        color: isSelected ? Colors.blue.withOpacity(0.05) : null,
+        child: Row(
+          children: [
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected ? Colors.blue : Colors.grey[400],
+              size: 20,
+            ),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? Colors.blue[800] : Colors.grey[800],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -548,7 +733,6 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
             Expanded(flex: 3, child: Text('CUSTOMER', style: _headerStyle)),
             Expanded(flex: 2, child: Text('CONTACT', style: _headerStyle)),
             Expanded(flex: 2, child: Text('LOCATION', style: _headerStyle)),
-            Expanded(flex: 2, child: Text('GSTIN', style: _headerStyle)),
             Expanded(
               flex: 2,
               child: Text(
@@ -609,10 +793,25 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      party['name'] ?? 'Unknown',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          party['name'] ?? 'Unknown',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (party['is_user'] == true)
+                          Text(
+                            "USER",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[400],
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -620,22 +819,28 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
             ),
             Expanded(
               flex: 2,
-              child: Text(
-                party['phone_number']?.toString() ?? '-',
-                style: const TextStyle(fontSize: 13),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    party['phone_number']?.toString() ?? '-',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  if (party['email'] != null)
+                    Text(
+                      party['email'],
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
               ),
             ),
             Expanded(
               flex: 2,
               child: Text(
                 party['city'] ?? '-',
-                style: const TextStyle(fontSize: 13),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                party['gstin'] ?? '-',
                 style: const TextStyle(fontSize: 13),
               ),
             ),
@@ -665,6 +870,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
   }
 
   Widget _buildMobileCard(dynamic party, Color primary) {
+    // ignore: unused_local_variable
     final outstanding =
         double.tryParse(party['total_outstanding']?.toString() ?? '0') ?? 0.0;
 
@@ -687,6 +893,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,12 +920,32 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                             color: Color(0xFF1E293B),
                           ),
                         ),
+                        if (party['is_user'] == true)
+                          Text(
+                            "USER",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[400],
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                         if (party['phone_number'] != null) ...[
                           const SizedBox(height: 4),
                           Text(
                             party['phone_number'].toString(),
                             style: TextStyle(
                               fontSize: 13,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                        if (party['email'] != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            party['email'].toString(),
+                            style: TextStyle(
+                              fontSize: 12,
                               color: Colors.grey[500],
                             ),
                           ),
@@ -744,38 +971,54 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "OUTSTANDING",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                      Text(
+                        _formatCurrency(outstanding),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
+                      horizontal: 12,
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey[200]!),
                     ),
-                    child: Text(
-                      party['gstin'] != null ? 'GST: ${party['gstin']}' : 'N/A',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[600],
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        _formatCurrency(outstanding),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.green,
-                          letterSpacing: -0.5,
+                    child: Row(
+                      children: [
+                        Text(
+                          "Details",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward,
+                          size: 14,
+                          color: Colors.grey[500],
+                        ),
+                      ],
                     ),
                   ),
                 ],

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/screens/auth/login_screen.dart';
 import 'package:exanor/screens/auth/signup_screen.dart';
+import 'package:exanor/services/api_service.dart';
 
 class AuthLandingScreen extends StatelessWidget {
   const AuthLandingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Reset the auth navigation flag so future auth failures can trigger navigation
+    ApiService.resetAuthNavigationFlag();
+
     final theme = Theme.of(context);
 
     return Scaffold(

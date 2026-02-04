@@ -2122,7 +2122,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         Expanded(
                           child: InkWell(
                             onTap: () {
-                              if (!isLoading) Navigator.pop(context);
+                              if (!isLoading) {
+                                // Close dialog immediately for snappy UX
+                                Navigator.pop(context);
+                                // Fire guest customer fetch in background (don't await)
+                                const String guestPhoneNumber = '910000000018';
+                                _fetchCustomerData(
+                                  guestPhoneNumber,
+                                  silent: true,
+                                ).catchError((e) {
+                                  debugPrint(
+                                    'Guest customer fetch error (non-blocking): $e',
+                                  );
+                                });
+                              }
                             },
                             child: const Padding(
                               padding: EdgeInsets.symmetric(vertical: 12),
@@ -2270,7 +2283,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   // Fetch customer data from API
-  Future<void> _fetchCustomerData(String phoneNumber) async {
+  Future<void> _fetchCustomerData(
+    String phoneNumber, {
+    bool silent = false,
+  }) async {
     try {
       final response = await ApiService.post(
         '/view-user-data/',
@@ -2302,7 +2318,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               _validateCart();
             }
 
-            if (mounted) {
+            if (mounted && !silent) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: TranslatedText(
