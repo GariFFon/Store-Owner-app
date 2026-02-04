@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'package:exanor/models/gst_ledger_model.dart';
+import 'package:exanor/models/gst_summary_model.dart';
+import 'package:exanor/models/party_wise_report_model.dart';
 import 'package:exanor/services/gst_ledger_service.dart';
 
 class GstLedgerScreen extends StatefulWidget {
@@ -32,10 +34,17 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
 
   // Data
   GstLedgerData? _ledgerData;
+  GstSummaryData? _summaryData;
+  PartyWiseReportData? _partyWiseData;
   bool _isLoading = false;
+  bool _isSummaryLoading = false;
+  bool _isPartyWiseLoading = false;
   String? _errorMessage;
+  String? _summaryErrorMessage;
+  String? _partyWiseErrorMessage;
   int _currentPage = 1;
   Timer? _debounce;
+  String _selectedPartyGstType = 'all';
 
   // Colors
   final Color _primaryColor = const Color(0xFF2C2C2C);
@@ -44,6 +53,15 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && _summaryData == null && !_isSummaryLoading) {
+        // Load GST Summary when tab is switched to index 1 (GST Summary)
+        _fetchGstSummary();
+      } else if (_tabController.index == 2 && _partyWiseData == null && !_isPartyWiseLoading) {
+        // Load Party Wise Report when tab is switched to index 2
+        _fetchPartyWiseReport();
+      }
+    });
     _startDateController = TextEditingController(
       text: DateFormat('dd/MM/yyyy').format(_startDate),
     );
@@ -105,6 +123,12 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
       _endDateController.text = DateFormat('dd/MM/yyyy').format(_endDate);
     });
     _fetchLedgerData();
+    if (_tabController.index == 1 && _summaryData != null) {
+      _fetchGstSummary();
+    }
+    if (_tabController.index == 2 && _partyWiseData != null) {
+      _fetchPartyWiseReport();
+    }
   }
 
   void _setLastMonth() {
@@ -119,6 +143,12 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
       _endDateController.text = DateFormat('dd/MM/yyyy').format(_endDate);
     });
     _fetchLedgerData();
+    if (_tabController.index == 1 && _summaryData != null) {
+      _fetchGstSummary();
+    }
+    if (_tabController.index == 2 && _partyWiseData != null) {
+      _fetchPartyWiseReport();
+    }
   }
 
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
@@ -151,6 +181,12 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
         }
       });
       _fetchLedgerData();
+      if (_tabController.index == 1 && _summaryData != null) {
+        _fetchGstSummary();
+      }
+      if (_tabController.index == 2 && _partyWiseData != null) {
+        _fetchPartyWiseReport();
+      }
     }
   }
 
@@ -174,8 +210,8 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
               controller: _tabController,
               children: [
                 _buildLedgerListTab(),
-                _buildComingSoonTab('GST Summary'),
-                _buildComingSoonTab('Party-wise Report'),
+                _buildGstSummaryTab(),
+                _buildPartyWiseReportTab(),
               ],
             ),
           ),
@@ -1047,35 +1083,1165 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
     );
   }
 
-  Widget _buildComingSoonTab(String tabName) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.construction,
-            size: 80,
-            color: Colors.grey[300],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            '$tabName Coming Soon',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
+  // GST Summary Tab Implementation
+  Widget _buildGstSummaryTab() {
+    if (_isSummaryLoading && _summaryData == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_summaryErrorMessage != null && _summaryData == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              'Error loading summary',
+              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
             ),
+            const SizedBox(height: 8),
+            Text(
+              _summaryErrorMessage!,
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchGstSummary,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_summaryData == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.summarize, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 24),
+            Text(
+              'No summary data available',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select a date range to view GST summary',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _fetchGstSummary,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Load Summary'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildDateRangeSection(),
+          _buildInputGstSection(),
+          _buildOutputGstSection(),
+          _buildNetLiabilitySection(),
+          _buildHsnSummarySection(),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fetchGstSummary() async {
+    setState(() {
+      _isSummaryLoading = true;
+      _summaryErrorMessage = null;
+    });
+
+    try {
+      final request = GstSummaryRequest(
+        summary: true,
+        storeId: widget.storeId,
+        startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+        endDate: DateFormat('yyyy-MM-dd').format(_endDate),
+      );
+
+      final response = await GstLedgerService.getGstSummary(request);
+      setState(() {
+        _summaryData = response.response;
+        _isSummaryLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _summaryErrorMessage = e.toString();
+        _isSummaryLoading = false;
+      });
+    }
+  }
+
+  Widget _buildInputGstSection() {
+    final inputGst = _summaryData!.inputGst;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F9FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBAE6FD), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.arrow_downward, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Input GST (ITC Available)',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E3A8A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildSummaryRow('Taxable Value', '\u20b9${inputGst.taxableValue}', isBold: true),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _buildTaxCell('CGST', '\u20b9${inputGst.cgst}', const Color(0xFF3B82F6))),
+              const SizedBox(width: 8),
+              Expanded(child: _buildTaxCell('SGST', '\u20b9${inputGst.sgst}', const Color(0xFF3B82F6))),
+            ],
           ),
           const SizedBox(height: 8),
+          _buildSummaryRow('IGST', '\u20b9${inputGst.igst}'),
+          const SizedBox(height: 8),
+          _buildSummaryRow('CESS', '\u20b9${inputGst.cess}'),
+          const Divider(height: 24, color: Color(0xFFBAE6FD)),
+          _buildSummaryRow(
+            'Total Input GST',
+            '\u20b9${inputGst.total}',
+            isBold: true,
+            valueColor: const Color(0xFF1E3A8A),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutputGstSection() {
+    final outputGst = _summaryData!.outputGst;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBBF7D0), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.arrow_upward, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Output GST (Tax Collected)',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF166534),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildSummaryRow('Taxable Value', '\u20b9${outputGst.taxableValue}', isBold: true),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _buildTaxCell('CGST', '\u20b9${outputGst.cgst}', const Color(0xFF22C55E))),
+              const SizedBox(width: 8),
+              Expanded(child: _buildTaxCell('SGST', '\u20b9${outputGst.sgst}', const Color(0xFF22C55E))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildSummaryRow('IGST', '\u20b9${outputGst.igst}'),
+          const SizedBox(height: 8),
+          _buildSummaryRow('CESS', '\u20b9${outputGst.cess}'),
+          const Divider(height: 24, color: Color(0xFFBBF7D0)),
+          _buildSummaryRow(
+            'Total Output GST',
+            '\u20b9${outputGst.total}',
+            isBold: true,
+            valueColor: const Color(0xFF166534),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNetLiabilitySection() {
+    final netLiability = _summaryData!.netLiability;
+    final isPositive = netLiability.totalDouble >= 0;
+    final bgColor = isPositive ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7);
+    final borderColor = isPositive ? const Color(0xFFFDE047) : const Color(0xFFBBF7D0);
+    final iconColor = isPositive ? const Color(0xFFCA8A04) : const Color(0xFF16A34A);
+    final textColor = isPositive ? const Color(0xFF854D0E) : const Color(0xFF166534);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isPositive ? Icons.account_balance_wallet : Icons.arrow_circle_down,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Net GST Refund/Carry Forward',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Text(
-            'This feature is under development',
+            netLiability.note,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildNetLiabilityCell('CGST', '\u20b9${netLiability.cgst}', iconColor),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildNetLiabilityCell('SGST', '\u20b9${netLiability.sgst}', iconColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildNetLiabilityCell('IGST', '\u20b9${netLiability.igst}', iconColor),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildNetLiabilityCell('CESS', '\u20b9${netLiability.cess}', iconColor),
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          _buildSummaryRow(
+            'Total Net Liability',
+            '\u20b9${netLiability.total}',
+            isBold: true,
+            valueColor: textColor,
+            fontSize: 18,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHsnSummarySection() {
+    final hsnSummary = _summaryData!.hsnSummary;
+    if (hsnSummary.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.table_chart, color: Color(0xFF64748B)),
+                SizedBox(width: 12),
+                Text(
+                  'HSN-wise Summary',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Table Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[300]!),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  flex: 2,
+                  child: Text(
+                    'HSN Code',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+                const Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Taxable Value',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF64748B),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const Expanded(
+                  child: Text(
+                    'CGST',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF64748B),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const Expanded(
+                  child: Text(
+                    'SGST',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF64748B),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Total GST',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.purple[700],
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Table Rows
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(0),
+            itemCount: hsnSummary.length,
+            separatorBuilder: (context, index) => Divider(
+              height: 1,
+              color: Colors.grey[200],
+            ),
+            itemBuilder: (context, index) {
+              final item = hsnSummary[index];
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        item.hsnCode,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '\u20b9${item.taxableValue}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '\u20b9${item.cgst}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: item.cgstDouble > 0 ? const Color(0xFF3B82F6) : Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '\u20b9${item.sgst}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: item.sgstDouble > 0 ? const Color(0xFF22C55E) : Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '\u20b9${item.totalGst}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple[700],
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? valueColor,
+    double fontSize = 14,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            color: Colors.grey[700],
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: valueColor ?? Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTaxCell(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[500],
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildNetLiabilityCell(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Party Wise Report Tab Implementation
+  Widget _buildPartyWiseReportTab() {
+    if (_isPartyWiseLoading && _partyWiseData == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_partyWiseErrorMessage != null && _partyWiseData == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              'Error loading report',
+              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _partyWiseErrorMessage!,
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchPartyWiseReport,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_partyWiseData == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_alt, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 24),
+            Text(
+              'No party data available',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select a date range to view party-wise report',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _fetchPartyWiseReport,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Load Report'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildDateRangeSection(),
+          _buildPartyGstTypeFilter(),
+          _buildPartyTotalsCards(),
+          _buildPartiesTable(),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fetchPartyWiseReport() async {
+    setState(() {
+      _isPartyWiseLoading = true;
+      _partyWiseErrorMessage = null;
+    });
+
+    try {
+      final request = PartyWiseReportRequest(
+        partyWise: true,
+        storeId: widget.storeId,
+        startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+        endDate: DateFormat('yyyy-MM-dd').format(_endDate),
+        gstType: _selectedPartyGstType,
+      );
+
+      final response = await GstLedgerService.getPartyWiseReport(request);
+      setState(() {
+        _partyWiseData = response.response;
+        _isPartyWiseLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _partyWiseErrorMessage = e.toString();
+        _isPartyWiseLoading = false;
+      });
+    }
+  }
+
+  Widget _buildPartyGstTypeFilter() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'GST Type',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: _selectedPartyGstType,
+                icon: Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF0F172A),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'all',
+                    child: Row(
+                      children: [
+                        Icon(Icons.check, size: 18, color: Color(0xFF3B82F6)),
+                        SizedBox(width: 8),
+                        Text('All GST'),
+                      ],
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'input',
+                    child: Text('Input GST (Purchases)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'output',
+                    child: Text('Output GST (Sales)'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null && value != _selectedPartyGstType) {
+                    setState(() {
+                      _selectedPartyGstType = value;
+                    });
+                    _fetchPartyWiseReport();
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPartyTotalsCards() {
+    final totals = _partyWiseData!.totals;
+    final partyCount = _partyWiseData!.partyCount;
+    
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildPartyTotalCard(
+                  'Total Parties',
+                  partyCount.toString(),
+                  Icons.people,
+                  const Color(0xFF6366F1),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPartyTotalCard(
+                  'Total Taxable Value',
+                  '\u20b9${_formatAmount(totals.totalTaxable)}',
+                  Icons.account_balance_wallet,
+                  const Color(0xFF8B5CF6),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildPartyTotalCard(
+                  'Total GST',
+                  '\u20b9${_formatAmount(totals.totalGst)}',
+                  Icons.receipt_long,
+                  const Color(0xFFEC4899),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPartyTotalCard(
+                  'GST Type',
+                  _getGstTypeLabel(_selectedPartyGstType),
+                  Icons.category,
+                  const Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPartyTotalCard(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPartiesTable() {
+    final parties = _partyWiseData!.parties;
+    
+    if (parties.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.people_outline, size: 64, color: Colors.grey[300]),
+              const SizedBox(height: 16),
+              Text(
+                'No parties found',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
+          // Table Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Party Name',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'GSTIN',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    'Trans',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Taxable Value',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    'CGST',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    'SGST',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Total GST',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Table Rows
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(0),
+            itemCount: parties.length,
+            separatorBuilder: (context, index) => Divider(
+              height: 1,
+              color: Colors.grey[200],
+            ),
+            itemBuilder: (context, index) {
+              final party = parties[index];
+              final isEven = index % 2 == 0;
+              
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                color: isEven ? Colors.grey[50] : Colors.white,
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        party.partyName,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        party.gstin,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: party.gstin == 'N/A' ? Colors.grey[500] : const Color(0xFF64748B),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          party.transactionCount.toString(),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF3B82F6),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '\u20b9${_formatAmount(party.taxableValue)}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '\u20b9${party.cgst}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: party.cgstDouble > 0 ? const Color(0xFF3B82F6) : Colors.grey[500],
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '\u20b9${party.sgst}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: party.sgstDouble > 0 ? const Color(0xFF22C55E) : Colors.grey[500],
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '\u20b9${_formatAmount(party.totalGst)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple[700],
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatAmount(String amount) {
+    final double value = double.tryParse(amount) ?? 0.0;
+    if (value >= 10000000) {
+      // 1 Crore or more
+      return '${(value / 10000000).toStringAsFixed(2)}Cr';
+    } else if (value >= 100000) {
+      // 1 Lakh or more
+      return '${(value / 100000).toStringAsFixed(2)}L';
+    } else if (value >= 1000) {
+      // 1 Thousand or more
+      return '${(value / 1000).toStringAsFixed(2)}K';
+    } else {
+      return value.toStringAsFixed(2);
+    }
+  }
+
+  String _getGstTypeLabel(String gstType) {
+    switch (gstType) {
+      case 'all':
+        return 'ALL';
+      case 'input':
+        return 'INPUT';
+      case 'output':
+        return 'OUTPUT';
+      default:
+        return 'ALL';
+    }
   }
 }

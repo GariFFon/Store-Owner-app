@@ -42,7 +42,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     _fetchOrderDetails();
     _fetchOrderProducts();
     _startStatusPolling();
-    _fetchStatusOptions();
   }
 
   @override
@@ -89,28 +88,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   Future<void> _fetchStatusOptions() async {
-    try {
-      final requestBody = {"store_id": widget.storeId, "store_access": true};
-
-      final response = await ApiService.post(
-        '/order-status-options/',
-        body: requestBody,
-        useBearerToken: true,
-      );
-
-      if (response['data'] != null &&
-          response['data']['status'] == 200 &&
-          mounted) {
-        setState(() {
-          _statusOptions = response['data']['response'] ?? [];
-          _isLoadingStatusOptions = false;
-        });
-      } else {
-        if (mounted) setState(() => _isLoadingStatusOptions = false);
-      }
-    } catch (e) {
-      print("❌ Error fetching status options: $e");
-      if (mounted) setState(() => _isLoadingStatusOptions = false);
+    // Status options are now loaded from order details response
+    // This method is kept for compatibility but uses local data
+    if (_orderData != null && mounted) {
+      setState(() {
+        _statusOptions = _orderData!['allowed_order_status_options_for_store'] as List? ?? [];
+        _isLoadingStatusOptions = false;
+      });
+      print("✅ Status options loaded from order data: ${_statusOptions.length} options");
     }
   }
 
@@ -235,20 +220,26 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           if (mounted) {
             setState(() {
               _orderData = orders.first;
+              // Extract status options from order data
+              _statusOptions = _orderData!['allowed_order_status_options_for_store'] as List? ?? [];
+              _isLoadingStatusOptions = false;
               _isLoadingOrder = false;
             });
           }
           print("✅ Order details fetched successfully");
+          print("✅ Status options loaded: ${_statusOptions.length} options");
         } else {
           setState(() {
             _errorMessage = "Order not found";
             _isLoadingOrder = false;
+            _isLoadingStatusOptions = false;
           });
         }
       } else {
         setState(() {
           _errorMessage = "Failed to fetch order details";
           _isLoadingOrder = false;
+          _isLoadingStatusOptions = false;
         });
       }
     } catch (e) {

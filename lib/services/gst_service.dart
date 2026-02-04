@@ -11,23 +11,9 @@ class GstService {
     try {
       final Map<String, dynamic> query = {};
 
-      // Attempting to filter by HSN code or description if search query is provided
-      // Note: The exact query syntax depends on the backend.
-      // Using a simple partial match assumption or skipping if unknown.
-      // Since we don't know the exact query syntax (e.g. $regex), we will just rely on the API returning all and handle what we can,
-      // or if the backend supports a "search" parameter we would add it.
-      // For now, we strictly follow the payload structure provided.
-
+      // Add search query if provided
       if (searchQuery != null && searchQuery.isNotEmpty) {
-        // Assuming MongoDB-like query structure for backend
-        query['\$or'] = [
-          {
-            "hsn_code": {"\$regex": searchQuery, "\$options": "i"},
-          },
-          {
-            "hsn_description": {"\$regex": searchQuery, "\$options": "i"},
-          },
-        ];
+        query['search'] = searchQuery;
       }
 
       final body = {
@@ -47,9 +33,6 @@ class GstService {
       );
 
       if (response['statusCode'] == 200 && response['data'] != null) {
-        // The API returns the data directly or wrapped in 'data' depending on ApiService
-        // ApiService post returns: {'statusCode': ..., 'data': jsonDecode(body)}
-        // The endpoint response structure is: { "status": 200, "response": [...], ... }
         final data = response['data'];
         return GstResponse.fromJson(data);
       }
