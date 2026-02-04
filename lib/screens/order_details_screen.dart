@@ -34,6 +34,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   String? _errorMessage;
   Timer? _statusTimer;
   bool _isUpdatingStatus = false;
+  bool _isLoadingStatusOptions = true; // Initialize to true
 
   @override
   void initState() {
@@ -102,10 +103,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           mounted) {
         setState(() {
           _statusOptions = response['data']['response'] ?? [];
+          _isLoadingStatusOptions = false;
         });
+      } else {
+        if (mounted) setState(() => _isLoadingStatusOptions = false);
       }
     } catch (e) {
       print("❌ Error fetching status options: $e");
+      if (mounted) setState(() => _isLoadingStatusOptions = false);
     }
   }
 
@@ -314,8 +319,16 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasInvoice = _orderData?['invoice_url'] != null;
+    final hasStatusOptions = _statusOptions.isNotEmpty;
 
-    // Use a lighter/white background for modern look
+    // Show bottom action if we have content OR if we are still loading (to avoid pop)
+    final showBottomAction =
+        hasInvoice ||
+        hasStatusOptions ||
+        _isLoadingOrder ||
+        _isLoadingStatusOptions;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: Column(
@@ -328,151 +341,167 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ? _buildLoadingView(theme)
                 : _buildOrderDetails(theme),
           ),
-          if (_statusOptions.isNotEmpty || _orderData?['invoice_url'] != null)
-            _buildBottomAction(theme),
+          if (showBottomAction) _buildBottomAction(theme),
         ],
       ),
     );
   }
 
   Widget _buildBottomAction(ThemeData theme) {
-    final hasInvoice = _orderData?['invoice_url'] != null;
-    final hasStatusOptions = _statusOptions.isNotEmpty;
+    // Determine visibility based on actual data or loading state
+    // We assume invoice *might* be available if order is loading.
+    // We assume statuses *might* be available if options are loading.
+    final showInvoice = _orderData?['invoice_url'] != null || _isLoadingOrder;
+    // Always show update status unless explicitly empty after load
+    final showStatus = _statusOptions.isNotEmpty || _isLoadingStatusOptions;
 
-    if (!hasInvoice && !hasStatusOptions) return const SizedBox.shrink();
+    if (!showInvoice && !showStatus) return const SizedBox.shrink();
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
         16,
-        0,
+        16, // Added top padding
         16,
         16 + MediaQuery.of(context).padding.bottom,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.95),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withOpacity(0.6)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+      child: Row(
+        children: [
+          if (showInvoice)
+            Expanded(
+              flex: 1,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _launchInvoice,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.white, // Explicit white
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.grey.shade300, // Stronger border
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.download_rounded,
+                          color: theme.colorScheme.primary,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: TranslatedText(
+                            "Download Invoice",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ],
+              ),
             ),
-            child: Row(
-              children: [
-                if (hasInvoice)
-                  Expanded(
-                    flex: 1,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _launchInvoice,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: theme.dividerColor.withOpacity(0.1),
+          if (showInvoice && showStatus) const SizedBox(width: 12),
+          if (showStatus)
+            Expanded(
+              flex: 1,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    if (_isLoadingStatusOptions)
+                      return; // Prevent tap while loading
+                    _showUpdateStatusSheet();
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.primary,
+                          const Color(0xFF2563EB),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isLoadingStatusOptions)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.edit_rounded,
+                              color: Colors.white,
+                              size: 16, // Smaller icon
                             ),
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.description_outlined,
-                                color: theme.colorScheme.onSurface,
-                                size: 24,
-                              ),
-                              const SizedBox(height: 2),
-                              TranslatedText(
-                                "Invoice",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (hasInvoice && hasStatusOptions) const SizedBox(width: 8),
-                if (hasStatusOptions)
-                  Expanded(
-                    flex: 2,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _showUpdateStatusSheet,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          height: 56,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                theme.colorScheme.primary,
-                                const Color(0xFF2563EB), // A nice blue shade
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                        const SizedBox(width: 8), // Reduced spacing
+                        const Flexible(
+                          child: TranslatedText(
+                            "Update Status",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13, // Smaller text size
                             ),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.colorScheme.primary.withOpacity(
-                                  0.3,
-                                ),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.edit_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const TranslatedText(
-                                "Update Status",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
-                      ),
+                        const SizedBox(
+                          width: 4,
+                        ), // Shift text slightly left away from right border
+                      ],
                     ),
                   ),
-              ],
+                ),
+              ),
             ),
-          ),
-        ),
+        ],
       ),
     );
   }

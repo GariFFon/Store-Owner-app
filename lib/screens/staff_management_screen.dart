@@ -1,7 +1,9 @@
+import 'package:exanor/components/translation_widget.dart';
+import 'package:exanor/screens/create_staff_bottom_sheet.dart';
+import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:exanor/services/store_owner_api_service.dart';
-import 'package:exanor/components/translation_widget.dart';
+import 'dart:math' as math;
 
 class StaffManagementScreen extends StatefulWidget {
   final String storeId;
@@ -13,6 +15,8 @@ class StaffManagementScreen extends StatefulWidget {
 }
 
 class _StaffManagementScreenState extends State<StaffManagementScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   bool _isLoading = true;
   List<Map<String, dynamic>> _staffList = [];
   List<Map<String, dynamic>> _rolesList = [];
@@ -42,9 +46,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           _staffList = results[1];
           _isLoading = false;
         });
-        debugPrint(
-          'Loaded ${_rolesList.length} roles and ${_staffList.length} staff members',
-        );
       }
     } catch (e) {
       if (mounted) {
@@ -56,22 +57,12 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     }
   }
 
-  Color _getRandomAvatarColor(String name) {
-    final colors = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-    ];
-    return colors[name.length % colors.length];
-  }
-
   Future<void> _updateStaffRole(
     Map<String, dynamic> staff,
-    String newRoleName,
+    String? newRoleName,
   ) async {
+    if (newRoleName == null) return;
+
     final role = _rolesList.firstWhere(
       (r) => r['role_name'] == newRoleName,
       orElse: () => {},
@@ -99,7 +90,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Role updated to $newRoleName'),
+              content: TranslatedText('Role updated to $newRoleName'),
               backgroundColor: Colors.green,
             ),
           );
@@ -112,7 +103,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to update role'),
+              content: TranslatedText('Failed to update role'),
               backgroundColor: Colors.red,
             ),
           );
@@ -135,442 +126,433 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const TranslatedText(
-          'Staff Management',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+    final theme = Theme.of(context);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: const Color(0xFFF8FAFC),
+        extendBodyBehindAppBar: true,
+        body: Column(
+          children: [
+            // 1. Expanded Banner
+            _buildExpandedBanner(theme),
+
+            // 2. Main Content
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                  ? Center(child: Text(_errorMessage!))
+                  : _buildBody(),
+            ),
+          ],
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _fetchData,
-                    child: const TranslatedText('Retry'),
-                  ),
-                ],
-              ),
-            )
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final isMobile = constraints.maxWidth < 800;
-                return RefreshIndicator(
-                  onRefresh: _fetchData,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header Section
-                        if (isMobile)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Staff Management',
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Manage your team members and their roles',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: _showAddStaffBottomSheet,
-                                icon: const Icon(Icons.add, size: 18),
-                                label: const TranslatedText('Add Staff Member'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.black87,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Staff Management',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Manage your team members and their roles',
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              ElevatedButton.icon(
-                                onPressed: _showAddStaffBottomSheet,
-                                icon: const Icon(Icons.add, size: 18),
-                                label: const TranslatedText('Add Staff Member'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.black87,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        const SizedBox(height: 24),
-
-                        // Stats Cards
-                        if (isMobile)
-                          SizedBox(
-                            height: 110,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: [
-                                SizedBox(
-                                  width: 160,
-                                  child: _buildStatCard(
-                                    icon: Icons.people_outline,
-                                    title: 'TOTAL STAFF',
-                                    value: '${_staffList.length}',
-                                    iconColor: Colors.blue,
-                                    isSmall: true,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                SizedBox(
-                                  width: 160,
-                                  child: _buildStatCard(
-                                    icon: Icons.person_outline,
-                                    title: 'PRESENT',
-                                    value: '0',
-                                    iconColor: Colors.green,
-                                    isSmall: true,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                SizedBox(
-                                  width: 160,
-                                  child: _buildStatCard(
-                                    icon: Icons.person_off_outlined,
-                                    title: 'ABSENT',
-                                    value: '0',
-                                    iconColor: Colors.red,
-                                    isSmall: true,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.people_outline,
-                                  title: 'TOTAL STAFF',
-                                  value: '${_staffList.length}',
-                                  iconColor: Colors.blue,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.person_outline,
-                                  title: 'PRESENT TODAY',
-                                  value: '0',
-                                  iconColor: Colors.green,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.person_off_outlined,
-                                  title: 'ABSENT TODAY',
-                                  value: '0',
-                                  iconColor: Colors.red,
-                                ),
-                              ),
-                            ],
-                          ),
-                        const SizedBox(height: 24),
-
-                        // Team Members List
-                        if (isMobile)
-                          _buildMobileList()
-                        else
-                          _buildDesktopTable(),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
     );
   }
 
-  Widget _buildMobileList() {
+  Widget _buildExpandedBanner(ThemeData theme) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.groups_rounded,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.6),
+                ),
+              ),
+            ),
+
+            // Content
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                MediaQuery.of(context).padding.top + 8,
+                12,
+                12,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        onTap: () => Navigator.of(context).pop(),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.blueGrey.withOpacity(0.5),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Padding(
+                              padding: EdgeInsets.only(right: 2),
+                              child: Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.blueGrey,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Title
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const TranslatedText(
+                              'Staff', // Shortened title
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1E293B),
+                                letterSpacing: -0.5,
+                                height: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Colors.blue.withOpacity(0.2),
+                                ),
+                              ),
+                              child: const TranslatedText(
+                                'MANAGEMENT',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.blue,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // New Staff Button
+                      SizedBox(
+                        width: 70,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              'NEW',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () async {
+                                final result = await showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => CreateStaffBottomSheet(
+                                    storeId: widget.storeId,
+                                    roles: _rolesList,
+                                  ),
+                                );
+
+                                if (result == true) {
+                                  _fetchData();
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: theme.primaryColor,
+                                  border: Border.all(
+                                    color: Colors.transparent,
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.add_rounded,
+                                  size: 24,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
     if (_staffList.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: TranslatedText('No staff members found'),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_alt_outlined, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text(
+              "No Staff Members",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[500],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Add staff to manage your store",
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+          ],
         ),
       );
     }
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _staffList.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final staff = _staffList[index];
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[200]!),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: _getRandomAvatarColor(
-                      staff['user_first_name'] ?? 'U',
-                    ),
-                    child: Text(
-                      (staff['user_first_name'] ?? 'U')[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          staff['user_first_name'] ?? 'Unknown',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 0,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value:
-                                  _rolesList.any(
-                                    (r) => r['role_name'] == staff['role_name'],
-                                  )
-                                  ? staff['role_name']
-                                  : null,
-                              hint: Text(
-                                staff['role_name'] ?? 'No Role',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.blue.shade800,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              isDense: true,
-                              icon: Icon(
-                                Icons.arrow_drop_down,
-                                size: 16,
-                                color: Colors.blue.shade800,
-                              ),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.blue.shade800,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              items: _rolesList.map<DropdownMenuItem<String>>((
-                                role,
-                              ) {
-                                return DropdownMenuItem<String>(
-                                  value: role['role_name'],
-                                  child: Text(role['role_name'] ?? ''),
-                                );
-                              }).toList(),
-                              onChanged: (String? newValue) {
-                                if (newValue != null) {
-                                  _updateStaffRole(staff, newValue);
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.grey),
-                    onSelected: (String value) {
-                      _showComingSoonAlert(context);
-                    },
-                    itemBuilder: (BuildContext context) =>
-                        <PopupMenuEntry<String>>[
-                          const PopupMenuItem<String>(
-                            value: 'register_face',
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.fingerprint,
-                                  size: 20,
-                                  color: Colors.grey,
-                                ),
-                                SizedBox(width: 8),
-                                Text('Register Face'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem<String>(
-                            value: 'take_attendance',
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.calendar_today,
-                                  size: 20,
-                                  color: Colors.grey,
-                                ),
-                                SizedBox(width: 8),
-                                Text('Take Attendance'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem<String>(
-                            value: 'view_attendance',
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.visibility_outlined,
-                                  size: 20,
-                                  color: Colors.grey,
-                                ),
-                                SizedBox(width: 8),
-                                Text('View Attendance Records'),
-                              ],
-                            ),
-                          ),
-                        ],
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              Row(
-                children: [
-                  Icon(Icons.email_outlined, size: 16, color: Colors.grey[400]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      staff['user_email'] ?? '',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black87,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.phone_outlined, size: 16, color: Colors.grey[400]),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${staff['user_phone_number'] ?? ''}',
-                    style: const TextStyle(fontSize: 13, color: Colors.black87),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.info_outline, size: 16, color: Colors.grey[400]),
-                  const SizedBox(width: 8),
-                  Text(
-                    'ID: ${(staff['id'] ?? '').toString().substring(0, 8)}...',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 800) {
+          return _buildTabletTable();
+        } else {
+          return ListView.separated(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              MediaQuery.of(context).padding.bottom + 80,
+            ),
+            itemCount: _staffList.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) =>
+                _buildMobileCard(_staffList[index]),
+          );
+        }
       },
     );
   }
 
-  Widget _buildDesktopTable() {
+  // ============== PROFESSIONAL TABLE VIEW ==============
+  Widget _buildTabletTable() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            dividerColor: Colors.grey[100],
+            dataTableTheme: DataTableThemeData(
+              headingRowColor: MaterialStateProperty.all(Colors.transparent),
+              dataRowColor: MaterialStateProperty.resolveWith<Color>((states) {
+                if (states.contains(MaterialState.hovered)) {
+                  return const Color(0xFFF8FAFC);
+                }
+                return Colors.white;
+              }),
+            ),
+          ),
+          child: DataTable(
+            headingRowHeight: 48,
+            dataRowHeight: 64,
+            columnSpacing: 24,
+            horizontalMargin: 24,
+            columns: const [
+              DataColumn(
+                label: Text(
+                  'NAME',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'ROLE',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'CONTACT',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  '',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+            rows: _staffList.map((staff) {
+              final rawName = staff['user_first_name']?.toString() ?? '';
+              final name = rawName.isNotEmpty ? rawName : 'U';
+              final roleName = staff['role_name'] ?? 'Staff';
+              final phone = staff['user_phone_number']?.toString() ?? '';
+
+              return DataRow(
+                cells: [
+                  // Name & Avatar
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: const Color(0xFFF1F5F9), // Slate 100
+                          child: Text(
+                            name[0].toUpperCase(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          rawName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Role
+                  DataCell(
+                    Text(
+                      roleName,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF475569),
+                      ), // Simple text, no badge
+                    ),
+                  ),
+                  // Contact
+                  DataCell(
+                    Text(
+                      phone,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                  // Action
+                  DataCell(
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _buildActionMenu(staff),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============== PROFESSIONAL MOBILE CARD ==============
+  Widget _buildMobileCard(Map<String, dynamic> staff) {
+    final rawName = staff['user_first_name']?.toString() ?? '';
+    final firstName = rawName.isNotEmpty ? rawName : 'U';
+    final roleName = staff['role_name'] ?? 'Staff';
+    final phoneNumber = staff['user_phone_number']?.toString() ?? '';
+    final email = staff['user_email']?.toString() ?? '';
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -579,619 +561,302 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const TranslatedText(
-                  'Team Members',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                TranslatedText(
-                  'Manage roles and permissions for your team',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Expanded(flex: 3, child: _buildHeaderCell('MEMBER')),
-                Expanded(flex: 3, child: _buildHeaderCell('CONTACT')),
-                Expanded(flex: 2, child: _buildHeaderCell('ROLE')),
-                Expanded(flex: 2, child: _buildHeaderCell('STATUS')),
-                const SizedBox(
-                  width: 48,
-                  child: Center(
-                    child: Text(
-                      'ACTIONS',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          if (_staffList.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: TranslatedText('No staff members found')),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _staffList.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final staff = _staffList[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      // Member
-                      Expanded(
-                        flex: 3,
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: _getRandomAvatarColor(
-                                staff['user_first_name'] ?? 'U',
-                              ),
-                              child: Text(
-                                (staff['user_first_name'] ?? 'U')[0]
-                                    .toUpperCase(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    staff['user_first_name'] ?? 'Unknown',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'ID: ${(staff['id'] ?? '').toString().substring(0, 8)}...',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Contact
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              staff['user_email'] ?? '',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.black87,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${staff['user_phone_number'] ?? ''}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Role Dropdown
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 0,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.blue.shade300),
-                            borderRadius: BorderRadius.circular(6),
-                            color: Colors.white,
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value:
-                                  _rolesList.any(
-                                    (r) => r['role_name'] == staff['role_name'],
-                                  )
-                                  ? staff['role_name']
-                                  : null,
-                              hint: Text(
-                                staff['role_name'] ?? 'Select Role',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              isExpanded: true,
-                              icon: const Icon(Icons.arrow_drop_down, size: 18),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.black87,
-                              ),
-                              items: _rolesList.map<DropdownMenuItem<String>>((
-                                role,
-                              ) {
-                                return DropdownMenuItem<String>(
-                                  value: role['role_name'],
-                                  child: Text(role['role_name'] ?? ''),
-                                );
-                              }).toList(),
-                              onChanged: (String? newValue) {
-                                if (newValue != null) {
-                                  _updateStaffRole(staff, newValue);
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Status
-                      Expanded(
-                        flex: 2,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.only(left: 12),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Not marked',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Actions
-                      SizedBox(
-                        width: 48,
-                        child: PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert, color: Colors.grey),
-                          onSelected: (String value) {
-                            _showComingSoonAlert(context);
-                          },
-                          itemBuilder: (BuildContext context) =>
-                              <PopupMenuEntry<String>>[
-                                const PopupMenuItem<String>(
-                                  value: 'register_face',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.fingerprint,
-                                        size: 20,
-                                        color: Colors.grey,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text('Register Face'),
-                                    ],
-                                  ),
-                                ),
-                                const PopupMenuItem<String>(
-                                  value: 'take_attendance',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.calendar_today,
-                                        size: 20,
-                                        color: Colors.grey,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text('Take Attendance'),
-                                    ],
-                                  ),
-                                ),
-                                const PopupMenuItem<String>(
-                                  value: 'view_attendance',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.visibility_outlined,
-                                        size: 20,
-                                        color: Colors.grey,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text('View Attendance Records'),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddStaffBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _AddStaffSheet(
-        roles: _rolesList,
-        onAdd: (phoneNumber, roleId) {
-          Navigator.pop(context);
-          _handleAddStaff(phoneNumber, roleId);
-        },
-      ),
-    );
-  }
-
-  Future<void> _handleAddStaff(String phoneNumber, String roleId) async {
-    setState(() => _isLoading = true);
-
-    // Add country code 91 default for India
-    final formattedPhoneNumber = phoneNumber.length == 10
-        ? '91$phoneNumber'
-        : phoneNumber;
-
-    try {
-      final success = await StoreOwnerApiService.createStoreStaff(
-        storeId: widget.storeId,
-        phoneNumber: formattedPhoneNumber,
-        roleId: roleId,
-      );
-      if (mounted) {
-        setState(() => _isLoading = false);
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('New staff member added successfully.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          _fetchData();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to add staff member.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  void _showComingSoonAlert(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Coming Soon'),
-          content: const Text('This feature is coming soon!'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color iconColor,
-    bool isSmall = false,
-  }) {
-    return Container(
-      padding: EdgeInsets.all(isSmall ? 16 : 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.01),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(isSmall ? 8 : 12),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: isSmall ? 20 : 24),
-          ),
-          SizedBox(width: isSmall ? 12 : 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: isSmall ? 10 : 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[500],
-                    letterSpacing: 0.5,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: isSmall ? 2 : 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: isSmall ? 20 : 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeaderCell(String text) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        color: Colors.grey[500],
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-}
-
-class _AddStaffSheet extends StatefulWidget {
-  final List<Map<String, dynamic>> roles;
-  final Function(String phoneNumber, String roleId) onAdd;
-
-  const _AddStaffSheet({required this.roles, required this.onAdd});
-
-  @override
-  State<_AddStaffSheet> createState() => _AddStaffSheetState();
-}
-
-class _AddStaffSheetState extends State<_AddStaffSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
-  String? _selectedRoleId;
-
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      padding: EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Add Staff Member',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  splashRadius: 24,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Enter staff details to add them to your team',
-              style: TextStyle(color: Colors.grey[600], fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-
-            // Phone Number
-            const Text(
-              'Phone Number*',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                hintText: 'Enter 10 digit phone number',
-                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) return 'Required';
-                if (value.length != 10) return 'Must be 10 digits';
-                return null;
-              },
-            ),
-            const SizedBox(height: 20),
-
-            // Role
-            const Text(
-              'Role*',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _selectedRoleId,
-              decoration: InputDecoration(
-                hintText: 'Select a role',
-                hintStyle: TextStyle(color: Colors.black87, fontSize: 13),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              items: widget.roles.map((role) {
-                return DropdownMenuItem<String>(
-                  value: role['id'],
+                // Minimal Avatar
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: const Color(0xFFF1F5F9),
                   child: Text(
-                    role['role_name'] ?? 'Unknown',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) => setState(() => _selectedRoleId = value),
-              validator: (value) => value == null ? 'Required' : null,
-            ),
-            const SizedBox(height: 32),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w600,
+                    firstName[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF475569),
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      widget.onAdd(_phoneController.text, _selectedRoleId!);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black87,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        rawName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        roleName,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text('Add Staff'),
                 ),
+                // Menu
+                _buildActionMenu(staff),
               ],
             ),
+          ),
+
+          if (phoneNumber.isNotEmpty || email.isNotEmpty) ...[
+            Divider(height: 1, color: Colors.grey[100]),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  if (phoneNumber.isNotEmpty)
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.phone_outlined,
+                            size: 14,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            phoneNumber,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF475569),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionMenu(Map<String, dynamic> staff) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert, color: Colors.grey[400]),
+      elevation: 4,
+      borderRadius: BorderRadius.circular(12),
+      onSelected: (value) {
+        if (value == 'role') {
+          _showRolePicker(staff);
+        } else if (value == 'attendance') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Attendance feature coming soon!")),
+          );
+        } else if (value == 'face') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Face verification feature coming soon!"),
+            ),
+          );
+        }
+      },
+      itemBuilder: (context) => [
+        _buildPopupMenuItem('role', 'Edit Role', Icons.shield_outlined),
+        _buildPopupMenuItem(
+          'attendance',
+          'View Attendance',
+          Icons.calendar_today_outlined,
+        ),
+        _buildPopupMenuItem('face', 'Register Face', Icons.face_outlined),
+      ],
+    );
+  }
+
+  PopupMenuItem<String> _buildPopupMenuItem(
+    String value,
+    String text,
+    IconData icon,
+  ) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.blueGrey[700]),
+          const SizedBox(width: 12),
+          Text(
+            text,
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 13,
+              color: Colors.blueGrey[800],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRolePicker(Map<String, dynamic> staff) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Assign Role',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select a new role for ${staff['user_first_name'] ?? 'this user'}',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ..._rolesList.map((role) {
+              final isSelected = role['role_name'] == staff['role_name'];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: InkWell(
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (!isSelected) {
+                      _updateStaffRole(staff, role['role_name']);
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.blue
+                            : const Color(0xFFE2E8F0),
+                        width: isSelected ? 2 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      color: isSelected
+                          ? Colors.blue.withOpacity(0.04)
+                          : Colors.white,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.blue
+                                  : Colors.grey[300]!,
+                              width: 2,
+                            ),
+                            color: isSelected
+                                ? Colors.blue
+                                : Colors.transparent,
+                          ),
+                          child: isSelected
+                              ? const Center(
+                                  child: Icon(
+                                    Icons.check_rounded,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              role['role_name'] ?? 'Unknown',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isSelected
+                                    ? Colors.blue[900]
+                                    : const Color(0xFF334155),
+                              ),
+                            ),
+                            if (role['description'] != null)
+                              Text(
+                                role['description'],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                          ],
+                        ),
+                        const Spacer(),
+                        if (isSelected)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'CURRENT',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
           ],
         ),
       ),

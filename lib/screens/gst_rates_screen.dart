@@ -1,7 +1,9 @@
 import 'package:exanor/models/gst_rate_model.dart';
 import 'package:exanor/services/gst_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 class GstRatesScreen extends StatefulWidget {
   final String storeId;
@@ -16,7 +18,7 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
   bool _isLoading = true;
   List<GstRate> _rates = [];
   int _totalCount = 0;
-  int _limit = 50;
+  final int _limit = 50;
   int _offset = 0;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -142,390 +144,605 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text(
-          'GST Rates',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
-        actions: [],
+    final isDesktop = MediaQuery.of(context).size.width >= 900;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
       ),
-      body: Column(
-        children: [
-          // Search Bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.white,
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Search by HSN code or description...',
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: Column(
+          children: [
+            _buildTopBanner(context),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _fetchRates,
+                      child: CustomScrollView(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                children: [
+                                  _buildStatsGrid(isDesktop),
+                                  const SizedBox(height: 24),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (isDesktop)
+                            SliverPadding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              sliver: SliverToBoxAdapter(
+                                child: _buildDesktopRatesTable(),
+                              ),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) =>
+                                      _buildMobileRateCard(_rates[index]),
+                                  childCount: _rates.length,
+                                ),
+                              ),
+                            ),
+                          if (_isLoadingMore)
+                            const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            ),
+                          if (!_hasMore && !_isLoading && _rates.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 24.0,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    "No more rates to load",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          const SliverPadding(
+                            padding: EdgeInsets.only(bottom: 80),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBanner(BuildContext context) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            Positioned(
+              right: -30,
+              top: -20,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.percent_rounded,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.8),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                filled: true,
-                fillColor: Colors.white,
               ),
             ),
-          ),
-
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _fetchRates,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                controller: _scrollController,
-                padding: const EdgeInsets.all(16),
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Stats Cards
                     Row(
                       children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            'Total GST Rates',
-                            '$_totalCount',
-                            Colors.blue.shade700,
-                            bgColor: Colors.blue.shade50,
+                        InkWell(
+                          onTap: () => Navigator.of(context).pop(),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.blueGrey.withOpacity(0.5),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: const Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(right: 2),
+                                child: Icon(
+                                  Icons.arrow_back_ios_new_rounded,
+                                  color: Colors.blueGrey,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: _buildStatCard(
-                            'Active Rates',
-                            '$_activeCount', // This is only for the current page, ideally should be total active from API
-                            Colors.green.shade700,
-                            bgColor: Colors.green.shade50,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Loaded',
-                            '${_rates.length} / $_totalCount',
-                            Colors.blue.shade700,
-                            bgColor: Colors.blue.shade50,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'GST Rates',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF2563EB,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'TAX CONFIGURATION',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF2563EB),
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 24),
-
-                    // Table
-                    _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : _buildRatesTable(),
-
-                    if (_isLoadingMore)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16.0),
-                        child: Center(child: CircularProgressIndicator()),
+                    // Search Bar Integrated in Header
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-
-                    if (!_hasMore && !_isLoading && _rates.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24.0),
-                        child: Center(
-                          child: Text(
-                            "No more rates to load",
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 12,
-                            ),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        decoration: InputDecoration(
+                          hintText: 'Search by HSN code or description...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 14,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.grey[400],
+                            size: 20,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
                           ),
                         ),
                       ),
+                    ),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildStatsGrid(bool isDesktop) {
+    final cards = [
+      _buildStatCard(
+        "Total Rates",
+        _totalCount.toString(),
+        Icons.list_alt_rounded,
+        Colors.blue,
+      ),
+      _buildStatCard(
+        "Active Rates",
+        _activeCount.toString(),
+        Icons.check_circle_outline_rounded,
+        Colors.green,
+      ),
+      _buildStatCard(
+        "Current View",
+        _rates.length.toString(),
+        Icons.visibility_outlined,
+        Colors.orange,
+      ),
+    ];
+
+    if (isDesktop) {
+      return Row(
+        children: [
+          Expanded(child: cards[0]),
+          const SizedBox(width: 16),
+          Expanded(child: cards[1]),
+          const SizedBox(width: 16),
+          Expanded(child: cards[2]),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: cards[0]),
+            const SizedBox(width: 12),
+            Expanded(child: cards[1]),
+          ],
+        ),
+        const SizedBox(height: 12),
+        cards[2],
+      ],
     );
   }
 
   Widget _buildStatCard(
     String title,
     String value,
-    Color valueColor, {
-    Color? bgColor,
-  }) {
+    IconData icon,
+    Color color,
+  ) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: bgColor ?? Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[500],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopRatesTable() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Table(
+        columnWidths: const {
+          0: FlexColumnWidth(1.2), // HSN
+          1: FlexColumnWidth(2.5), // Desc
+          2: FlexColumnWidth(1), // CGST
+          3: FlexColumnWidth(1), // SGST
+          4: FlexColumnWidth(1), // IGST
+          5: FlexColumnWidth(1), // CESS
+          6: FlexColumnWidth(1.2), // Effective From
+          7: FlexColumnWidth(0.8), // Status
+        },
+        children: [
+          TableRow(
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            children: [
+              for (var h in [
+                "HSN Code",
+                "Description",
+                "CGST",
+                "SGST",
+                "IGST",
+                "CESS",
+                "Effective From",
+                "Status",
+              ])
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    h,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          ..._rates.map((rate) {
+            return TableRow(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.grey[100]!)),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    rate.hsnCode,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2563EB),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    rate.hsnDescription,
+                    style: const TextStyle(fontSize: 13),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                _desktopTaxCell("${rate.cgstPercent}%"),
+                _desktopTaxCell("${rate.sgstPercent}%"),
+                _desktopTaxCell("${rate.igstPercent}%"),
+                _desktopTaxCell("${rate.cessPercent}%"),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    rate.effectiveFrom,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _statusBadge(rate.isActive),
+                  ),
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _desktopTaxCell(String text) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.blue[50],
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF2563EB),
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileRateCard(GstRate rate) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRatesTable() {
-    // Define fixed widths for columns for better readability on mobile
-    const double hsnWidth = 80;
-    const double descWidth = 150;
-    const double taxWidth = 60;
-    const double dateWidth = 100;
-    const double statusWidth = 80;
-
-    // Total min width needed
-    const double minTableWidth =
-        hsnWidth +
-        descWidth +
-        (taxWidth * 4) +
-        dateWidth +
-        statusWidth +
-        40; // + padding
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: minTableWidth),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Header
               Container(
-                width: minTableWidth,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 10,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  color: Colors.grey.shade50,
+                  color: const Color(0xFF2563EB).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  children: [
-                    _buildHeaderCell('HSN Code', width: hsnWidth),
-                    _buildHeaderCell('Description', width: descWidth),
-                    _buildHeaderCell('CGST %', width: taxWidth),
-                    _buildHeaderCell('SGST %', width: taxWidth),
-                    _buildHeaderCell('IGST %', width: taxWidth),
-                    _buildHeaderCell('CESS %', width: taxWidth),
-                    _buildHeaderCell('Effective From', width: dateWidth),
-                    _buildHeaderCell(
-                      'Status',
-                      width: statusWidth,
-                      alignment: Alignment.centerRight,
-                    ),
-                  ],
+                child: Text(
+                  rate.hsnCode,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF2563EB),
+                  ),
                 ),
               ),
-
-              // List
-              if (_rates.isEmpty)
-                Container(
-                  width: minTableWidth,
-                  padding: const EdgeInsets.all(32.0),
-                  alignment: Alignment.center,
-                  child: const Text("No rates found"),
-                )
-              else
-                Column(
-                  children: List.generate(_rates.length, (index) {
-                    final rate = _rates[index];
-                    return Container(
-                      width: minTableWidth,
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade100),
-                        ),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      child: Row(
-                        children: [
-                          // HSN
-                          SizedBox(
-                            width: hsnWidth,
-                            child: Text(
-                              rate.hsnCode,
-                              style: const TextStyle(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          // Description
-                          SizedBox(
-                            width: descWidth,
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 8.0),
-                              child: Text(
-                                rate.hsnDescription,
-                                style: const TextStyle(fontSize: 13),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          // Percentages
-                          _buildPercentCell(rate.cgstPercent, width: taxWidth),
-                          _buildPercentCell(rate.sgstPercent, width: taxWidth),
-                          _buildPercentCell(rate.igstPercent, width: taxWidth),
-                          _buildPercentCell(rate.cessPercent, width: taxWidth),
-
-                          // Effective From
-                          SizedBox(
-                            width: dateWidth,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  rate.effectiveFrom,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                                if (rate.effectiveTo.isNotEmpty)
-                                  Text(
-                                    "To: ${rate.effectiveTo}",
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.redAccent,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-
-                          // Status
-                          SizedBox(
-                            width: statusWidth,
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: rate.isActive
-                                      ? Colors.green.shade600
-                                      : Colors.grey,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  rate.isActive ? 'Active' : 'Inactive',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ),
+              _statusBadge(rate.isActive),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderCell(
-    String text, {
-    required double width,
-    Alignment alignment = Alignment.centerLeft,
-  }) {
-    return SizedBox(
-      width: width,
-      child: Align(
-        alignment: alignment,
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-            color: Colors.black87,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPercentCell(String value, {required double width}) {
-    return SizedBox(
-      width: width,
-      child: Padding(
-        padding: const EdgeInsets.only(right: 8.0),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            "$value%",
+          const SizedBox(height: 12),
+          Text(
+            rate.hsnDescription,
             style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1E293B),
             ),
-            textAlign: TextAlign.center,
           ),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _mobileTaxColumn("CGST", "${rate.cgstPercent}%"),
+              _mobileTaxColumn("SGST", "${rate.sgstPercent}%"),
+              _mobileTaxColumn("IGST", "${rate.igstPercent}%"),
+              _mobileTaxColumn("CESS", "${rate.cessPercent}%"),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileTaxColumn(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey[400],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statusBadge(bool isActive) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isActive ? Colors.green[50] : Colors.grey[100],
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isActive
+              ? Colors.green.withOpacity(0.2)
+              : Colors.grey.withOpacity(0.2),
+        ),
+      ),
+      child: Text(
+        isActive ? 'ACTIVE' : 'INACTIVE',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: isActive ? Colors.green[700] : Colors.grey[600],
         ),
       ),
     );

@@ -12,6 +12,9 @@ import 'package:exanor/screens/SplashScreen.dart';
 import 'package:exanor/screens/onboarding_screen.dart';
 import 'package:exanor/screens/simple_phone_registration_screen.dart';
 import 'package:exanor/screens/simple_otp_verification_screen.dart';
+import 'package:exanor/screens/auth/auth_landing_screen.dart';
+import 'package:exanor/screens/auth/login_screen.dart';
+import 'package:exanor/screens/auth/signup_screen.dart';
 import 'package:exanor/screens/location_selection_screen.dart';
 import 'package:exanor/screens/saved_addresses_screen.dart';
 import 'package:exanor/screens/remote_config_debug_screen.dart';
@@ -194,7 +197,10 @@ void main() async {
     // Navigate to phone registration screen when auth fails
     // You can use your navigation service or GoRouter here
     runApp(
-      MaterialApp(home: SplashScreen(), navigatorKey: ApiService.navigatorKey),
+      MaterialApp(
+        home: const AuthLandingScreen(),
+        navigatorKey: ApiService.navigatorKey,
+      ),
     );
     // Note: The ApiService will handle navigation automatically through navigatorKey
     // We don't need to call runApp here as it restarts the entire app
@@ -605,6 +611,9 @@ class _MyAppState extends State<MyApp> {
               '/orders': (context) => const OrdersListScreen(),
               '/suppliers': (context) => const SuppliersListScreen(),
               '/restart_app': (context) => const SplashScreen(),
+              '/auth_landing': (context) => const AuthLandingScreen(),
+              '/login': (context) => const LoginScreen(),
+              '/signup': (context) => const SignupScreen(),
               // REMOVED: Routes for deleted screens (profiles, chat, subscription, etc.)
             },
           ),

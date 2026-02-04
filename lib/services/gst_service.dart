@@ -19,10 +19,15 @@ class GstService {
       // For now, we strictly follow the payload structure provided.
 
       if (searchQuery != null && searchQuery.isNotEmpty) {
-        // If the backend supports direct search via a 'search' parameter, it would be ideal.
-        // But the payload shows 'query'.
-        // Let's assume for now we don't filter server side unless valid syntax is known.
-        // Or we could try: query['hsn_code'] = searchQuery; // Exact match
+        // Assuming MongoDB-like query structure for backend
+        query['\$or'] = [
+          {
+            "hsn_code": {"\$regex": searchQuery, "\$options": "i"},
+          },
+          {
+            "hsn_description": {"\$regex": searchQuery, "\$options": "i"},
+          },
+        ];
       }
 
       final body = {
