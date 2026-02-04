@@ -1,3 +1,4 @@
+import 'package:exanor/components/store_main_drawer.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/add_purchase_order_screen.dart';
 import 'package:exanor/screens/product_details_screen.dart';
@@ -12,9 +13,15 @@ import 'dart:math' as math;
 
 class PurchaseScreen extends StatefulWidget {
   final String storeId;
+  final String? storeName;
   final VoidCallback? onMenuPressed;
 
-  const PurchaseScreen({super.key, required this.storeId, this.onMenuPressed});
+  const PurchaseScreen({
+    super.key,
+    required this.storeId,
+    this.storeName,
+    this.onMenuPressed,
+  });
 
   @override
   State<PurchaseScreen> createState() => _PurchaseScreenState();
@@ -32,7 +39,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   int _count = 0;
 
   DateTimeRange? _selectedDateRange;
-  String? _selectedStatus;
   String? _errorMessage;
 
   @override
@@ -75,10 +81,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         filters['end_date'] = DateFormat(
           'yyyy-MM-dd',
         ).format(_selectedDateRange!.end);
-      }
-      if (_selectedStatus != null) {
-        filters['payment_status'] =
-            _selectedStatus; // Assuming 'payment_status' is the key
       }
 
       final result = await StoreOwnerApiService.getPurchaseEntries(
@@ -407,117 +409,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     );
   }
 
-  Widget _buildStatusFilterCarousel(ThemeData theme) {
-    final statusOptions = [
-      {
-        'label': 'All',
-        'id': null,
-        'icon': Icons.list_rounded,
-        'color': Colors.grey,
-      },
-      {
-        'label': 'Paid',
-        'id': 'PAID',
-        'icon': Icons.check_circle_outline,
-        'color': Colors.green,
-      },
-      {
-        'label': 'Partial',
-        'id': 'PARTIAL',
-        'icon': Icons.timelapse_rounded,
-        'color': Colors.blue,
-      },
-      {
-        'label': 'Credit',
-        'id': 'CREDIT',
-        'icon': Icons.warning_amber_rounded,
-        'color': Colors.red,
-      },
-      {
-        'label': 'Pending',
-        'id': 'PENDING',
-        'icon': Icons.hourglass_empty_rounded,
-        'color': Colors.orange,
-      },
-    ];
-
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        itemCount: statusOptions.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 6),
-        itemBuilder: (context, index) {
-          final opt = statusOptions[index];
-          final isSelected = _selectedStatus == opt['id'];
-          final color = opt['color'] as Color;
-
-          return Center(
-            child: InkWell(
-              onTap: () {
-                if (_selectedStatus != opt['id']) {
-                  setState(() {
-                    _selectedStatus = opt['id'] as String?;
-                    _fetchPurchases();
-                  });
-                }
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isSelected ? color : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.transparent
-                        : color.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (opt['icon'] != null) ...[
-                      Icon(
-                        opt['icon'] as IconData,
-                        size: 14,
-                        color: isSelected ? Colors.white : color,
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    TranslatedText(
-                      opt['label'] as String,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.w600,
-                        color: isSelected ? Colors.white : color,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -529,6 +420,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       ),
       child: Scaffold(
         key: _scaffoldKey,
+        drawer: StoreMainDrawer(
+          storeId: widget.storeId,
+          storeName: widget.storeName ?? 'Store',
+        ),
         extendBodyBehindAppBar: true,
         primary: false,
         backgroundColor: Colors.grey[50],
@@ -539,6 +434,32 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             Expanded(child: _buildBody(theme)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 6),
+          TranslatedText(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -614,7 +535,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                               if (widget.onMenuPressed != null) {
                                 widget.onMenuPressed!();
                               } else {
-                                Scaffold.maybeOf(context)?.openDrawer();
+                                _scaffoldKey.currentState?.openDrawer();
                               }
                             },
                             padding: EdgeInsets.zero,
@@ -790,9 +711,37 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // Status Filter Carousel
-                  _buildStatusFilterCarousel(theme),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildLegendItem(
+                          'Paid',
+                          Colors.green,
+                          Icons.check_circle_outline,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildLegendItem(
+                          'Partial',
+                          Colors.blue,
+                          Icons.timelapse_rounded,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildLegendItem(
+                          'Credit',
+                          Colors.red,
+                          Icons.warning_amber_rounded,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildLegendItem(
+                          'Pending',
+                          Colors.orange,
+                          Icons.hourglass_empty_rounded,
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -933,13 +882,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     final verificationStatus = voucher['status'] ?? '';
 
     final grandTotal = voucher['grand_total'];
-    // Format currency manually since we don't have intl initialized with currency symbol globally
-    final formattedAmount = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-      decimalDigits: 2,
-    ).format(grandTotal ?? 0);
-
+    final amount = '₹${grandTotal ?? 0}';
     final dateStr = voucher['date'] ?? '';
 
     // Determine verification badge details
@@ -949,7 +892,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
     if (verificationStatus == 'PENDING') {
       verifyColor = Colors.orange;
-      verifyText = 'Verification Pending';
+      verifyText = 'Pending';
       verifyIcon = Icons.hourglass_empty_rounded;
     } else if (verificationStatus == 'VERIFIED') {
       verifyColor = Colors.green;
@@ -964,218 +907,186 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black.withOpacity(0.1), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-            spreadRadius: 2,
-          ),
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 10,
+            offset: const Offset(4, 4),
+            spreadRadius: 0,
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(24),
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PurchaseDetailsScreen(
-                  storeId: widget.storeId,
-                  purchaseData: voucher as Map<String, dynamic>,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Material(
+          color: Colors.white,
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PurchaseDetailsScreen(
+                    storeId: widget.storeId,
+                    purchaseData: voucher as Map<String, dynamic>,
+                  ),
                 ),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(24),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              );
+            },
+            child: Stack(
               children: [
-                // 1. Header: Supplier Avatar + Name + Date
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Gradient Avatar
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.blue[400]!, Colors.purple[400]!],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.withOpacity(0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          supplierName.isNotEmpty
-                              ? supplierName[0].toUpperCase()
-                              : 'S',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                // 1. Subtle Top Color Strip (Professional Status Indicator)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.8),
                     ),
-                    const SizedBox(width: 16),
-                    // Name & Date
-                    Expanded(
-                      child: Column(
+                  ),
+                ),
+
+                // 3. Main Content
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Header: Supplier Name & Price
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
+                          // Supplier Icon/Avatar placeholder
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                              border: Border.all(
+                                color: Colors.grey.withOpacity(0.1),
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                supplierName.isNotEmpty
+                                    ? supplierName[0].toUpperCase()
+                                    : 'S',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+
+                          // Supplier info and Amount
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
                                   supplierName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.bold,
                                     color: Color(0xFF1E293B),
                                   ),
                                 ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[50],
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey[200]!),
-                                ),
-                                child: Text(
-                                  dateStr,
+                                const SizedBox(height: 4),
+                                Text(
+                                  amount,
                                   style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[600],
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.blueGrey[900],
+                                    letterSpacing: -0.5,
                                   ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Divider with Ticket effect (Dotted Line)
+                      CustomPaint(
+                        painter: DottedLinePainter(),
+                        child: Container(height: 1),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Footer: Details Grid (Date, Voucher, Status)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Left: Voucher & Date
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'INV-$voucherNumber',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                dateStr,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.blueGrey[600],
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            voucherNumber.isNotEmpty
-                                ? 'INV #$voucherNumber'
-                                : 'No Invoice #',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey[400],
-                              letterSpacing: 0.5,
-                            ),
+
+                          // Right: Status Badges
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              _buildModernStatusBadge(
+                                text: paymentStatus,
+                                color: statusColor,
+                                icon: Icons.payments_rounded,
+                              ),
+                              if (verifyText.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                _buildModernStatusBadge(
+                                  text: verifyText,
+                                  color: verifyColor,
+                                  icon: verifyIcon,
+                                  isOutlined: true,
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                // 2. Separator line
-                Container(height: 1, color: Colors.grey[100]),
-
-                const SizedBox(height: 20),
-
-                // 3. Amount & Status Row
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Grand Total',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[500],
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            formattedAmount,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _buildModernStatusBadge(
-                      text: paymentStatus,
-                      color: statusColor,
-                      icon: Icons.payments_rounded,
-                    ),
-                  ],
-                ),
-
-                // 4. Verification Footer (if needed)
-                if (verifyText.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: verifyColor.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: verifyColor.withOpacity(0.1)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(verifyIcon, size: 14, color: verifyColor),
-                        const SizedBox(width: 8),
-                        Text(
-                          verifyText,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: verifyColor,
-                          ),
-                        ),
-                        const Spacer(),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 14,
-                          color: verifyColor.withOpacity(0.5),
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -1218,4 +1129,26 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       ),
     );
   }
+}
+
+class DottedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = Colors.grey.withOpacity(0.3)
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+
+    const double dashWidth = 4;
+    const double dashSpace = 4;
+    double startX = 0;
+
+    while (startX < size.width) {
+      canvas.drawLine(Offset(startX, 0), Offset(startX + dashWidth, 0), paint);
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

@@ -30,15 +30,24 @@ class GstRate {
       id: json['id'] ?? '',
       hsnCode: json['hsn_code'] ?? '',
       hsnDescription: json['hsn_description'] ?? '',
-      cgstPercent: json['cgst_percent'] ?? '0.00',
-      sgstPercent: json['sgst_percent'] ?? '0.00',
-      igstPercent: json['igst_percent'] ?? '0.00',
-      cessPercent: json['cess_percent'] ?? '0.00',
+      cgstPercent: _parseRate(json, ['cgst_percent', 'cgst_rate', 'cgst']),
+      sgstPercent: _parseRate(json, ['sgst_percent', 'sgst_rate', 'sgst']),
+      igstPercent: _parseRate(json, ['igst_percent', 'igst_rate', 'igst']),
+      cessPercent: _parseRate(json, ['cess_percent', 'cess_rate', 'cess']),
       effectiveFrom: json['effective_from'] ?? '',
       effectiveTo: json['effective_to'] ?? '',
       isActive: json['is_active'] ?? false,
       createdAt: json['created_at'] ?? '',
     );
+  }
+
+  static String _parseRate(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      if (json.containsKey(key) && json[key] != null) {
+        return json[key].toString();
+      }
+    }
+    return '0.00';
   }
 }
 

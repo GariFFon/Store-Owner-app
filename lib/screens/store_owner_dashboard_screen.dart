@@ -101,11 +101,13 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
         } else if (id == 'purchases') {
           return PurchaseScreen(
             storeId: widget.storeId,
+            storeName: widget.storeName,
             onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
           );
         } else if (id == 'receipts') {
           return ReceiptsScreen(
             storeId: widget.storeId,
+            storeName: widget.storeName,
             onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
           );
         }

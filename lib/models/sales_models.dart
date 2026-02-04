@@ -164,6 +164,8 @@ class TaxDetails {
   final double sgstAmount;
   final double igstRate;
   final double igstAmount;
+  final double cessRate;
+  final double cessAmount;
 
   TaxDetails({
     required this.hsnCode,
@@ -174,6 +176,8 @@ class TaxDetails {
     required this.sgstAmount,
     required this.igstRate,
     required this.igstAmount,
+    required this.cessRate,
+    required this.cessAmount,
   });
 
   factory TaxDetails.fromJson(Map<String, dynamic> json) {
@@ -186,6 +190,8 @@ class TaxDetails {
       sgstAmount: (json['sgst_amount'] as num?)?.toDouble() ?? 0.0,
       igstRate: (json['igst_rate'] as num?)?.toDouble() ?? 0.0,
       igstAmount: (json['igst_amount'] as num?)?.toDouble() ?? 0.0,
+      cessRate: (json['cess_rate'] as num?)?.toDouble() ?? 0.0,
+      cessAmount: (json['cess_amount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

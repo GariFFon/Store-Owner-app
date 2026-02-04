@@ -313,8 +313,10 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  PurchaseScreen(storeId: widget.storeId),
+                              builder: (context) => PurchaseScreen(
+                                storeId: widget.storeId,
+                                storeName: widget.storeName,
+                              ),
                             ),
                           );
                         },
@@ -358,8 +360,10 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  ReceiptsScreen(storeId: widget.storeId),
+                              builder: (context) => ReceiptsScreen(
+                                storeId: widget.storeId,
+                                storeName: widget.storeName,
+                              ),
                             ),
                           );
                         },

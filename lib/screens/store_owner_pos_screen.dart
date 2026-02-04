@@ -1702,16 +1702,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         final data = response['data'];
         if (data['status'] == 200 && data['response'] is List) {
           final methods = List<Map<String, dynamic>>.from(data['response']);
-          final payOnDelivery = methods.firstWhere(
-            (m) => m['payment_method_name'] == 'Pay on Delivery',
-            orElse: () => {},
+
+          // Select the first enabled payment method
+          final enabledMethod = methods.firstWhere(
+            (m) => m['is_enabled'] == true,
+            orElse: () => methods.isNotEmpty ? methods.first : {},
           );
 
-          if (payOnDelivery.isNotEmpty) {
+          if (enabledMethod.isNotEmpty && enabledMethod['id'] != null) {
             setState(() {
-              _selectedPaymentMethodId = payOnDelivery['id'];
+              _selectedPaymentMethodId = enabledMethod['id'];
             });
             print('Selected Payment Method ID: $_selectedPaymentMethodId');
+            print(
+              'Payment Method Name: ${enabledMethod['payment_method_name']}',
+            );
           }
         }
       }

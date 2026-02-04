@@ -1,3 +1,4 @@
+import 'package:exanor/components/store_main_drawer.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/receipt_details_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
@@ -8,9 +9,15 @@ import 'dart:math' as math;
 
 class ReceiptsScreen extends StatefulWidget {
   final String storeId;
+  final String? storeName;
   final VoidCallback? onMenuPressed;
 
-  const ReceiptsScreen({super.key, required this.storeId, this.onMenuPressed});
+  const ReceiptsScreen({
+    super.key,
+    required this.storeId,
+    this.storeName,
+    this.onMenuPressed,
+  });
 
   @override
   State<ReceiptsScreen> createState() => _ReceiptsScreenState();
@@ -139,6 +146,10 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
       ),
       child: Scaffold(
         key: _scaffoldKey,
+        drawer: StoreMainDrawer(
+          storeId: widget.storeId,
+          storeName: widget.storeName ?? 'Store',
+        ),
         extendBodyBehindAppBar: true,
         primary: false,
         backgroundColor: Colors.grey[50],
@@ -270,7 +281,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                               if (widget.onMenuPressed != null) {
                                 widget.onMenuPressed!();
                               } else {
-                                Scaffold.maybeOf(context)?.openDrawer();
+                                _scaffoldKey.currentState?.openDrawer();
                               }
                             },
                             padding: EdgeInsets.zero,
@@ -498,7 +509,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
               padding: const EdgeInsets.all(16),
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 500,
-                mainAxisExtent: 200,
+                mainAxisExtent: 140, // Reduced height for tablet
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
               ),
@@ -545,239 +556,221 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFFF5FCF7), // Subtle green background
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.blueGrey.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-            spreadRadius: 0,
+            color: Colors.green.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
+        border: Border.all(color: Colors.green.withOpacity(0.1)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () async {
-            // Unfocus keyboard if open to prevent it from popping up when returning
-            _searchFocusNode.unfocus();
-            FocusScope.of(context).unfocus();
-            await Future.delayed(
-              const Duration(milliseconds: 100),
-            ); // Allow keyboard to hide
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () async {
+              // Unfocus keyboard if open to prevent it from popping up when returning
+              _searchFocusNode.unfocus();
+              FocusScope.of(context).unfocus();
+              await Future.delayed(
+                const Duration(milliseconds: 100),
+              ); // Allow keyboard to hide
 
-            if (!mounted) return;
+              if (!mounted) return;
 
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ReceiptDetailsScreen(receipt: receipt),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. Left Color Strip
-                Container(
-                  width: 6,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      bottomLeft: Radius.circular(16),
-                    ),
-                  ),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ReceiptDetailsScreen(receipt: receipt),
                 ),
+              );
+            },
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Green Side Line
+                  Container(width: 6, color: Colors.green),
 
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        // Top Row: Voucher - Date - Status Badge
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                                shape: BoxShape.rectangle,
-                              ),
-                              child: const Icon(
-                                Icons.receipt_outlined,
-                                size: 20,
-                                color: Colors.green,
-                              ),
+                  // Content
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Icon Box
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    receipt['voucher_number'] ?? '',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Color(0xFF1E293B),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.calendar_today_rounded,
-                                        size: 14,
-                                        color: Colors.blueGrey[400],
+                            child: const Icon(
+                              Icons.receipt_long_rounded,
+                              color: Colors.green,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+
+                          // Text Content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Top Row: Party Name & Amount
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        receipt['party_name'] ??
+                                            'Unknown Party',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1E293B),
+                                          height: 1.2,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        _formatDate(receipt['date']),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _formatCurrency(receipt['amount']),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(
+                                          0xFF14532D,
+                                        ), // Darker green
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+
+                                // Middle Row: Voucher & Date
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: Colors.green.withOpacity(0.2),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        "#${receipt['voucher_number'] ?? 'N/A'}",
                                         style: TextStyle(
-                                          color: Colors.blueGrey[500],
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.green[800],
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Status Badge
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: statusColor.withOpacity(0.2),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isPosted)
+                                    ),
+                                    const SizedBox(width: 8),
                                     Icon(
-                                      Icons.check_circle_rounded,
+                                      Icons.calendar_today_rounded,
                                       size: 12,
-                                      color: statusColor,
+                                      color: Colors.blueGrey[400],
                                     ),
-                                  if (isPosted) const SizedBox(width: 4),
-                                  Text(
-                                    isPosted ? 'POSTED' : 'UNPOSTED',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: statusColor,
-                                      letterSpacing: 0.5,
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _formatDate(receipt['date']),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.blueGrey[600],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        Divider(height: 1, color: Colors.grey[200]),
-                        const SizedBox(height: 12),
-
-                        // Bottom Row: Party - Account - Amount
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.person_outline_rounded,
-                                        size: 16,
-                                        color: Colors.blueGrey[400],
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Flexible(
-                                        child: Text(
-                                          receipt['party_name'] ?? 'Unknown',
-                                          style: TextStyle(
-                                            color: Colors.blueGrey[700],
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.account_balance_wallet_outlined,
-                                        size: 16,
-                                        color: Colors.blueGrey[400],
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Flexible(
-                                        child: Text(
-                                          receipt['receipt_account'] ?? '',
-                                          style: TextStyle(
-                                            color: Colors.blueGrey[500],
-                                            fontSize: 13,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Amount (Large)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey[200]!),
-                              ),
-                              child: Text(
-                                _formatCurrency(receipt['amount']),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
-                                  color: Color(0xFF0F172A),
+                                  ],
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+
+                                // Bottom Row: Account & Status
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Flexible(
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons
+                                                .account_balance_wallet_outlined,
+                                            size: 14,
+                                            color: Colors.blueGrey[400],
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              receipt['receipt_account'] ?? '',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.blueGrey[600],
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Status Badge - simplified
+                                    if (isPosted)
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 14,
+                                            color: Colors.green,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'POSTED',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.green[700],
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    else
+                                      Text(
+                                        'UNPOSTED',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: statusColor,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

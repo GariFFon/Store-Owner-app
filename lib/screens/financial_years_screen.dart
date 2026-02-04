@@ -2,7 +2,9 @@ import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/models/financial_year.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 
 class FinancialYearsScreen extends StatefulWidget {
   final String storeId;
@@ -17,7 +19,7 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
   bool _isLoading = true;
   List<FinancialYear> _financialYears = [];
   int _totalCount = 0;
-  String _selectedFilter = 'All'; // Filter state: All, Active, Inactive, Locked, Unlocked
+  String _selectedFilter = 'All'; // Filter state
 
   @override
   void initState() {
@@ -72,39 +74,626 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // Light grey background
-      appBar: AppBar(
-        title: const TranslatedText('Financial Years'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0.5,
+    final isDesktop = MediaQuery.of(context).size.width > 900;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _fetchFinancialYears,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: Column(
+          children: [
+            _buildTopBanner(context),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _fetchFinancialYears,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.all(20),
+                            sliver: SliverToBoxAdapter(
+                              child: Column(
+                                children: [
+                                  _buildStatsGrid(isDesktop),
+                                  const SizedBox(height: 24),
+                                  _buildFilterBar(),
+                                  const SizedBox(height: 16),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (isDesktop)
+                            SliverPadding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              sliver: SliverToBoxAdapter(
+                                child: _buildDesktopTable(),
+                              ),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) =>
+                                      _buildMobileCard(_financialYears[index]),
+                                  childCount: _financialYears.length,
+                                ),
+                              ),
+                            ),
+                          const SliverPadding(
+                            padding: EdgeInsets.only(bottom: 80),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBanner(BuildContext context) {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            Positioned(
+              right: -30,
+              top: -20,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.calendar_month_rounded,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.8),
+                ),
+              ),
+            ),
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Row(
                   children: [
-                    _buildHeader(),
-                    const SizedBox(height: 24),
-                    _buildStatsCards(),
-                    const SizedBox(height: 24),
-                    _buildFinancialYearsList(),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: Text(
-                        'All $_totalCount financial years loaded',
-                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.blueGrey.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: 2),
+                            child: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.blueGrey,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Financial Years',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E293B),
+                              letterSpacing: -0.5,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'FISCAL PERIODS',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2563EB),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _showCreateFinancialYearSheet,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text("New"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsGrid(bool isDesktop) {
+    final cards = [
+      _buildStatCard(
+        "Total Periods",
+        _totalCount.toString(),
+        Icons.list_alt_rounded,
+        Colors.blue,
+      ),
+      _buildStatCard(
+        "Active Year",
+        _activeCount.toString(),
+        Icons.check_circle_outline_rounded,
+        Colors.green,
+      ),
+      _buildStatCard(
+        "Locked Years",
+        _lockedCount.toString(),
+        Icons.lock_outline_rounded,
+        Colors.orange,
+      ),
+    ];
+
+    if (isDesktop) {
+      return Row(
+        children: [
+          Expanded(child: cards[0]),
+          const SizedBox(width: 16),
+          Expanded(child: cards[1]),
+          const SizedBox(width: 16),
+          Expanded(child: cards[2]),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: cards[0]),
+            const SizedBox(width: 12),
+            Expanded(child: cards[1]),
+          ],
+        ),
+        const SizedBox(height: 12),
+        cards[2],
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[500],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterBar() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: ['All', 'Active', 'Inactive', 'Locked', 'Unlocked'].map((
+          filter,
+        ) {
+          final isSelected = _selectedFilter == filter;
+          return Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: InkWell(
+              onTap: () {
+                setState(() => _selectedFilter = filter);
+                _fetchFinancialYears();
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF2563EB) : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF2563EB)
+                        : Colors.grey[300]!,
+                  ),
+                ),
+                child: Text(
+                  filter,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? Colors.white : Colors.grey[600],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildDesktopTable() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Table(
+        columnWidths: const {
+          0: FlexColumnWidth(2), // Period Check
+          1: FlexColumnWidth(1.5), // Start
+          2: FlexColumnWidth(1.5), // End
+          3: FlexColumnWidth(1), // Duration
+          4: FlexColumnWidth(1), // Status
+          5: FlexColumnWidth(1), // Lock
+        },
+        children: [
+          TableRow(
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            children: [
+              for (var h in [
+                "Period Name",
+                "Start Date",
+                "End Date",
+                "Duration",
+                "Status",
+                "Locked",
+              ])
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    h,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          ..._financialYears.map((fy) {
+            final dateFormat = DateFormat('MMM dd, yyyy');
+            return TableRow(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.grey[100]!)),
+              ),
+              children: [
+                _tableCell(
+                  fy.displayName,
+                  isBold: true,
+                  icon: fy.isActive ? Icons.star_rounded : Icons.calendar_today,
+                  iconColor: fy.isActive ? Colors.amber : Colors.grey,
+                ),
+                _tableCell(dateFormat.format(DateTime.parse(fy.startDate))),
+                _tableCell(dateFormat.format(DateTime.parse(fy.endDate))),
+                _tableCell(fy.durationText),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _statusBadge(fy.isActive),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _lockBadge(fy.isLocked),
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _tableCell(
+    String text, {
+    bool isBold = false,
+    IconData? icon,
+    Color? iconColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: iconColor),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileCard(FinancialYear fy) {
+    final dateFormat = DateFormat('MMM dd, yyyy');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: fy.isActive ? Colors.blue.withOpacity(0.02) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: fy.isActive ? Colors.blue.withOpacity(0.3) : Colors.grey[200]!,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [_statusBadge(fy.isActive), _lockBadge(fy.isLocked)],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.calendar_month_rounded,
+                  color: Colors.blue,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fy.displayName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${dateFormat.format(DateTime.parse(fy.startDate))} - ${dateFormat.format(DateTime.parse(fy.endDate))}",
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Duration",
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+              Text(
+                fy.durationText,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusBadge(bool isActive) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: isActive ? Colors.green[50] : Colors.grey[100],
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isActive
+              ? Colors.green.withOpacity(0.2)
+              : Colors.grey.withOpacity(0.2),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isActive ? Icons.check_circle : Icons.circle_outlined,
+            size: 12,
+            color: isActive ? Colors.green : Colors.grey,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isActive ? 'Active' : 'Inactive',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isActive ? Colors.green[700] : Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _lockBadge(bool isLocked) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: isLocked ? Colors.red[50] : Colors.blue[50], // Blue for unlocked
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isLocked
+              ? Colors.red.withOpacity(0.2)
+              : Colors.blue.withOpacity(0.2),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isLocked ? Icons.lock : Icons.lock_open,
+            size: 12,
+            color: isLocked ? Colors.red : Colors.blue,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isLocked ? 'Locked' : 'Unlocked',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isLocked ? Colors.red[700] : Colors.blue[700],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -116,360 +705,6 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
       builder: (context) => _CreateFinancialYearSheet(
         storeId: widget.storeId,
         onSuccess: _fetchFinancialYears,
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.calendar_month, color: Colors.blue[700], size: 28),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Financial Years',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Manage financial year periods for accounting',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _showCreateFinancialYearSheet,
-                  icon: const Icon(Icons.add, size: 18, color: Colors.white),
-                  label: const Text(
-                    'Create Financial Year',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[700],
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedFilter,
-                    icon: Icon(Icons.filter_list, color: Colors.blue[700]),
-                    items: ['All', 'Active', 'Inactive', 'Locked', 'Unlocked']
-                        .map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(
-                          value,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _selectedFilter = newValue;
-                        });
-                        _fetchFinancialYears();
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsCards() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            'Total\nFinancial Years',
-            _totalCount.toString(),
-            Colors.blue[50]!,
-            Colors.blue[700]!,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            'Active\nFinancial Years',
-            _activeCount.toString(),
-            Colors.green[50]!,
-            Colors.green[700]!,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            'Locked\nFinancial Years',
-            _lockedCount.toString(),
-            Colors.orange[50]!,
-            Colors.orange[700]!,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String value,
-    Color bgColor,
-    Color accentColor,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accentColor.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[700],
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: accentColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFinancialYearsList() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 1000),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Row
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    _buildHeaderCell('Period', width: 150),
-                    _buildHeaderCell('Start Date', width: 120),
-                    _buildHeaderCell('End Date', width: 120),
-                    _buildHeaderCell('Duration', width: 100),
-                    _buildHeaderCell('Status', width: 100),
-                    _buildHeaderCell('Lock Status', width: 120),
-                    _buildHeaderCell('Created', width: 120),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              // List Items
-              _isLoading
-                  ? const SizedBox(
-                      height: 200,
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: _financialYears.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final fy = entry.value;
-                        return Column(
-                          children: [
-                            if (index > 0) const Divider(height: 1),
-                            _buildListItem(fy),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderCell(String text, {double width = 100}) {
-    return SizedBox(
-      width: width,
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.black87,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildListItem(FinancialYear fy) {
-    final dateFormat = DateFormat('MMM dd, yyyy');
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 150,
-            child: Text(
-              fy.displayName,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-          ),
-          SizedBox(
-            width: 120,
-            child: Text(
-              dateFormat.format(DateTime.parse(fy.startDate)),
-              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-            ),
-          ),
-          SizedBox(
-            width: 120,
-            child: Text(
-              dateFormat.format(DateTime.parse(fy.endDate)),
-              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-            ),
-          ),
-          SizedBox(
-            width: 100,
-            child: Text(
-              fy.durationText,
-              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-            ),
-          ),
-          SizedBox(
-            width: 100,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: fy.isActive ? Colors.green[800] : Colors.grey[200],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                fy.isActive ? 'Active' : 'Inactive',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: fy.isActive ? Colors.white : Colors.grey[800],
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 120,
-            child: Row(
-              children: [
-                Icon(
-                  fy.isLocked ? Icons.lock : Icons.lock_open,
-                  size: 14,
-                  color: fy.isLocked ? Colors.red : Colors.green,
-                ),
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: fy.isLocked ? Colors.red : Colors.green,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    fy.isLocked ? 'Locked' : 'Unlocked',
-                    style: TextStyle(
-                      color: fy.isLocked ? Colors.red : Colors.green,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 120,
-            child: Text(
-              dateFormat.format(DateTime.parse(fy.createdAt)),
-              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -521,6 +756,18 @@ class _CreateFinancialYearSheetState extends State<_CreateFinancialYearSheet> {
                 (_startDate?.add(const Duration(days: 365)) ?? DateTime.now())),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF2563EB), // Header background color
+              onPrimary: Colors.white, // Header text color
+              onSurface: Colors.black, // Body text color
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
@@ -528,10 +775,7 @@ class _CreateFinancialYearSheetState extends State<_CreateFinancialYearSheet> {
         setState(() {
           if (isStart) {
             _startDate = picked;
-            // Auto-set end date to 31st March of next year if user picks April 1st
-            // Or roughly 1 year ahead
             if (_endDate == null) {
-              // Try to smart guess Indian FY
               if (picked.month == 4 && picked.day == 1) {
                 _endDate = DateTime(picked.year + 1, 3, 31);
               } else {
@@ -552,10 +796,7 @@ class _CreateFinancialYearSheetState extends State<_CreateFinancialYearSheet> {
   }
 
   Future<void> _createFinancialYear() async {
-    if (_startDate == null || _endDate == null) {
-      return;
-    }
-
+    if (_startDate == null || _endDate == null) return;
     setState(() => _isCreating = true);
 
     try {
@@ -570,36 +811,18 @@ class _CreateFinancialYearSheetState extends State<_CreateFinancialYearSheet> {
       if (!mounted) return;
 
       if (response['status'] == 200 && response['response'] != null) {
-        // Success
         Navigator.pop(context);
         widget.onSuccess();
-
-        final responseData = response['response'];
-        final start = responseData['start_date'] ?? _startDate.toString();
-        final end = responseData['end_date'] ?? _endDate.toString();
-
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Financial Year Created Successfully for $start to $end',
-            ),
+          const SnackBar(
+            content: Text('Financial Year Created Successfully'),
             backgroundColor: Colors.green,
-          ),
-        );
-      } else if (response.containsKey('status') &&
-          response['status'] == 400 &&
-          response.containsKey('response')) {
-        // Error from API
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(response['response']),
-            backgroundColor: Colors.red,
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unexpected response from server'),
+          SnackBar(
+            content: Text(response['response'] ?? 'Failed to create'),
             backgroundColor: Colors.red,
           ),
         );
@@ -611,274 +834,308 @@ class _CreateFinancialYearSheetState extends State<_CreateFinancialYearSheet> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isCreating = false);
-      }
+      if (mounted) setState(() => _isCreating = false);
     }
-  }
-
-  String get _previewText {
-    if (_startDate == null || _endDate == null)
-      return 'Select dates to preview';
-    final start = DateFormat('yyyy-MM-dd').format(_startDate!);
-    final end = DateFormat('yyyy-MM-dd').format(_endDate!);
-    return 'FY $start to $end';
-  }
-
-  String get _durationText {
-    if (_startDate == null || _endDate == null) return '';
-    final days = _endDate!.difference(_startDate!).inDays;
-    return 'Duration: $days days';
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(
-        color: Color(0xFFF5F7FA),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        children: [
+          _buildSheetHeader(),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                24,
+                0,
+                24,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
                 children: [
-                  const Text(
-                    'Create Financial Year',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              Text(
-                'Define a new financial year period for your store',
-                style: TextStyle(color: Colors.grey[600], fontSize: 13),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Financial Year Period',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => _selectDate(true),
-                child: AbsorbPointer(
-                  child: TextField(
-                    controller: _startDateController,
-                    decoration: InputDecoration(
-                      labelText: 'Start Date *',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () => _selectDate(false),
-                child: AbsorbPointer(
-                  child: TextField(
-                    controller: _endDateController,
-                    decoration: InputDecoration(
-                      labelText: 'End Date *',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Settings',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F2F5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Active',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            Text(
-                              'Set this as the active financial year',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                        Switch(
-                          value: _isActive,
-                          onChanged: (val) => setState(() => _isActive = val),
-                          activeColor: Colors.blue[700],
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Locked',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            Text(
-                              'Prevent modifications to this period',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                        Switch(
-                          value: _isLocked,
-                          onChanged: (val) => setState(() => _isLocked = val),
-                          activeColor: Colors.blue[700],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.withOpacity(0.2)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Preview',
-                      style: TextStyle(
-                        color: Colors.blue[700],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _previewText,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      _durationText,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        foregroundColor: Colors.grey[700],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
+                  _buildPreviewCard(),
+                  const SizedBox(height: 24),
+                  _buildFormSection(),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
                     child: ElevatedButton(
                       onPressed: _isCreating ? null : _createFinancialYear,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 4,
+                        shadowColor: const Color(0xFF2563EB).withOpacity(0.4),
+                      ),
                       child: _isCreating
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
+                          ? const CircularProgressIndicator(color: Colors.white)
                           : const Text(
-                              'Create Financial Year',
+                              "Create Financial Year",
                               style: TextStyle(
-                                color: Colors.white,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        disabledBackgroundColor: Colors.blue[300],
-                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSheetHeader() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "New Year",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              Text(
+                "Define fiscal period",
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, size: 20, color: Colors.black54),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewCard() {
+    final hasDates = _startDate != null && _endDate != null;
+    final dateFormat = DateFormat('MMM dd, yyyy');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Text(
+            "PREVIEW",
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.white60,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (hasDates) ...[
+            Text(
+              "FY ${DateFormat('yyyy').format(_startDate!)} - ${DateFormat('yy').format(_endDate!)}",
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: -1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                "${dateFormat.format(_startDate!)}  —  ${dateFormat.format(_endDate!)}",
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ] else
+            const Column(
+              children: [
+                Icon(
+                  Icons.calendar_today_rounded,
+                  color: Colors.white30,
+                  size: 40,
+                ),
+                SizedBox(height: 12),
+                Text(
+                  "Select dates to preview",
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormSection() {
+    return Column(
+      children: [
+        _buildDateField(
+          "Start Date",
+          _startDateController,
+          () => _selectDate(true),
+        ),
+        const SizedBox(height: 16),
+        _buildDateField(
+          "End Date",
+          _endDateController,
+          () => _selectDate(false),
+        ),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Column(
+            children: [
+              _buildSwitch(
+                "Active Status",
+                "Mark as current fiscal year",
+                _isActive,
+                (v) => setState(() => _isActive = v),
+              ),
+              const Divider(height: 32),
+              _buildSwitch(
+                "Lock Period",
+                "Prevent changes to data",
+                _isLocked,
+                (v) => setState(() => _isLocked = v),
+              ),
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildDateField(
+    String label,
+    TextEditingController controller,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AbsorbPointer(
+        child: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+            prefixIcon: const Icon(
+              Icons.date_range_rounded,
+              color: Color(0xFF64748B),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[200]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF2563EB)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
+          ),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
+    );
+  }
+
+  Widget _buildSwitch(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+        Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
+          activeColor: const Color(0xFF2563EB),
+        ),
+      ],
     );
   }
 }

@@ -1,8 +1,10 @@
 import 'dart:async';
-import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:exanor/screens/customer_details_screen.dart';
+import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 
 class CustomersListScreen extends StatefulWidget {
   final String? storeId;
@@ -16,7 +18,6 @@ class CustomersListScreen extends StatefulWidget {
 class _CustomersListScreenState extends State<CustomersListScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounce;
 
   String? _storeId;
@@ -70,7 +71,6 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
   void dispose() {
     _scrollController.dispose();
     _searchController.dispose();
-    _searchFocusNode.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -109,7 +109,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
       final result = await StoreOwnerApiService.getParties(
         _storeId!,
         page: isLoadMore ? _currentPage + 1 : 1,
-        filter: 'customers', // Changed to customers
+        filter: 'customers',
         sortBy: _sortBy,
         sortOrder: _sortOrder,
         searchQuery: _searchController.text,
@@ -130,12 +130,11 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
           }
 
           _hasNextPage = pagination['has_next'] == true;
-          _totalCount = body['count'] as int? ?? 0;
-          _returnedCount = body['returned'] as int? ?? 0;
+          // Fix: safely parse int from String or int
+          _totalCount = int.tryParse(body['count']?.toString() ?? '0') ?? 0;
+          _returnedCount =
+              int.tryParse(body['returned']?.toString() ?? '0') ?? 0;
 
-          // Calculate total outstanding from the current list
-          // This logic is copied from SuppliersListScreen as per user request
-          // Ideally backend provides this total.
           _totalOutstanding = _parties.fold(0.0, (sum, party) {
             return sum +
                 (double.tryParse(
@@ -166,703 +165,636 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     return formatter.format(value);
   }
 
-  void _toggleSortOrder() {
-    setState(() {
-      _sortOrder = _sortOrder == 'asc' ? 'desc' : 'asc';
-    });
-    _fetchParties();
-  }
-
-  void _changeSortBy(String value) {
-    if (_sortBy == value) {
-      _toggleSortOrder();
-    } else {
-      setState(() {
-        _sortBy = value;
-        _sortOrder =
-            'desc'; // Default to desc for new sort or asc based on type
-        if (value == 'name') _sortOrder = 'asc';
-      });
-      _fetchParties();
-    }
-  }
-
-  String _getSortLabel() {
-    switch (_sortBy) {
-      case 'outstanding':
-        return 'Outstanding';
-      case 'created':
-        return 'Created';
-      case 'name':
-      default:
-        return 'Name';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDesktop = MediaQuery.of(context).size.width > 800;
+    final width = MediaQuery.of(context).size.width;
+    final isDesktopOrTablet = width >= 768;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      body: SafeArea(
-        child: Column(
+    final primaryColor = const Color(0xFF2563EB); // Blue-600
+    final lightBg = const Color(0xFFEFF6FF); // Blue-50
+    final watermarkColor = const Color(0xFFDBEAFE); // Blue-100
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: Column(
           children: [
-            _buildHeader(theme),
-            _buildStatsSection(theme),
-            Expanded(child: _buildList(theme, isDesktop)),
+            _buildInteractiveBanner(primaryColor, lightBg, watermarkColor),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async => await _fetchParties(),
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                        child: _buildStatsSection(
+                          isDesktopOrTablet,
+                          primaryColor,
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                    if (isDesktopOrTablet && _parties.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _buildTableHeader(primaryColor),
+                      ),
+                    if (_isLoading && _parties.isEmpty)
+                      const SliverFillRemaining(
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_errorMessage != null && _parties.isEmpty)
+                      SliverFillRemaining(
+                        child: Center(child: Text(_errorMessage!)),
+                      )
+                    else if (_parties.isEmpty)
+                      SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.people_outline,
+                                size: 48,
+                                color: Colors.grey[300],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                "No customers found",
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: isDesktopOrTablet
+                            ? EdgeInsets.zero
+                            : const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 8,
+                              ),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              if (index == _parties.length) {
+                                return _isLoadingMore
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      )
+                                    : const SizedBox.shrink();
+                              }
+                              return isDesktopOrTablet
+                                  ? _buildTableRow(
+                                      _parties[index],
+                                      index,
+                                      primaryColor,
+                                    )
+                                  : Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16,
+                                      ),
+                                      child: _buildMobileCard(
+                                        _parties[index],
+                                        primaryColor,
+                                      ),
+                                    );
+                            },
+                            childCount:
+                                _parties.length + (_isLoadingMore ? 1 : 0),
+                          ),
+                        ),
+                      ),
+                    const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(ThemeData theme) {
+  Widget _buildInteractiveBanner(Color primary, Color bg, Color watermark) {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: BoxDecoration(
+        color: bg,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
         children: [
-          Text(
-            'Customers',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Manage your customer relationships and track outstanding amounts',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  onChanged: _onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Search by name or GSTIN...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 16,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.green),
-                    ),
-                  ),
-                ),
+          Positioned(
+            right: -20,
+            top: -10,
+            child: Transform.rotate(
+              angle: -math.pi / 8,
+              child: Icon(
+                Icons.supervised_user_circle_rounded,
+                size: 200,
+                color: watermark.withOpacity(0.6),
               ),
-              const SizedBox(width: 12),
-
-              // Sort Menu
-              PopupMenuButton<String>(
-                onSelected: _changeSortBy,
-                itemBuilder: (context) => [
-                  _buildSortMenuItem('name', 'Sort by Name'),
-                  _buildSortMenuItem('outstanding', 'Sort by Outstanding'),
-                  _buildSortMenuItem('created', 'Sort by Created'),
-                ],
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _sortOrder == 'asc' ? Icons.sort_by_alpha : Icons.sort,
-                        color: Colors.green,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _getSortLabel(),
-                        style: const TextStyle(
-                          color: Colors.green,
-                          fontWeight: FontWeight.w600,
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              MediaQuery.of(context).padding.top + 12,
+              20,
+              20,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.blueGrey.withOpacity(0.5),
+                            width: 1.5,
+                          ),
                         ),
+                        child: const Center(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: 2),
+                            child: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.black87,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Customers",
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        Text(
+                          "Manage Relationships",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Clear Button
-              OutlinedButton.icon(
-                onPressed: () {
-                  _searchController.clear();
-                  _onSearchChanged('');
-                },
-                icon: const Icon(Icons.close, size: 18),
-                label: const Text('Clear'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
-                  side: BorderSide(color: Colors.grey[300]!),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Search by name, GSTIN...',
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[400],
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: Icon(Icons.search_rounded, color: primary),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  PopupMenuItem<String> _buildSortMenuItem(String value, String label) {
-    final bool isSelected = _sortBy == value;
-    return PopupMenuItem<String>(
-      value: value,
-      child: Row(
+  Widget _buildStatsSection(bool isWide, Color primary) {
+    final countCard = _buildStatBox(
+      "Total Customers",
+      _totalCount.toString(),
+      Icons.groups,
+      Colors.indigo,
+    );
+    final outstandingCard = _buildStatBox(
+      "Total Outstanding",
+      _formatCurrency(_totalOutstanding),
+      Icons.account_balance_wallet,
+      Colors.green,
+      isHero: true,
+    );
+    final showingCard = _buildStatBox(
+      "Showing",
+      "$_returnedCount / $_totalCount",
+      Icons.visibility,
+      Colors.orange,
+    );
+    if (isWide) {
+      return Row(
         children: [
-          Icon(
-            isSelected
-                ? (_sortOrder == 'asc'
-                      ? Icons.arrow_upward
-                      : Icons.arrow_downward)
-                : null,
-            size: 16,
-            color: isSelected ? Colors.green : Colors.transparent,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.green : Colors.black87,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsSection(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
-        children: [
-          _buildStatCard(
-            title: 'Total Customers',
-            value: _totalCount.toString(),
-            theme: theme,
-          ),
+          Expanded(child: countCard),
           const SizedBox(width: 16),
-          _buildStatCard(
-            title: 'Total Outstanding',
-            value: _formatCurrency(_totalOutstanding),
-            // Updated logic based on image: green for positive (outstanding),
-            // or we might follow the Logic: If > 0, we are owed money (Green), if < 0 we owe (Red)?
-            // The image shows -73410 in green.
-            // Let's use Green for customers generally unless specified.
-            valueColor: Colors.green[700],
-            theme: theme,
-          ),
+          Expanded(flex: 2, child: outstandingCard),
           const SizedBox(width: 16),
-          Expanded(
-            child: _buildStatCard(
-              title: 'Showing',
-              value: '$_returnedCount / $_totalCount',
-              theme: theme,
-            ),
-          ),
+          Expanded(child: showingCard),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    Color? valueColor,
-    required ThemeData theme,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: valueColor ?? Colors.black87,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildList(ThemeData theme, bool isDesktop) {
-    if (_isLoading && _parties.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_errorMessage != null && _parties.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.orange),
-            const SizedBox(height: 16),
-            Text(_errorMessage!),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => _fetchParties(),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
       );
     }
-
-    if (_parties.isEmpty) {
-      return const Center(child: Text("No customers found."));
-    }
-
     return Column(
       children: [
-        if (isDesktop) _buildTableHeader(theme),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              await _fetchParties();
-            },
-            child: ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              itemCount: _parties.length + (_isLoadingMore ? 1 : 0),
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                if (index == _parties.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-
-                final party = _parties[index];
-                return InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CustomerDetailsScreen(
-                          storeId: _storeId!,
-                          customer: party,
-                        ),
-                      ),
-                    );
-                  },
-                  child: isDesktop
-                      ? _buildDesktopListItem(party, theme)
-                      : _buildMobileListItem(party, theme),
-                );
-              },
-            ),
-          ),
+        SizedBox(width: double.infinity, child: outstandingCard),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: countCard),
+            const SizedBox(width: 12),
+            Expanded(child: showingCard),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildTableHeader(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      child: Row(
-        children: [
-          Expanded(flex: 3, child: _tableHeader('Customer')),
-          Expanded(flex: 2, child: _tableHeader('Contact')),
-          Expanded(flex: 2, child: _tableHeader('Location')),
-          Expanded(flex: 1, child: _tableHeader('GSTIN')),
-          Expanded(
-            flex: 1,
-            child: _tableHeader('Outstanding', align: TextAlign.right),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tableHeader(String text, {TextAlign align = TextAlign.left}) {
-    return Text(
-      text,
-      textAlign: align,
-      style: TextStyle(
-        color: Colors.grey[600],
-        fontWeight: FontWeight.bold,
-        fontSize: 12,
-      ),
-    );
-  }
-
-  Widget _buildDesktopListItem(dynamic party, ThemeData theme) {
-    final outstanding =
-        double.tryParse(party['total_outstanding']?.toString() ?? '0') ?? 0.0;
-
+  Widget _buildStatBox(
+    String title,
+    String value,
+    IconData icon,
+    Color color, {
+    bool isHero = false,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: isHero ? 20 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Customer
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.person,
-                    color: Colors.green,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        party['name'] ?? 'Unknown',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        party['party_type'] ?? 'USER',
-                        style: TextStyle(color: Colors.grey[500], fontSize: 10),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Contact
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (party['phone_number'] != null)
-                  Row(
-                    children: [
-                      Icon(Icons.phone, size: 12, color: Colors.grey[400]),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${party['phone_number']}',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                if (party['email'] != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      children: [
-                        Icon(Icons.email, size: 12, color: Colors.grey[400]),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            '${party['email']}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Location
-          Expanded(
-            flex: 2,
-            child: (party['city'] != null || party['state'] != null)
-                ? Row(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        [party['city'], party['state']]
-                            .where((e) => e != null && e.toString().isNotEmpty)
-                            .join(', '),
-                        style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                      ),
-                    ],
-                  )
-                : const SizedBox(),
-          ),
-
-          // GSTIN
-          Expanded(
-            flex: 1,
-            child: Text(
-              party['gstin'] ?? 'N/A',
-              style: TextStyle(color: Colors.grey[600], fontSize: 13),
-            ),
-          ),
-
-          // Outstanding
-          Expanded(
-            flex: 1,
-            child: Text(
-              _formatCurrency(outstanding),
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.green[700],
-              ),
-            ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isHero ? color.withOpacity(0.2) : Colors.grey[100]!,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMobileListItem(dynamic party, ThemeData theme) {
-    final outstanding =
-        double.tryParse(party['total_outstanding']?.toString() ?? '0') ?? 0.0;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: color.withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person, color: Colors.green, size: 24),
+                child: Icon(icon, size: 14, color: color),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      party['name'] ?? 'Unknown',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Text(
-                          party['party_type'] ?? 'USER',
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 10,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          _formatCurrency(outstanding),
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.green[700],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                child: Text(
+                  title.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[500],
+                    letterSpacing: 0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-
-          // Details Grid
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    if (party['phone_number'] != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.phone,
-                              size: 14,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${party['phone_number']}',
-                              style: TextStyle(
-                                color: Colors.grey[700],
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (party['city'] != null)
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            size: 14,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${party['city']}',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1E293B),
+                letterSpacing: -0.5,
               ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (party['email'] != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Icon(
-                              Icons.email,
-                              size: 14,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                '${party['email']}',
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.grey[700],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (party['gstin'] != null)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Icon(
-                            Icons.assignment,
-                            size: 14,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${party['gstin']}',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTableHeader(Color primary) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            Expanded(flex: 3, child: Text('CUSTOMER', style: _headerStyle)),
+            Expanded(flex: 2, child: Text('CONTACT', style: _headerStyle)),
+            Expanded(flex: 2, child: Text('LOCATION', style: _headerStyle)),
+            Expanded(flex: 2, child: Text('GSTIN', style: _headerStyle)),
+            Expanded(
+              flex: 2,
+              child: Text(
+                'OUTSTANDING',
+                style: _headerStyle,
+                textAlign: TextAlign.right,
+              ),
+            ),
+            const SizedBox(width: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  TextStyle get _headerStyle => TextStyle(
+    fontWeight: FontWeight.bold,
+    fontSize: 12,
+    color: Colors.grey[500],
+    letterSpacing: 0.5,
+  );
+
+  Widget _buildTableRow(dynamic party, int index, Color primary) {
+    final isLast = index == _partyCount - 1;
+    final outstanding =
+        double.tryParse(party['total_outstanding']?.toString() ?? '0') ?? 0.0;
+
+    return GestureDetector(
+      onTap: () => _navigateToDetails(party),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            left: BorderSide(color: Colors.grey[200]!),
+            right: BorderSide(color: Colors.grey[200]!),
+            bottom: BorderSide(color: Colors.grey[200]!),
+          ),
+          borderRadius: isLast
+              ? const BorderRadius.vertical(bottom: Radius.circular(12))
+              : null,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: primary.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.person, size: 16, color: primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      party['name'] ?? 'Unknown',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                party['phone_number']?.toString() ?? '-',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                party['city'] ?? '-',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                party['gstin'] ?? '-',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                _formatCurrency(outstanding),
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Colors.green,
+                ),
+              ),
+            ),
+            const SizedBox(
+              width: 40,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileCard(dynamic party, Color primary) {
+    final outstanding =
+        double.tryParse(party['total_outstanding']?.toString() ?? '0') ?? 0.0;
+
+    return GestureDetector(
+      onTap: () => _navigateToDetails(party),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(child: Icon(Icons.person, color: primary)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          party['name'] ?? 'Unknown',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                        if (party['phone_number'] != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            party['phone_number'].toString(),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                        if (party['city'] != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            party['city'],
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Divider(height: 1, color: Colors.grey[100]),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      party['gstin'] != null ? 'GST: ${party['gstin']}' : 'N/A',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[600],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        _formatCurrency(outstanding),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.green,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  int get _partyCount => _parties.length;
+
+  void _navigateToDetails(dynamic party) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            CustomerDetailsScreen(storeId: _storeId!, customer: party),
       ),
     );
   }
