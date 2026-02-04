@@ -14,6 +14,7 @@ import 'package:exanor/screens/financial_years_screen.dart';
 import 'package:exanor/screens/suppliers_list_screen.dart';
 import 'package:exanor/screens/customers_list_screen.dart';
 import 'package:exanor/screens/inventory_screen.dart';
+import 'package:exanor/screens/gst_ledger_screen.dart';
 // import 'package:exanor/screens/auth/login_screen.dart'; // Assuming login screen exists
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -402,7 +403,16 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                         icon: Icons.menu_book_outlined,
                         title: 'Ledger',
                         isSmall: true,
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  GstLedgerScreen(storeId: widget.storeId),
+                            ),
+                          );
+                        },
                       ),
                       _buildDrawerItem(
                         icon: Icons.description_outlined,
