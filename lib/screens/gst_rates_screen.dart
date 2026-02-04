@@ -17,6 +17,7 @@ class GstRatesScreen extends StatefulWidget {
 class _GstRatesScreenState extends State<GstRatesScreen> {
   bool _isLoading = true;
   List<GstRate> _rates = [];
+  bool _isSearchExpanded = false;
   int _totalCount = 0;
   final int _limit = 50;
   int _offset = 0;
@@ -156,6 +157,32 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
         body: Column(
           children: [
             _buildTopBanner(context),
+
+            // Search Bar (Conditional)
+            if (_isSearchExpanded)
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.white,
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Search by HSN code or description...',
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: const Color(0xFF2563EB),
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+              ),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -341,43 +368,65 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    // Search Bar Integrated in Header
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: _onSearchChanged,
-                        decoration: InputDecoration(
-                          hintText: 'Search by HSN code or description...',
-                          hintStyle: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 14,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Colors.grey[400],
-                            size: 20,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
+                        // Search Button
+                        SizedBox(
+                          width: 70,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'SEARCH',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 1.2,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _isSearchExpanded = !_isSearchExpanded;
+                                    if (!_isSearchExpanded) {
+                                      _searchController.clear();
+                                      _searchQuery = '';
+                                      _fetchRates();
+                                    }
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.blueGrey.withOpacity(0.1),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    _isSearchExpanded
+                                        ? Icons.close
+                                        : Icons.search_rounded,
+                                    size: 24,
+                                    color: Colors.blueGrey[700],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),

@@ -22,6 +22,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   bool _isLoading = true;
   List<Voucher> _allVouchers = [];
+
   List<Voucher> _filteredVouchers = [];
 
   // Stats
@@ -29,7 +30,14 @@ class _SalesScreenState extends State<SalesScreen> {
   double _totalTax = 0.0;
   int _postedCount = 0;
 
+  // Filters & Sort
+  bool _showSearch = false; // Add search visibility toggle
+  bool _showFilters = false;
+  bool _showSort = false; // Add sort visibility toggle or manage via state
   String _activeFilter = 'All'; // All, Posted, Draft
+  DateTime? _startDate;
+  DateTime? _endDate;
+  String _sortBy = 'Date'; // Date, Voucher Number, Amount
 
   @override
   void initState() {
@@ -97,13 +105,47 @@ class _SalesScreenState extends State<SalesScreen> {
         final matchesSearch =
             v.voucherNumber.toLowerCase().contains(query) ||
             (v.customer?.name ?? '').toLowerCase().contains(query);
-        final matchesFilter =
+        final matchesStatus =
             _activeFilter == 'All' ||
             (_activeFilter == 'Posted' && v.isPosted) ||
             (_activeFilter == 'Draft' && !v.isPosted);
 
-        return matchesSearch && matchesFilter;
+        bool matchesDate = true;
+        if (_startDate != null || _endDate != null) {
+          try {
+            final vDate = DateTime.parse(v.date);
+            if (_startDate != null &&
+                vDate.isBefore(
+                  _startDate!.subtract(const Duration(seconds: 1)),
+                )) {
+              matchesDate = false;
+            }
+            if (_endDate != null &&
+                vDate.isAfter(_endDate!.add(const Duration(days: 1)))) {
+              matchesDate = false;
+            }
+          } catch (e) {
+            // Ignore date parsing errors
+          }
+        }
+
+        return matchesSearch && matchesStatus && matchesDate;
       }).toList();
+
+      // Sort
+      _filteredVouchers.sort((a, b) {
+        switch (_sortBy) {
+          case 'Voucher Number':
+            return a.voucherNumber.compareTo(b.voucherNumber);
+          case 'Amount':
+            return b.grandTotal.compareTo(a.grandTotal); // High to Low
+          case 'Date':
+          default:
+            final dA = DateTime.tryParse(a.date) ?? DateTime(1970);
+            final dB = DateTime.tryParse(b.date) ?? DateTime(1970);
+            return dB.compareTo(dA); // Newest First
+        }
+      });
     });
   }
 
@@ -142,6 +184,10 @@ class _SalesScreenState extends State<SalesScreen> {
             // 1. Watermark Banner
             _buildInteractiveBanner(primaryColor, lightBg, watermarkColor),
 
+            // 2. Action Bar & Filter Panel (Now conditionally shown based on banner clicks)
+            if (_showSearch || _showFilters)
+              _buildControlsSection(primaryColor),
+
             // 2. Main Scroll View
             Expanded(
               child: RefreshIndicator(
@@ -159,11 +205,6 @@ class _SalesScreenState extends State<SalesScreen> {
                           primaryColor,
                         ),
                       ),
-                    ),
-
-                    // Filter Segments
-                    SliverToBoxAdapter(
-                      child: _buildFilterSegments(primaryColor),
                     ),
 
                     const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -334,40 +375,40 @@ class _SalesScreenState extends State<SalesScreen> {
                         ],
                       ),
                     ),
-                    // Add Button (Placeholder if needed)
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Search
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: 'Search by voucher or customer...',
-                      hintStyle: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[400],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: Icon(Icons.search_rounded, color: primary),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    // Search Button
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildBannerAction(
+                          "SEARCH",
+                          _showSearch ? Icons.close : Icons.search_rounded,
+                          () => setState(() {
+                            _showSearch = !_showSearch;
+                            if (!_showSearch) {
+                              _searchController.clear();
+                              _applyFilters();
+                            }
+                          }),
+                          isActive: _showSearch,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildBannerAction(
+                          "FILTER",
+                          Icons.filter_list_rounded,
+                          () => setState(() => _showFilters = !_showFilters),
+                          isActive: _showFilters,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildBannerAction(
+                          "SORT",
+                          Icons.sort_rounded,
+                          () => _showSortOptions(context),
+                          isActive:
+                              _sortBy != 'Date', // Highlight if not default
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -494,44 +535,357 @@ class _SalesScreenState extends State<SalesScreen> {
     );
   }
 
-  // ============== 3. FILTER SEGMENTS ==============
-  Widget _buildFilterSegments(Color primary) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
+  Widget _buildBannerAction(
+    String label,
+    IconData icon,
+    VoidCallback onTap, {
+    bool isActive = false,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            color: Colors.blueGrey[400],
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Material(
+          color: isActive ? const Color(0xFF2563EB) : Colors.white,
+          shape: const CircleBorder(),
+          elevation: 2,
+          shadowColor: Colors.blueGrey.withOpacity(0.2),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(30),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isActive ? const Color(0xFF2563EB) : Colors.white,
+                  width: 2,
+                ),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isActive ? Colors.white : Colors.blueGrey[700],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showSortOptions(BuildContext context) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                "Sort By",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            Divider(color: Colors.grey[200]),
+            _buildSortOption("Date", "Date"),
+            _buildSortOption("Voucher Number", "Voucher Number"),
+            _buildSortOption("Amount (High to Low)", "Amount"),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _sortBy = result;
+        _applyFilters();
+      });
+    }
+  }
+
+  Widget _buildSortOption(String label, String value) {
+    final isSelected = _sortBy == value;
+    return ListTile(
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? const Color(0xFF2563EB) : Colors.black87,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, color: Color(0xFF2563EB))
+          : null,
+      onTap: () => Navigator.pop(context, value),
+    );
+  }
+
+  // ============== 3. CONTROLS SECTION (Search & Filter Panels) ==============
+  Widget _buildControlsSection(Color primary) {
+    return Container(
+      color: Colors.white,
+      child: Column(
         children: [
-          _buildFilterChip("All", _activeFilter == 'All', primary),
-          const SizedBox(width: 10),
-          _buildFilterChip("Posted", _activeFilter == 'Posted', Colors.green),
-          const SizedBox(width: 10),
-          _buildFilterChip("Draft", _activeFilter == 'Draft', Colors.orange),
+          // Search Bar Panel
+          if (_showSearch)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search by voucher or customer...',
+                  prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[200]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: primary.withOpacity(0.5)),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+
+          // Filter Panel
+          if (_showFilters) ...[
+            if (_showSearch) Divider(height: 1, color: Colors.grey[100]),
+            Container(
+              padding: const EdgeInsets.all(20),
+              color: const Color(0xFFFAFAFA),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Row 1: Dates & Status
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth > 600;
+                      return isWide
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: _buildDatePicker(
+                                    "Date From",
+                                    _startDate,
+                                    (d) => setState(() {
+                                      _startDate = d;
+                                      _applyFilters();
+                                    }),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildDatePicker(
+                                    "Date To",
+                                    _endDate,
+                                    (d) => setState(() {
+                                      _endDate = d;
+                                      _applyFilters();
+                                    }),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildDropdown(
+                                    "Posted Status",
+                                    ["All", "Posted", "Draft"],
+                                    _activeFilter,
+                                    (val) => _onFilterChanged(val!),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildDatePicker(
+                                        "Date From",
+                                        _startDate,
+                                        (d) => setState(() {
+                                          _startDate = d;
+                                          _applyFilters();
+                                        }),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: _buildDatePicker(
+                                        "Date To",
+                                        _endDate,
+                                        (d) => setState(() {
+                                          _endDate = d;
+                                          _applyFilters();
+                                        }),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _buildDropdown(
+                                  "Posted Status",
+                                  ["All", "Posted", "Draft"],
+                                  _activeFilter,
+                                  (val) => _onFilterChanged(val!),
+                                ),
+                              ],
+                            );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey[200]),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, bool isActive, Color color) {
-    return FilterChip(
-      label: Text(label),
-      selected: isActive,
-      onSelected: (val) => _onFilterChanged(label),
-      backgroundColor: Colors.white,
-      selectedColor: color.withOpacity(0.1),
-      labelStyle: TextStyle(
-        color: isActive ? color : Colors.grey[600],
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(
-          color: isActive ? color.withOpacity(0.3) : Colors.grey[200]!,
+  Widget _buildDatePicker(
+    String label,
+    DateTime? selectedDate,
+    Function(DateTime?) onDateSelected,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[600],
+          ),
         ),
-      ),
-      showCheckmark: false,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      visualDensity: VisualDensity.compact,
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: selectedDate ?? DateTime.now(),
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2030),
+              builder: (context, child) {
+                return Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: ColorScheme.light(
+                      primary: const Color(0xFF2563EB), // Blue-600
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (picked != null) onDateSelected(picked);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.grey[300]!),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  selectedDate != null
+                      ? DateFormat('MM/dd/yyyy').format(selectedDate)
+                      : 'MM/DD/YYYY',
+                  style: TextStyle(
+                    color: selectedDate != null
+                        ? Colors.black87
+                        : Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                ),
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 16,
+                  color: Colors.grey[400],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown(
+    String label,
+    List<String> items,
+    String currentValue,
+    Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: currentValue,
+              isExpanded: true,
+              icon: Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
+              dropdownColor: Colors.white,
+              items: items.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(
+                    value,
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  ),
+                );
+              }).toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -551,6 +905,7 @@ class _SalesScreenState extends State<SalesScreen> {
             Expanded(flex: 2, child: Text('VOUCHER', style: _headerStyle)),
             Expanded(flex: 2, child: Text('DATE', style: _headerStyle)),
             Expanded(flex: 3, child: Text('CUSTOMER', style: _headerStyle)),
+            Expanded(flex: 2, child: Text('TAX', style: _headerStyle)),
             Expanded(flex: 2, child: Text('AMOUNT', style: _headerStyle)),
             Expanded(flex: 1, child: Text('STATUS', style: _headerStyle)),
             const SizedBox(width: 40),
@@ -606,6 +961,13 @@ class _SalesScreenState extends State<SalesScreen> {
               flex: 3,
               child: Text(
                 v.customer?.name ?? 'Unknown',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                '₹${(v.taxBreakdown?.totalTax ?? 0.0).toStringAsFixed(2)}',
                 style: const TextStyle(fontSize: 14),
               ),
             ),
@@ -692,7 +1054,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          v.voucherNumber,
+                          v.customer?.name ?? 'Unknown Customer',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -701,7 +1063,7 @@ class _SalesScreenState extends State<SalesScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          v.customer?.name ?? 'Unknown Customer',
+                          "Voucher Number: ${v.voucherNumber}",
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -747,14 +1109,28 @@ class _SalesScreenState extends State<SalesScreen> {
                       ),
                     ),
                   ),
-                  Text(
-                    '₹${v.grandTotal.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
-                      letterSpacing: -0.5,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Tax: ₹${(v.taxBreakdown?.totalTax ?? 0.0).toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '₹${v.grandTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E293B),
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1011,7 +1387,25 @@ class _SalesDetailsDialogState extends State<SalesDetailsDialog> {
                                               fontSize: 14,
                                             ),
                                           ),
-                                          if (item.inventory?.hsnCode != null)
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Unit Price: ₹${item.rate.toStringAsFixed(2)}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            "Godown: Default Godown",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                          if (item.inventory?.hsnCode !=
+                                              null) ...[
+                                            const SizedBox(height: 2),
                                             Text(
                                               "HSN: ${item.inventory?.hsnCode}",
                                               style: TextStyle(
@@ -1019,6 +1413,7 @@ class _SalesDetailsDialogState extends State<SalesDetailsDialog> {
                                                 color: Colors.grey[400],
                                               ),
                                             ),
+                                          ],
                                         ],
                                       ),
                                     ),

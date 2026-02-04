@@ -233,33 +233,32 @@ class _CouponsScreenState extends State<CouponsScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Back Button (Functioning as Menu/Back)
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TranslatedText(
-                            'BACK',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.blueGrey[400],
-                              letterSpacing: 1.2,
+                      // Back Button
+                      InkWell(
+                        onTap: () => Navigator.pop(context),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.blueGrey.withOpacity(0.5),
+                              width: 1.5,
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: Colors.blueGrey,
-                              size: 32,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            style: IconButton.styleFrom(
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          child: const Center(
+                            child: Padding(
+                              padding: EdgeInsets.only(right: 2),
+                              child: Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.black87,
+                                size: 20,
+                              ),
                             ),
                           ),
-                        ],
+                        ),
                       ),
                       const SizedBox(width: 12),
 

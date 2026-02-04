@@ -28,6 +28,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
   List<dynamic> _products = [];
   String? _errorMessage;
   int _currentPage = 1;
+  bool _isSearchExpanded = false;
   int _totalCount = 0;
   final TextEditingController _searchController = TextEditingController();
 
@@ -115,34 +116,60 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
         body: Column(
           children: [
             _buildExpandedBanner(),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(32),
+
+            // Search Bar (Conditional)
+            if (_isSearchExpanded)
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.white,
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Search items...',
+                    prefixIcon: Icon(Icons.search, color: _primary),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
                 ),
-                child: Container(
-                  color: Colors.white,
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: _isLoading
-                            ? const Center(child: CircularProgressIndicator())
-                            : _errorMessage != null
-                            ? _buildErrorState()
-                            : _products.isEmpty
-                            ? _buildEmptyState()
-                            : ListView.separated(
-                                padding: const EdgeInsets.all(24),
-                                itemCount: _products.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 16),
-                                itemBuilder: (context, index) {
-                                  return _buildProductCard(_products[index]);
-                                },
-                              ),
-                      ),
-                    ],
+              ),
+
+            Expanded(
+              child: Transform.translate(
+                offset: const Offset(0, -20),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(32),
+                  ),
+                  child: Container(
+                    color: Colors.white,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: _isLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : _errorMessage != null
+                              ? _buildErrorState()
+                              : _products.isEmpty
+                              ? _buildEmptyState()
+                              : ListView.separated(
+                                  padding: const EdgeInsets.all(24),
+                                  itemCount: _products.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 16),
+                                  itemBuilder: (context, index) {
+                                    return _buildProductCard(_products[index]);
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -200,32 +227,31 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Back Button
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TranslatedText(
-                            'BACK',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.blueGrey[400],
-                              letterSpacing: 1.2,
+                      InkWell(
+                        onTap: () => Navigator.pop(context),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.blueGrey.withOpacity(0.5),
+                              width: 1.5,
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back_ios_new_rounded,
-                              color: Colors.blueGrey,
-                              size: 24,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            style: IconButton.styleFrom(
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          child: const Center(
+                            child: Padding(
+                              padding: EdgeInsets.only(right: 2),
+                              child: Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.black87,
+                                size: 20,
+                              ),
                             ),
                           ),
-                        ],
+                        ),
                       ),
                       const SizedBox(width: 12),
                       // Title
@@ -272,61 +298,63 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  // Search Bar
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.qr_code_scanner_rounded,
-                          color: Color(0xFF64748B),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          height: 20,
-                          width: 1,
-                          color: Colors.grey[200],
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: const InputDecoration(
-                              hintText: "Search items",
-                              border: InputBorder.none,
-                              hintStyle: TextStyle(
-                                color: Color(0xFF94A3B8),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
+                      // Search Button
+                      SizedBox(
+                        width: 70,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              'SEARCH',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _isSearchExpanded = !_isSearchExpanded;
+                                  if (!_isSearchExpanded) {
+                                    _searchController.clear();
+                                  }
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.blueGrey.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  _isSearchExpanded
+                                      ? Icons.close
+                                      : Icons.search_rounded,
+                                  size: 24,
+                                  color: Colors.blueGrey[700],
+                                ),
                               ),
                             ),
-                            style: TextStyle(
-                              color: _textMain,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          ],
                         ),
-                        Icon(Icons.search_rounded, color: _primary),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   // Filters

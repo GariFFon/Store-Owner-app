@@ -501,27 +501,75 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth > 600) {
-          // Grid View for larger screens
-          return RefreshIndicator(
-            onRefresh: () => _fetchReceipts(),
-            child: GridView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 500,
-                mainAxisExtent: 140, // Reduced height for tablet
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+          // Table Layout for larger screens
+          return Column(
+            children: [
+              // Table Header
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.05),
+                      offset: const Offset(0, 2),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(flex: 2, child: _buildTableHeaderText('DATE')),
+                    Expanded(flex: 2, child: _buildTableHeaderText('VOUCHER')),
+                    Expanded(
+                      flex: 4,
+                      child: _buildTableHeaderText('PARTY NAME'),
+                    ),
+                    Expanded(flex: 3, child: _buildTableHeaderText('ACCOUNT')),
+                    Expanded(flex: 2, child: _buildTableHeaderText('AMOUNT')),
+                    Expanded(flex: 2, child: _buildTableHeaderText('STATUS')),
+                    const SizedBox(width: 40), // Action placeholder
+                  ],
+                ),
               ),
-              itemCount: _receipts.length + (_isLoadingMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == _receipts.length) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final receipt = _receipts[index];
-                return _buildReceiptRow(theme, receipt);
-              },
-            ),
+              // Table Body
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => _fetchReceipts(),
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount: _receipts.length + (_isLoadingMore ? 1 : 0),
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1, thickness: 0.5),
+                    itemBuilder: (context, index) {
+                      if (index == _receipts.length) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+                      final receipt = _receipts[index];
+                      return _buildTabletReceiptRow(
+                        theme,
+                        receipt,
+                        index == _receipts.length - 1,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
           );
         } else {
           // List View for mobile
@@ -546,6 +594,157 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
           );
         }
       },
+    );
+  }
+
+  Widget _buildTableHeaderText(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey[500],
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+
+  Widget _buildTabletReceiptRow(ThemeData theme, dynamic receipt, bool isLast) {
+    final isPosted = receipt['is_posted'] == true;
+    final statusColor = isPosted ? Colors.green : Colors.orange;
+
+    return Material(
+      color: Colors.white,
+      shape: isLast
+          ? const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+            )
+          : null,
+      child: InkWell(
+        onTap: () async {
+          _searchFocusNode.unfocus();
+          FocusScope.of(context).unfocus();
+          await Future.delayed(
+            const Duration(milliseconds: 100),
+          ); // Allow keyboard to hide
+
+          if (!mounted) return;
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ReceiptDetailsScreen(receipt: receipt),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Colors.grey.withOpacity(0.1)),
+              left: BorderSide(color: Colors.grey.withOpacity(0.1)),
+              right: BorderSide(color: Colors.grey.withOpacity(0.1)),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Date
+              Expanded(
+                flex: 2,
+                child: Text(
+                  _formatDate(receipt['date']),
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Voucher
+              Expanded(
+                flex: 2,
+                child: Text(
+                  receipt['voucher_number'] ?? 'N/A',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Party
+              Expanded(
+                flex: 4,
+                child: Text(
+                  receipt['party_name'] ?? 'Unknown Party',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1E293B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Account
+              Expanded(
+                flex: 3,
+                child: Text(
+                  receipt['receipt_account'] ?? '',
+                  style: const TextStyle(fontSize: 14),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Amount
+              Expanded(
+                flex: 2,
+                child: Text(
+                  _formatCurrency(receipt['amount']),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1E293B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Status
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      isPosted ? 'Posted' : 'Unposted',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Action
+              SizedBox(
+                width: 40,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.grey[400],
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

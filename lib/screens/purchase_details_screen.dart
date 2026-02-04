@@ -405,12 +405,12 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
           _buildDashedDivider(),
           _buildInfoRow(
             theme,
-            'Posted',
-            _purchaseData!['is_posted'] == true ? 'Yes' : 'No',
+            'Voucher Status',
+            _purchaseData!['is_posted'] == true ? 'Posted' : 'Draft',
             Icons.check_circle_outline_rounded,
             valueColor: _purchaseData!['is_posted'] == true
                 ? Colors.green
-                : Colors.red,
+                : Colors.orange,
           ),
         ],
       ),
@@ -519,6 +519,23 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
                   color: theme.colorScheme.onSurface.withOpacity(0.6),
                   fontWeight: FontWeight.w500,
                   fontSize: 12,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // HSN Code
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'HSN: ${item['product']?['hsn_code'] ?? item['product']?['hsn'] ?? 'N/A'}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
