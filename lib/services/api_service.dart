@@ -1123,22 +1123,75 @@ class ApiService {
   // Authentication state callback
   static Function? onAuthenticationFailed;
 
+  // Flag to prevent multiple simultaneous auth navigation attempts
+  static bool _isNavigatingToAuth = false;
+
   /// Set callback for authentication failure
   static void setAuthFailureCallback(Function callback) {
     onAuthenticationFailed = callback;
     _log('✅ Auth failure callback set');
   }
 
+  /// Reset auth navigation flag (call this when auth screen is mounted)
+  static void resetAuthNavigationFlag() {
+    _isNavigatingToAuth = false;
+    _log('🔄 Auth navigation flag reset');
+  }
+
   /// Navigate to phone registration screen when auth fails
   static Future<void> _navigateToPhoneRegistration() async {
+    // Prevent multiple simultaneous navigation attempts
+    if (_isNavigatingToAuth) {
+      _log(
+        '⚠️ Already navigating to auth screen, skipping duplicate navigation',
+      );
+      return;
+    }
+
+    _isNavigatingToAuth = true;
+    _log('🔒 Auth navigation started - blocking duplicate navigations');
+
     try {
-      // First try using the navigator key
+      // First try using the navigator key with currentState (more reliable)
+      if (navigatorKey.currentState != null) {
+        _log('🔑 Using navigatorKey.currentState for navigation');
+        // Try auth_landing first, then fall back to phone_registration
+        try {
+          navigatorKey.currentState!.pushNamedAndRemoveUntil(
+            '/auth_landing',
+            (route) => false,
+          );
+          _log('✅ Navigated to auth landing screen using navigatorKey');
+          // Reset flag after a delay to allow the screen to mount
+          Future.delayed(const Duration(milliseconds: 500), () {
+            _isNavigatingToAuth = false;
+          });
+          return;
+        } catch (e) {
+          _log('⚠️ Auth landing route failed, trying phone_registration: $e');
+          navigatorKey.currentState!.pushNamedAndRemoveUntil(
+            '/phone_registration',
+            (route) => false,
+          );
+          _log('✅ Navigated to phone registration screen using navigatorKey');
+          Future.delayed(const Duration(milliseconds: 500), () {
+            _isNavigatingToAuth = false;
+          });
+          return;
+        }
+      }
+
+      // Try using navigatorKey.currentContext as fallback
       if (navigatorKey.currentContext != null) {
-        await Navigator.of(
+        _log('🔑 Using navigatorKey.currentContext for navigation');
+        Navigator.of(
           navigatorKey.currentContext!,
           rootNavigator: true,
-        ).pushNamedAndRemoveUntil('/phone_registration', (route) => false);
-        _log('✅ Navigated to phone registration screen using navigatorKey');
+        ).pushNamedAndRemoveUntil('/auth_landing', (route) => false);
+        _log('✅ Navigated to auth landing screen using context');
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _isNavigatingToAuth = false;
+        });
         return;
       }
 
@@ -1146,10 +1199,14 @@ class ApiService {
       if (onAuthenticationFailed != null) {
         _log('🔄 Using auth failure callback to navigate');
         onAuthenticationFailed!();
+        // Reset flag after callback execution
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _isNavigatingToAuth = false;
+        });
         return;
       }
 
-      // If both approaches fail, log the error
+      // If all approaches fail, log the error and reset flag
       _log('❌ Unable to navigate: No valid context or callback available');
       _log('💡 Setup options:');
       _log(
@@ -1158,8 +1215,10 @@ class ApiService {
       _log(
         '   2. Call ApiService.setAuthFailureCallback() with a navigation function',
       );
+      _isNavigatingToAuth = false;
     } catch (e) {
       _log('❌ Navigation error: $e');
+      _isNavigatingToAuth = false;
     }
   }
 

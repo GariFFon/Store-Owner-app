@@ -25,6 +25,7 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
   String? _storeId;
   List<dynamic> _parties = [];
   bool _isLoading = true;
+  bool _isSearchExpanded = false;
   bool _isLoadingMore = false;
   bool _hasNextPage = false;
   int _currentPage = 1;
@@ -202,6 +203,30 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
           children: [
             // 1. Watermark Banner
             _buildInteractiveBanner(primaryColor, lightBg, watermarkColor),
+
+            // 2. Search Bar (Conditional)
+            if (_isSearchExpanded)
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.white,
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  autofocus: true,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, GSTIN...',
+                    prefixIcon: Icon(Icons.search, color: primaryColor),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+              ),
 
             // 2. Main Scroll View
             Expanded(
@@ -403,91 +428,126 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
                         ],
                       ),
                     ),
-                    // Action Button
-                    InkWell(
-                      onTap: () async {
-                        if (_storeId == null) return;
-                        final result = await showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (context) =>
-                              CreateSupplierBottomSheet(storeId: _storeId!),
-                        );
-
-                        if (result == true) {
-                          _fetchParties();
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [primary, primary.withOpacity(0.8)],
-                          ),
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primary.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
+                    // Search Button
+                    SizedBox(
+                      width: 70,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'SEARCH',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
                             ),
-                          ],
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.add, size: 18, color: Colors.white),
-                            SizedBox(width: 4),
-                            Text(
-                              "ADD NEW",
-                              style: TextStyle(
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                _isSearchExpanded = !_isSearchExpanded;
+                                if (!_isSearchExpanded) {
+                                  _searchController.clear();
+                                  _fetchParties();
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(30),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                                letterSpacing: 0.5,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blueGrey.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                _isSearchExpanded
+                                    ? Icons.close
+                                    : Icons.search_rounded,
+                                size: 24,
+                                color: Colors.blueGrey[700],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Action Button
+                    // Action Button
+                    SizedBox(
+                      width: 70,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'NEW',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () async {
+                              if (_storeId == null) return;
+                              final result = await showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) => CreateSupplierBottomSheet(
+                                  storeId: _storeId!,
+                                ),
+                              );
+
+                              if (result == true) {
+                                _fetchParties();
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: primary,
+                                border: Border.all(
+                                  color: Colors.transparent,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primary.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.add_rounded,
+                                size: 24,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Search
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04), // Softer shadow
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    focusNode: _searchFocusNode,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: 'Search by name, GSTIN...',
-                      hintStyle: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[400],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: Icon(Icons.search_rounded, color: primary),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
                 ),
               ],
             ),

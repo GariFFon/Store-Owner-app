@@ -22,6 +22,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   bool _isLoading = true;
   List<PaymentVoucher> _allVouchers = [];
+  bool _isSearchExpanded = false;
   List<PaymentVoucher> _filteredVouchers = [];
 
   // Stats
@@ -141,6 +142,29 @@ class _PaymentScreenState extends State<PaymentScreen> {
           children: [
             // 1. Interactive Banner
             _buildInteractiveBanner(primaryColor, lightBg, watermarkColor),
+
+            // 2. Search Bar (Conditional)
+            if (_isSearchExpanded)
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.white,
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Search by voucher or party...',
+                    prefixIcon: Icon(Icons.search, color: primaryColor),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+              ),
 
             // 2. Main Content
             Expanded(
@@ -284,75 +308,113 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   children: [
                     InkWell(
                       onTap: () => Navigator.pop(context),
-                      borderRadius: BorderRadius.circular(50),
+                      borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.all(8),
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.7),
-                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.blueGrey.withOpacity(0.5),
+                            width: 1.5,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.black87,
+                        child: const Center(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: 2),
+                            child: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.black87,
+                              size: 20,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Payments",
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: -0.5,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Payments",
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.5,
+                            ),
                           ),
-                        ),
-                        Text(
-                          "History & Transactions",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: primary,
-                            fontWeight: FontWeight.w600,
+                          Text(
+                            "History & Transactions",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: primary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    // Search Button
+                    SizedBox(
+                      width: 70,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'SEARCH',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.blueGrey[400],
+                              letterSpacing: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                _isSearchExpanded = !_isSearchExpanded;
+                                if (!_isSearchExpanded) {
+                                  _searchController.clear();
+                                  _applyFilters();
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(30),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blueGrey.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                _isSearchExpanded
+                                    ? Icons.close
+                                    : Icons.search_rounded,
+                                size: 24,
+                                color: Colors.blueGrey[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Search
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: 'Search by voucher or party...',
-                      hintStyle: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[400],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: Icon(Icons.search_rounded, color: primary),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -942,6 +1004,9 @@ class PaymentDetailsDialog extends StatelessWidget {
                       Colors.orange,
                     ),
 
+                    const SizedBox(height: 32),
+                    _buildLedgerEntries(voucher),
+
                     if (voucher.narration != null &&
                         voucher.narration!.isNotEmpty) ...[
                       const SizedBox(height: 32),
@@ -1024,6 +1089,156 @@ class PaymentDetailsDialog extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLedgerEntries(PaymentVoucher voucher) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader("LEDGER ENTRIES"),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Column(
+            children: [
+              // Table Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        'ACCOUNT',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[400],
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'DEBIT',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[400],
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'CREDIT',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[400],
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: Colors.grey[200]),
+
+              // Row 1: Party (Debit)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        '${voucher.partyType ?? 'Party'} - ${voucher.partyName}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '₹${voucher.amount.toStringAsFixed(2)}',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '-',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              Divider(height: 1, color: Colors.grey[200]),
+
+              // Row 2: Cash/Bank (Credit)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        voucher.paymentAccount,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '-',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '₹${voucher.amount.toStringAsFixed(2)}',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

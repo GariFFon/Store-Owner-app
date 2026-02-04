@@ -192,18 +192,34 @@ void main() async {
   // await _initializeImagePicker();
 
   // Set up the API service auth failure callback for navigation
-  // This allows the API service to navigate to the login screen when auth fails
+  // This is a FALLBACK only - the ApiService will try to use navigatorKey first
+  // IMPORTANT: Do NOT call runApp() here as it creates a new widget tree
+  // without proper routes, themes, and observers, causing navigation issues
   ApiService.setAuthFailureCallback(() {
-    // Navigate to phone registration screen when auth fails
-    // You can use your navigation service or GoRouter here
-    runApp(
-      MaterialApp(
-        home: const AuthLandingScreen(),
-        navigatorKey: ApiService.navigatorKey,
-      ),
-    );
-    // Note: The ApiService will handle navigation automatically through navigatorKey
-    // We don't need to call runApp here as it restarts the entire app
+    // This callback is only called when navigatorKey fails to navigate
+    // Use a delayed microtask to allow any pending operations to complete
+    Future.microtask(() {
+      developer.log(
+        '🔄 Auth failure callback invoked - attempting navigation via navigatorKey',
+        name: 'Main',
+      );
+      // Try to navigate using the navigator key if it's available now
+      if (ApiService.navigatorKey.currentState != null) {
+        ApiService.navigatorKey.currentState!.pushNamedAndRemoveUntil(
+          '/auth_landing',
+          (route) => false,
+        );
+        developer.log(
+          '✅ Navigated to auth landing from callback',
+          name: 'Main',
+        );
+      } else {
+        developer.log(
+          '⚠️ Navigator key still unavailable in callback - user may need to restart app',
+          name: 'Main',
+        );
+      }
+    });
   });
 
   // Initialize Firebase
