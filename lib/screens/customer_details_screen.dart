@@ -749,7 +749,15 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
               "${data['city']}",
               style: TextStyle(fontSize: 13, color: Colors.grey[600]),
             ),
-          if (data['phone_number'] == null && data['city'] == null)
+          if (data['email'] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                "${data['email']}",
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+            ),
+          if (data['phone_number'] == null && data['city'] == null && data['email'] == null)
             Text(
               "N/A",
               style: TextStyle(fontSize: 13, color: Colors.grey[400]),
@@ -773,6 +781,17 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
             data['gstin'] ?? 'N/A',
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
+          if (data['state_code'] != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              "State Code",
+              style: TextStyle(fontSize: 10, color: Colors.grey[400]),
+            ),
+            Text(
+              data['state_code'] ?? 'N/A',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
         ],
       ),
     );
