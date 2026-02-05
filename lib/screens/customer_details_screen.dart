@@ -225,7 +225,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
           TextField(
             onChanged: (v) => setState(() => _txnSearchQuery = v),
             decoration: InputDecoration(
-              hintText: "Search transactions...",
+              hintText: "Search By Voucher No...",
               prefixIcon: const Icon(
                 Icons.search,
                 size: 20,
@@ -1017,16 +1017,9 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
   }
 
   Widget _buildMobileTransactionCard(dynamic txn) {
-    // For customers:
-    // Debit = They bought from us (Asset increases) -> RED (usually debit is red in accounting view, or just neutral)
-    // Credit = They paid us (Asset decreases) -> GREEN
-    // This matches standard logic: Money IN (Receipt/Credit) is Green, Money OUT (Sales/Debit) is Red/Neutral.
-    // Wait, Sales means they owe us more. Receipt means they paid.
-    // In the previous code: Debit was Red, Credit was Green. I'll stick to that.
-
-    final isCredit = txn['credit'] != "0.00";
-    final amount = isCredit ? txn['credit'] : txn['debit'];
-    final color = isCredit ? Colors.green : Colors.red;
+    final debit = txn['debit'] ?? "0.00";
+    final credit = txn['credit'] ?? "0.00";
+    final balance = txn['running_balance'] ?? "0.00";
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1049,10 +1042,11 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
             ],
           ),
           const Divider(height: 24),
-          Row(
+          Column(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Voucher Number Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     "Voucher No",
@@ -1064,20 +1058,68 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                   ),
                 ],
               ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              const SizedBox(height: 12),
+              // Debit, Credit, Balance Row
+              Row(
                 children: [
-                  Text(
-                    "Amount",
-                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Debit",
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          debit != "0.00" ? _formatCurrency(debit) : "-",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: debit != "0.00" ? Colors.red : Colors.grey[400],
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  Text(
-                    _formatCurrency(amount),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                      fontSize: 16,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Credit",
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          credit != "0.00" ? _formatCurrency(credit) : "-",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: credit != "0.00" ? Colors.green : Colors.grey[400],
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          "Balance",
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatCurrency(balance),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
