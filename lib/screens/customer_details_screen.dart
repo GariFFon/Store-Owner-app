@@ -72,15 +72,22 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
     }
 
     // 3. Sort
-    // Default is usually Date Descending from backend?
     if (_txnSortOption == "Sort by Date") {
-      // Assuming date string yyyy-MM-dd
+      // Sort by date descending (newest first)
       transactions.sort((a, b) {
         final d1 = DateTime.tryParse(a['date'] ?? "") ?? DateTime(1900);
         final d2 = DateTime.tryParse(b['date'] ?? "") ?? DateTime(1900);
-        return d2.compareTo(d1); // Descending
+        return d2.compareTo(d1);
+      });
+    } else if (_txnSortOption == "Sort by Voucher") {
+      // Sort by voucher number
+      transactions.sort((a, b) {
+        final v1 = a['voucher_number'] ?? "";
+        final v2 = b['voucher_number'] ?? "";
+        return v1.toString().compareTo(v2.toString());
       });
     } else if (_txnSortOption == "Amount: High to Low") {
+      // Sort by amount descending (highest first)
       transactions.sort((a, b) {
         final amtA =
             double.tryParse(
@@ -95,6 +102,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
         return amtB.compareTo(amtA);
       });
     } else if (_txnSortOption == "Amount: Low to High") {
+      // Sort by amount ascending (lowest first)
       transactions.sort((a, b) {
         final amtA =
             double.tryParse(
@@ -245,10 +253,10 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                   value: _txnVoucherType,
                   items: [
                     "All Voucher Types",
-                    "Sales",
-                    "Receipt",
-                    "Payment",
-                    "Purchase",
+                    "RECEIPT",
+                    "SALES",
+                    "CN",
+                    "PAYMENT",
                   ],
                   onChanged: (v) => setState(() => _txnVoucherType = v!),
                 ),
@@ -257,6 +265,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                   value: _txnSortOption,
                   items: [
                     "Sort by Date",
+                    "Sort by Voucher",
                     "Amount: High to Low",
                     "Amount: Low to High",
                   ],
@@ -305,17 +314,17 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
           value: _txnVoucherType,
           items: [
             "All Voucher Types",
-            "Sales",
-            "Receipt",
-            "Payment",
-            "Purchase",
+            "RECEIPT",
+            "SALES",
+            "CN",
+            "PAYMENT",
           ],
           onChanged: (v) => setState(() => _txnVoucherType = v!),
         ),
         const SizedBox(width: 16),
         _buildFilterDropdown(
           value: _txnSortOption,
-          items: ["Sort by Date", "Amount: High to Low", "Amount: Low to High"],
+          items: ["Sort by Date", "Sort by Voucher", "Amount: High to Low", "Amount: Low to High"],
           onChanged: (v) => setState(() => _txnSortOption = v!),
         ),
         const SizedBox(width: 16),
@@ -365,7 +374,13 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
             color: Colors.black87,
           ),
           items: items
-              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+              .map((e) => DropdownMenuItem(
+                value: e, 
+                child: Text(
+                  e,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ))
               .toList(),
           onChanged: onChanged,
         ),
