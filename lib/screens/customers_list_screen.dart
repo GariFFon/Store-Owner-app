@@ -553,10 +553,15 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
               'asc',
             ),
             _buildSortOption(
-              'Recently Created',
-              'created_at',
+              'Recently Created (Oldest First)',
+              'created',
+              'asc',
+            ),
+            _buildSortOption(
+              'Recently Created (Newest First)',
+              'created',
               'desc',
-            ), // Assuming created_at exists
+            ),
           ],
         ),
       ),
