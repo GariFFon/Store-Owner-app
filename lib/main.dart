@@ -29,7 +29,6 @@ import 'package:exanor/services/api_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
 
 import 'package:permission_handler/permission_handler.dart';
 
@@ -63,18 +62,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       name: 'FCM',
     );
   }
-}
-
-/// Get platform detection data
-Map<String, bool> _getPlatformData() {
-  return {
-    'is_android': !kIsWeb && Platform.isAndroid,
-    'is_ios': !kIsWeb && Platform.isIOS,
-    'is_web': kIsWeb,
-    'is_macos': !kIsWeb && Platform.isMacOS,
-    'is_windows': !kIsWeb && Platform.isWindows,
-    'is_linux': !kIsWeb && Platform.isLinux,
-  };
 }
 
 /// Initialize image picker plugin to avoid MissingPluginException
@@ -546,37 +533,6 @@ class _MyAppState extends State<MyApp> {
       }
     } catch (e) {
       developer.log('❌ Error navigating to splash screen: $e', name: 'FCM');
-    }
-  }
-
-  /// Send FCM token to server
-  void _sendTokenToServer(String token) {
-    try {
-      developer.log('📤 Sending FCM token to server...', name: 'FCM');
-
-      // Detect platform
-      final platformData = _getPlatformData();
-
-      // Send token to backend server
-      ApiService.post(
-            '/create-notification-token/',
-            body: {'fcm_token': token, ...platformData},
-            useBearerToken: true,
-          )
-          .then((response) {
-            developer.log(
-              '✅ FCM token sent to server successfully',
-              name: 'FCM',
-            );
-          })
-          .catchError((error) {
-            developer.log(
-              '❌ Failed to send FCM token to server: $error',
-              name: 'FCM',
-            );
-          });
-    } catch (e) {
-      developer.log('❌ Error in _sendTokenToServer: $e', name: 'FCM');
     }
   }
 

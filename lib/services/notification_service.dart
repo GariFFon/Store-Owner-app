@@ -1,16 +1,189 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'dart:developer' as developer;
+import 'package:exanor/services/api_service.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 /// Notification Service for handling in-app notifications
 class NotificationService {
   static GlobalKey<NavigatorState>? _navigatorKey;
+  static bool _tokenSentThisSession = false;
+  static AudioPlayer? _audioPlayer;
 
   /// Initialize the notification service with navigator key
   static void initialize(GlobalKey<NavigatorState> navigatorKey) {
     _navigatorKey = navigatorKey;
+    _audioPlayer = AudioPlayer();
     developer.log(
-      '✅ NotificationService: Initialized with navigator key',
+      '✅ NotificationService: Initialized with navigator key and audio player',
+      name: 'Notification',
+    );
+  }
+
+  // Platform channel for native volume control
+  static const MethodChannel _volumeChannel = MethodChannel(
+    'com.exanor.exanor/volume',
+  );
+
+  /// Play the order notification sound
+  static Future<void> playOrderSound() async {
+    try {
+      developer.log(
+        '🔊 NotificationService: Playing notification sound',
+        name: 'Notification',
+      );
+
+      // Use native Android code to play sound at max alarm volume
+      if (!kIsWeb && Platform.isAndroid) {
+        try {
+          await _volumeChannel.invokeMethod('playAlarmSoundAtMaxVolume');
+          developer.log(
+            '🔊 NotificationService: Native alarm sound playing at MAX volume',
+            name: 'Notification',
+          );
+          return; // Native playback handles everything
+        } catch (e) {
+          developer.log(
+            '⚠️ NotificationService: Native playback failed, falling back to audioplayers: $e',
+            name: 'Notification',
+          );
+        }
+      }
+
+      // Fallback to audioplayers for iOS or if native fails
+      _audioPlayer ??= AudioPlayer();
+
+      await _audioPlayer!.setAudioContext(
+        AudioContext(
+          android: AudioContextAndroid(
+            isSpeakerphoneOn: true,
+            stayAwake: true,
+            contentType: AndroidContentType.sonification,
+            usageType: AndroidUsageType.alarm,
+            audioFocus: AndroidAudioFocus.gainTransient,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: {AVAudioSessionOptions.duckOthers},
+          ),
+        ),
+      );
+
+      await _audioPlayer!.setVolume(1.0);
+      await _audioPlayer!.play(
+        AssetSource('order_sound/WhatsApp Audio 2026-02-06 at 21.04.43.mpeg'),
+        volume: 1.0,
+      );
+    } catch (e) {
+      developer.log(
+        '❌ NotificationService: Failed to play order sound: $e',
+        name: 'Notification',
+      );
+    }
+  }
+
+  /// Stop any currently playing notification sound
+  static Future<void> stopSound() async {
+    try {
+      // Stop native Android alarm sound
+      if (!kIsWeb && Platform.isAndroid) {
+        try {
+          await _volumeChannel.invokeMethod('stopAlarmSound');
+        } catch (e) {
+          // Ignore native stop errors
+        }
+      }
+
+      // Also stop audioplayers (for iOS fallback)
+      await _audioPlayer?.stop();
+    } catch (e) {
+      developer.log(
+        '❌ NotificationService: Failed to stop sound: $e',
+        name: 'Notification',
+      );
+    }
+  }
+
+  /// Get platform detection data
+  static Map<String, bool> _getPlatformData() {
+    return {
+      'is_android': !kIsWeb && Platform.isAndroid,
+      'is_ios': !kIsWeb && Platform.isIOS,
+      'is_web': kIsWeb,
+      'is_macos': !kIsWeb && Platform.isMacOS,
+      'is_windows': !kIsWeb && Platform.isWindows,
+      'is_linux': !kIsWeb && Platform.isLinux,
+    };
+  }
+
+  /// Create notification token and send to server
+  /// Call this method from authenticated screens' initState
+  /// This method is idempotent - it only sends the token once per session
+  static Future<void> createNotificationToken() async {
+    // Only send token once per app session to avoid spamming the server
+    if (_tokenSentThisSession) {
+      developer.log(
+        '📤 NotificationService: Token already sent this session, skipping',
+        name: 'Notification',
+      );
+      return;
+    }
+
+    try {
+      developer.log(
+        '📤 NotificationService: Getting FCM token...',
+        name: 'Notification',
+      );
+
+      // Get FCM token
+      String? token = await FirebaseMessaging.instance.getToken();
+
+      if (token == null) {
+        developer.log(
+          '❌ NotificationService: Failed to get FCM token',
+          name: 'Notification',
+        );
+        return;
+      }
+
+      developer.log(
+        '🔑 NotificationService: FCM token obtained: ${token.substring(0, 50)}...',
+        name: 'Notification',
+      );
+
+      // Detect platform
+      final platformData = _getPlatformData();
+
+      // Send token to backend server
+      await ApiService.post(
+        '/create-notification-token/',
+        body: {'fcm_token': token, ...platformData},
+        useBearerToken: true,
+      );
+
+      _tokenSentThisSession = true;
+
+      developer.log(
+        '✅ NotificationService: FCM token sent to server successfully',
+        name: 'Notification',
+      );
+    } catch (e) {
+      developer.log(
+        '❌ NotificationService: Failed to create notification token: $e',
+        name: 'Notification',
+      );
+    }
+  }
+
+  /// Reset the token sent flag (call this on logout)
+  static void resetTokenSentFlag() {
+    _tokenSentThisSession = false;
+    developer.log(
+      '🔄 NotificationService: Token sent flag reset',
       name: 'Notification',
     );
   }
@@ -41,44 +214,199 @@ class NotificationService {
       name: 'Notification',
     );
 
-    // Show a SnackBar with the notification
+    // 1. Play Haptic Feedback (Graceful handling, runs in parallel)
+    Future(() async {
+      try {
+        // Continuous vibration for ~5 seconds (10 pulses x 500ms)
+        for (int i = 0; i < 10; i++) {
+          // Stop if context is gone (app closed/backgrounded)
+          if (_navigatorKey?.currentContext == null) break;
+
+          await HapticFeedback.vibrate();
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      } catch (e) {
+        // Ignore vibration errors
+        developer.log(
+          '⚠️ NotificationService: Haptics failed (non-fatal): $e',
+          name: 'Notification',
+        );
+      }
+    });
+
+    // 2. Play Order Sound
+    playOrderSound();
+
+    // Show a premium glassmorphic SnackBar
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (notification.title != null)
-              Text(
-                notification.title!,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+        content: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              _handleNotificationTap(message);
+              // Stop sound when notification is tapped/dismissed
+              stopSound();
+            },
+            borderRadius: BorderRadius.circular(24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF1E1E1E).withOpacity(0.90)
+                        : Colors.white.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white.withOpacity(0.1)
+                          : Colors.grey.withOpacity(0.2),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 1. Icon Container with Gradient
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Theme.of(context).colorScheme.primary,
+                              const Color(0xFF8B5CF6), // Violet accent
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withOpacity(0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.notifications_active_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+
+                      // 2. Vertical Divider
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: Theme.of(context).dividerColor.withOpacity(0.15),
+                      ),
+                      const SizedBox(width: 16),
+
+                      // 3. Text Content
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (notification.title != null)
+                              Text(
+                                notification.title!,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  letterSpacing: 0.2,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
+                                ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            if (notification.title != null &&
+                                notification.body != null)
+                              const SizedBox(height: 4),
+                            if (notification.body != null)
+                              Text(
+                                notification.body!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.3,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface.withOpacity(0.65),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 20,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // 4. Dismiss Button
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            stopSound(); // Stop sound on dismiss
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.error.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Dismiss',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            if (notification.body != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  notification.body!,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-          ],
+            ),
+          ),
         ),
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 4),
-        action: SnackBarAction(
-          label: 'View',
-          textColor: Colors.white,
-          onPressed: () {
-            // Handle notification tap
-            _handleNotificationTap(message);
-          },
-        ),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        padding: EdgeInsets.zero,
+        duration: const Duration(seconds: 6), // 6 seconds duration
       ),
     );
   }

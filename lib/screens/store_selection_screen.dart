@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/screens/store_owner_dashboard_screen.dart';
 import 'package:exanor/screens/create_store_screen.dart';
 import 'package:exanor/services/api_service.dart';
+import 'package:exanor/services/notification_service.dart';
 import 'dart:ui';
 import 'dart:math' as math;
 
@@ -35,6 +36,9 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
       ),
     );
     _searchController.addListener(_filterStores);
+
+    // Create notification token after authentication
+    NotificationService.createNotificationToken();
   }
 
   @override
