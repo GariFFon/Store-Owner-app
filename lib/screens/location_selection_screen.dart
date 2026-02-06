@@ -15,7 +15,9 @@ import 'package:exanor/components/universal_translation_wrapper.dart';
 import 'package:exanor/services/enhanced_translation_service.dart';
 
 class LocationSelectionScreen extends StatefulWidget {
-  const LocationSelectionScreen({super.key});
+  final bool isStoreCreationMode;
+
+  const LocationSelectionScreen({super.key, this.isStoreCreationMode = false});
 
   @override
   State<LocationSelectionScreen> createState() =>
@@ -23,6 +25,7 @@ class LocationSelectionScreen extends StatefulWidget {
 }
 
 class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
+  // ... existing state variables ...
   String selectedLocation = "Locating...";
   String selectedAddress = "Getting address...";
   bool isCurrentLocation = true;
@@ -1487,11 +1490,18 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
           'adminLevel3': _storedAdminLevel3,
           'pincode': _storedPincode,
         },
+        isStoreCreationMode: widget.isStoreCreationMode,
       ),
     );
 
     // Update the display if address data was returned
     if (result != null) {
+      // If store creation mode, pass result back up
+      if (widget.isStoreCreationMode) {
+        Navigator.pop(context, result);
+        return;
+      }
+
       setState(() {
         selectedLocation = result['displayName'] ?? selectedLocation;
         selectedAddress = result['fullAddress'] ?? selectedAddress;
@@ -1509,6 +1519,7 @@ class AddressDetailsBottomSheet extends StatefulWidget {
   final double latitude;
   final double longitude;
   final Map<String, dynamic>? addressComponents;
+  final bool isStoreCreationMode;
 
   const AddressDetailsBottomSheet({
     super.key,
@@ -1517,6 +1528,7 @@ class AddressDetailsBottomSheet extends StatefulWidget {
     required this.latitude,
     required this.longitude,
     this.addressComponents,
+    this.isStoreCreationMode = false,
   });
 
   @override
@@ -1531,6 +1543,14 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
   final TextEditingController _customAddressNameController =
       TextEditingController();
 
+  // Store Creation Mode Controllers
+  final TextEditingController _localityController = TextEditingController();
+  final TextEditingController _cityController = TextEditingController();
+  final TextEditingController _stateController = TextEditingController();
+  final TextEditingController _districtController = TextEditingController();
+  final TextEditingController _pincodeController = TextEditingController();
+  final TextEditingController _countryController = TextEditingController();
+
   String selectedAddressType = 'Home';
   bool isRecording = false;
   bool _isSaving = false;
@@ -1541,11 +1561,39 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
   String? _customAddressNameError;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.isStoreCreationMode) {
+      // Parse address to pre-fill fields
+      // Use a post-frame callback to ensure context is available if needed,
+      // but for parsing we can do it here.
+      // We need to call _parseAddressComponents. Since it's an instance method we can call it.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final components = _parseAddressComponents(widget.locationAddress);
+        setState(() {
+          _localityController.text = components['locality'] ?? '';
+          _cityController.text = components['city'] ?? '';
+          _stateController.text = components['state'] ?? '';
+          _districtController.text = components['district'] ?? '';
+          _pincodeController.text = components['pincode'] ?? '';
+          _countryController.text = components['country'] ?? 'India';
+        });
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _houseController.dispose();
     _apartmentController.dispose();
     _directionsController.dispose();
     _customAddressNameController.dispose();
+    _localityController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _districtController.dispose();
+    _pincodeController.dispose();
+    _countryController.dispose();
     super.dispose();
   }
 
@@ -1601,22 +1649,6 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
 
     print('🏁 Validation result: isValid = $isValid');
     return isValid;
-  }
-
-  String _formatAddressDetails() {
-    List<String> addressParts = [];
-
-    // Add house/flat number
-    if (_houseController.text.trim().isNotEmpty) {
-      addressParts.add(_houseController.text.trim());
-    }
-
-    // Add apartment/road/area
-    if (_apartmentController.text.trim().isNotEmpty) {
-      addressParts.add(_apartmentController.text.trim());
-    }
-
-    return addressParts.join(', ');
   }
 
   Map<String, String> _parseAddressComponents(String fullAddress) {
@@ -1853,34 +1885,54 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
+                        if (widget.isStoreCreationMode) ...[
+                          Text(
+                            'Step 4 of 7',
+                            style: TextStyle(
+                              fontSize: 12,
                               color: theme.colorScheme.primary,
-                              size: 20,
+                              fontWeight: FontWeight.bold,
                             ),
-                            SizedBox(width: 8),
-                            Text(
-                              widget.locationName,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          widget.locationAddress,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Setup Address',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ] else ...[
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                color: theme.colorScheme.primary,
+                                size: 20,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                widget.locationName,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            widget.locationAddress,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1894,135 +1946,178 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Helper Text
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.onPrimaryContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: TranslatedText(
-                        'A detailed address will help us find the best professional for you',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: 24),
-
-                    // House/Flat/Floor Number
-                    TranslatedText(
-                      'HOUSE / FLAT / FLOOR NO.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[600],
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    TextField(
-                      controller: _houseController,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: _houseError != null
-                                ? theme.colorScheme.error
-                                : theme.colorScheme.outline,
+                child: widget.isStoreCreationMode
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TranslatedText(
+                            'Add address details for the store',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: _houseError != null
-                                ? theme.colorScheme.error
-                                : theme.colorScheme.primary,
+                          SizedBox(height: 24),
+                          _buildTextField('Address Line 1', _houseController),
+                          SizedBox(height: 16),
+                          _buildTextField(
+                            'Address Line 2',
+                            _apartmentController,
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.error,
+                          SizedBox(height: 16),
+                          _buildTextField('Locality', _localityController),
+                          SizedBox(height: 16),
+                          _buildTextField('City', _cityController),
+                          SizedBox(height: 16),
+                          _buildTextField('State', _stateController),
+                          SizedBox(height: 16),
+                          _buildTextField('District', _districtController),
+                          SizedBox(height: 16),
+                          _buildTextField(
+                            'Pincode',
+                            _pincodeController,
+                            isNumber: true,
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        focusedErrorBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.error,
-                            width: 2,
+                          SizedBox(height: 16),
+                          _buildTextField('Country', _countryController),
+                          SizedBox(height: 24),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Helper Text
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: TranslatedText(
+                              'A detailed address will help us find the best professional for you',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 16,
-                        ),
-                        errorText: _houseError,
-                        errorStyle: TextStyle(
-                          color: theme.colorScheme.error,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
 
-                    SizedBox(height: 24),
+                          SizedBox(height: 24),
 
-                    // Apartment/Road/Area
-                    TranslatedText(
-                      'APARTMENT / ROAD / AREA (RECOMMENDED)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[600],
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    TextField(
-                      controller: _apartmentController,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: _apartmentError != null
-                                ? Colors.red
-                                : Colors.grey[300]!,
+                          // House/Flat/Floor Number
+                          TranslatedText(
+                            'HOUSE / FLAT / FLOOR NO.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: _apartmentError != null
-                                ? Colors.red
-                                : Colors.blue,
+                          SizedBox(height: 8),
+                          TextField(
+                            controller: _houseController,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: _houseError != null
+                                      ? theme.colorScheme.error
+                                      : theme.colorScheme.outline,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: _houseError != null
+                                      ? theme.colorScheme.error
+                                      : theme.colorScheme.primary,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              focusedErrorBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 16,
+                              ),
+                              errorText: _houseError,
+                              errorStyle: TextStyle(
+                                color: theme.colorScheme.error,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.red),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        focusedErrorBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.red, width: 2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 16,
-                        ),
-                        errorText: _apartmentError,
-                        errorStyle: TextStyle(color: Colors.red, fontSize: 12),
-                      ),
-                    ),
 
-                    SizedBox(height: 24),
+                          SizedBox(height: 24),
 
-                    // COMMENTED OUT: Directions to Reach
-                    /*
+                          // Apartment/Road/Area
+                          TranslatedText(
+                            'APARTMENT / ROAD / AREA (RECOMMENDED)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          TextField(
+                            controller: _apartmentController,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: _apartmentError != null
+                                      ? Colors.red
+                                      : Colors.grey[300]!,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: _apartmentError != null
+                                      ? Colors.red
+                                      : Colors.blue,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.red),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              focusedErrorBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.red,
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 16,
+                              ),
+                              errorText: _apartmentError,
+                              errorStyle: TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+
+                          SizedBox(height: 24),
+
+                          // COMMENTED OUT: Directions to Reach
+                          /*
                     // Directions to Reach
                     Text(
                       'DIRECTIONS TO REACH (OPTIONAL)',
@@ -2146,92 +2241,96 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
                     SizedBox(height: 24),
                     */
 
-                    // Save As
-                    Text(
-                      'SAVE AS',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[600],
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    SizedBox(height: 12),
-
-                    // Address Type Selection
-                    Wrap(
-                      spacing: 12,
-                      children: [
-                        _buildAddressTypeChip('Home', Icons.home),
-                        _buildAddressTypeChip('Work', Icons.work),
-                        _buildAddressTypeChip(
-                          'Friends and Family',
-                          Icons.people,
-                        ),
-                        _buildAddressTypeChip('Other', Icons.location_on),
-                      ],
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Custom Address Name (shown when "Other" is selected)
-                    if (selectedAddressType == 'Other') ...[
-                      Text(
-                        'CUSTOM ADDRESS NAME',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[600],
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      TextField(
-                        controller: _customAddressNameController,
-                        decoration: InputDecoration(
-                          hintText: 'e.g. Gym, Restaurant, Friend\'s House',
-                          hintStyle: TextStyle(color: Colors.grey[500]),
-                          border: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: _customAddressNameError != null
-                                  ? Colors.red
-                                  : Colors.grey[300]!,
+                          // Save As
+                          Text(
+                            'SAVE AS',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                              letterSpacing: 0.5,
                             ),
-                            borderRadius: BorderRadius.circular(8),
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: _customAddressNameError != null
-                                  ? Colors.red
-                                  : Colors.blue,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.red),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.red, width: 2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 16,
-                          ),
-                          errorText: _customAddressNameError,
-                          errorStyle: TextStyle(
-                            color: Colors.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                    ],
+                          SizedBox(height: 12),
 
-                    SizedBox(height: 16),
-                  ],
-                ),
+                          // Address Type Selection
+                          Wrap(
+                            spacing: 12,
+                            children: [
+                              _buildAddressTypeChip('Home', Icons.home),
+                              _buildAddressTypeChip('Work', Icons.work),
+                              _buildAddressTypeChip(
+                                'Friends and Family',
+                                Icons.people,
+                              ),
+                              _buildAddressTypeChip('Other', Icons.location_on),
+                            ],
+                          ),
+
+                          SizedBox(height: 16),
+
+                          // Custom Address Name (shown when "Other" is selected)
+                          if (selectedAddressType == 'Other') ...[
+                            Text(
+                              'CUSTOM ADDRESS NAME',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[600],
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            TextField(
+                              controller: _customAddressNameController,
+                              decoration: InputDecoration(
+                                hintText:
+                                    'e.g. Gym, Restaurant, Friend\'s House',
+                                hintStyle: TextStyle(color: Colors.grey[500]),
+                                border: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: _customAddressNameError != null
+                                        ? Colors.red
+                                        : Colors.grey[300]!,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: _customAddressNameError != null
+                                        ? Colors.red
+                                        : Colors.blue,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                errorBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.red),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                focusedErrorBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: Colors.red,
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 16,
+                                ),
+                                errorText: _customAddressNameError,
+                                errorStyle: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                          ],
+
+                          SizedBox(height: 16),
+                        ],
+                      ),
               ),
             ),
 
@@ -2245,6 +2344,31 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
                   onPressed: _isSaving
                       ? null
                       : () async {
+                          if (!_validateFields()) {
+                            return;
+                          }
+
+                          if (widget.isStoreCreationMode) {
+                            // Logic for Store Creation Mode
+
+                            // Construct return data
+                            final returnData = {
+                              "addressLine1": _houseController.text.trim(),
+                              "addressLine2": _apartmentController.text.trim(),
+                              "locality": _localityController.text.trim(),
+                              "city": _cityController.text.trim(),
+                              "state": _stateController.text.trim(),
+                              "district": _districtController.text.trim(),
+                              "pincode": _pincodeController.text.trim(),
+                              "country": _countryController.text.trim(),
+                              "lat": widget.latitude,
+                              "lng": widget.longitude,
+                            };
+
+                            Navigator.pop(context, returnData);
+                            return;
+                          }
+
                           print(
                             '🔘 SAVE BUTTON PRESSED - Starting save process',
                           );
@@ -2482,8 +2606,10 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
                             ),
                           ],
                         )
-                      : const TranslatedText(
-                          'SAVE ADDRESS DETAILS',
+                      : TranslatedText(
+                          widget.isStoreCreationMode
+                              ? 'CONFIRM LOCATION'
+                              : 'SAVE ADDRESS DETAILS',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -2543,6 +2669,48 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    bool isNumber = false,
+  }) {
+    // Assuming you want a style similar to what was there or consistent with your app
+    // I'll use the style from CreateStoreScreen based on the images.
+    // Boxy, outlined.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label.isNotEmpty) ...[
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[600],
+              letterSpacing: 0.5,
+            ),
+          ),
+          SizedBox(height: 8),
+        ],
+        TextField(
+          controller: controller,
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey.shade400),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.blue),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          ),
+        ),
+      ],
     );
   }
 }
