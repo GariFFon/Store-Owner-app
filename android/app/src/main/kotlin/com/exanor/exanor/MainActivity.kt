@@ -7,7 +7,6 @@ import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.AudioAttributes
 import android.content.Context
-import android.content.res.AssetFileDescriptor
 import android.os.Handler
 import android.os.Looper
 
@@ -72,12 +71,26 @@ class MainActivity : FlutterActivity() {
 
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         
-        // Save current alarm volume
+        // Save current volumes for ALL streams
         originalAlarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
         
-        // Set alarm volume to MAX
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-        audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
+        // Set ALL volume streams to MAX to guarantee loud playback
+        val streamsToMax = listOf(
+            AudioManager.STREAM_ALARM,
+            AudioManager.STREAM_MUSIC,
+            AudioManager.STREAM_RING,
+            AudioManager.STREAM_NOTIFICATION
+        )
+        
+        for (stream in streamsToMax) {
+            try {
+                val maxVol = audioManager.getStreamMaxVolume(stream)
+                audioManager.setStreamVolume(stream, maxVol, 0)
+                android.util.Log.d("ExanorAlarm", "Set stream $stream to max: $maxVol")
+            } catch (e: Exception) {
+                android.util.Log.e("ExanorAlarm", "Failed to set stream $stream: ${e.message}")
+            }
+        }
 
         // Create MediaPlayer with STREAM_ALARM
         mediaPlayer = MediaPlayer().apply {
@@ -88,17 +101,15 @@ class MainActivity : FlutterActivity() {
                     .build()
             )
             
-            // Load the asset file
-            val afd: AssetFileDescriptor = assets.open("flutter_assets/assets/order_sound/WhatsApp Audio 2026-02-06 at 21.04.43.mpeg").use { inputStream ->
-                // Create a temp approach - use setDataSource with asset
-                val tempFile = java.io.File.createTempFile("alarm_sound", ".mp3", cacheDir)
+            // Load the asset file - copy to temp file first
+            val tempFile = java.io.File.createTempFile("alarm_sound", ".mp3", cacheDir)
+            assets.open("flutter_assets/assets/order_sound/WhatsApp Audio 2026-02-06 at 21.04.43.mpeg").use { inputStream ->
                 tempFile.outputStream().use { outputStream ->
                     inputStream.copyTo(outputStream)
                 }
-                tempFile.deleteOnExit()
-                setDataSource(tempFile.absolutePath)
-                tempFile
             }
+            tempFile.deleteOnExit()
+            setDataSource(tempFile.absolutePath)
             
             setVolume(1.0f, 1.0f) // Max volume on player
             prepare()
@@ -107,6 +118,8 @@ class MainActivity : FlutterActivity() {
             setOnCompletionListener {
                 // Restore original volume after playback
                 restoreVolume()
+                // Clean up temp file
+                tempFile.delete()
             }
         }
 
