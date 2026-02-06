@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/screens/store_owner_dashboard_screen.dart';
+import 'package:exanor/screens/create_store_screen.dart';
 import 'package:exanor/services/api_service.dart';
 import 'dart:ui';
 import 'dart:math' as math;
@@ -291,33 +292,72 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                       const SizedBox(height: 10),
 
                       // Header
-                      RichText(
-                        text: const TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'Select ',
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w400,
-                                color: Color(0xFF0F172A),
-                                fontFamily: 'Roboto',
-                                letterSpacing: -0.8,
-                                height: 1.1,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          RichText(
+                            text: const TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Select ',
+                                  style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w400,
+                                    color: Color(0xFF0F172A),
+                                    fontFamily: 'Roboto',
+                                    letterSpacing: -0.8,
+                                    height: 1.1,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'Store',
+                                  style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.black,
+                                    fontFamily: 'Roboto',
+                                    letterSpacing: -0.5,
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const CreateStoreScreen(),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB), // Blue color
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF2563EB,
+                                    ).withOpacity(0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                color: Colors.white,
+                                size: 24,
                               ),
                             ),
-                            TextSpan(
-                              text: 'Store',
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black,
-                                fontFamily: 'Roboto',
-                                letterSpacing: -0.5,
-                                height: 1.1,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
