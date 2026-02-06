@@ -448,6 +448,7 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
           3: FlexColumnWidth(1), // Duration
           4: FlexColumnWidth(1), // Status
           5: FlexColumnWidth(1), // Lock
+          6: FlexColumnWidth(1.5), // Created At
         },
         children: [
           TableRow(
@@ -465,6 +466,7 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
                 "Duration",
                 "Status",
                 "Locked",
+                "Created At",
               ])
                 Padding(
                   padding: const EdgeInsets.all(16),
@@ -503,6 +505,7 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
                   padding: const EdgeInsets.all(16),
                   child: _lockBadge(fy.isLocked),
                 ),
+                _tableCell(dateFormat.format(DateTime.parse(fy.createdAt))),
               ],
             );
           }),
@@ -616,6 +619,24 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
               ),
               Text(
                 fy.durationText,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Created At",
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+              Text(
+                dateFormat.format(DateTime.parse(fy.createdAt)),
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

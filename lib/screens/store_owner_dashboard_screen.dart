@@ -6,6 +6,7 @@ import 'package:exanor/components/store_main_drawer.dart';
 import 'package:exanor/screens/store_owner_pos_screen.dart';
 
 import 'package:exanor/services/firebase_remote_config_service.dart';
+import 'package:exanor/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 
@@ -33,6 +34,9 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
   void initState() {
     super.initState();
     _loadTabs();
+
+    // Create notification token after authentication
+    NotificationService.createNotificationToken();
   }
 
   void _loadTabs() {

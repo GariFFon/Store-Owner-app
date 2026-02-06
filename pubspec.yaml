@@ -78,6 +78,8 @@ dependencies:
   dotted_border: ^3.1.0
   fl_chart: ^0.69.0
   flutter_secure_storage: ^10.0.0
+  audioplayers: ^6.1.0
+  volume_controller: ^2.0.7
 
 dev_dependencies:
   flutter_test:
@@ -125,6 +127,7 @@ flutter:
     - assets/icon/
     - assets/lottie/
     - assets/models/
+    - assets/order_sound/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

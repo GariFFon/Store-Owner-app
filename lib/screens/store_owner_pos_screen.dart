@@ -3511,7 +3511,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     } else if (isTablet) {
       textOnlyAspectRatio = 1.2;
     } else {
-      textOnlyAspectRatio = 0.85; // Taller cards on phone to prevent overflow
+      textOnlyAspectRatio = 1.0; // Square cards on phone - balanced size
     }
 
     return NotificationListener<ScrollNotification>(
@@ -3713,7 +3713,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       height: 1.2,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
 
                   // Price
                   Container(

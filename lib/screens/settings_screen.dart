@@ -19,7 +19,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
   final _formKey = GlobalKey<FormState>();
 
   // Form Controllers
@@ -57,39 +56,53 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool _isPayoutsLoading = false;
   String? _payoutsError;
 
+  // Constants
+  final List<String> _accountTypes = [
+    'Savings Bank Account',
+    'Current Account',
+    'Cash Account',
+    'BHIM UPI',
+    'PayTM UPI',
+    'PhonePe UPI',
+    'Google Pay UPI',
+    'Amazon Pay UPI',
+    'Other Payment Methods',
+  ];
+  final List<String> _holderTypes = ['Individual', 'Company'];
+
+  // Tab State
+  String _activeTab = 'General';
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
-    _tabController.addListener(_handleTabSelection);
-    // Initial fetch for default tab if needed, but usually rely on tab selection or explicit call
+    // Initial fetch
+    _onTabChanged('General');
   }
 
   @override
   void dispose() {
-    _tabController.removeListener(_handleTabSelection);
-    _tabController.dispose();
     _storeNameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     super.dispose();
   }
 
-  void _handleTabSelection() {
-    if (_tabController.indexIsChanging) return;
+  void _onTabChanged(String tab) {
+    setState(() => _activeTab = tab);
 
-    switch (_tabController.index) {
-      case 1: // ORDERS
+    switch (tab) {
+      case 'Orders':
         _fetchOrderMethods();
         break;
-      case 2: // PAYMENTS
+      case 'Payments':
         _fetchPaymentMethods();
         break;
-      case 3: // PAYOUTS
+      case 'Payouts':
         _fetchPayoutAccounts();
         _fetchFinancialYears();
         break;
-      case 5: // NOTIFICATIONS
+      case 'Alerts':
         _fetchNotificationSettings();
         break;
     }
@@ -309,7 +322,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     try {
       final accounts = await StoreOwnerApiService.getStoreBankDetails(
         widget.storeId,
-        financialYearId: _selectedFinancialYearId,
+        financialYearId: _selectedFinancialYearId == 'all'
+            ? null
+            : _selectedFinancialYearId,
       );
       setState(() {
         _payoutAccounts = accounts
@@ -318,10 +333,12 @@ class _SettingsScreenState extends State<SettingsScreen>
         _isPayoutsLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _payoutsError = 'Error: $e';
-        _isPayoutsLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _payoutsError = 'Error: $e';
+          _isPayoutsLoading = false;
+        });
+      }
     }
   }
 
@@ -528,65 +545,29 @@ class _SettingsScreenState extends State<SettingsScreen>
         body: Column(
           children: [
             // 1. Immersive Header
-            _buildInteractiveBanner(primaryColor, lightBg, watermarkColor),
+            _buildInteractiveBannerNew(primaryColor, lightBg, watermarkColor),
 
-            // 2. Stylish Tabs
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                indicatorColor: primaryColor,
-                indicatorWeight: 3,
-                labelColor: primaryColor,
-                unselectedLabelColor: const Color(0xFF64748B),
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  letterSpacing: 0.5,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-                padding: EdgeInsets.zero,
-                labelPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 0,
-                ),
-                tabs: const [
-                  Tab(text: "GENERAL"),
-                  Tab(text: "ORDERS"),
-                  Tab(text: "PAYMENTS"),
-                  Tab(text: "PAYOUTS"),
-                  Tab(text: "SHIPPING"),
-                  Tab(text: "ALERTS"),
-                ],
-              ),
-            ),
-
-            // 3. Content Body
+            // 2. Content Body
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildContentWrapper(_buildGeneralTab()),
-                  _buildContentWrapper(_buildOrdersTab()),
-                  _buildContentWrapper(_buildPaymentsTab()),
-                  _buildContentWrapper(_buildPayoutsTab()),
-                  _buildContentWrapper(
-                    _buildPlaceholderTab('Shipping configuration coming soon'),
+              child: CustomScrollView(
+                slivers: [
+                  // Tab Peel
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                      child: _buildFilterSegments(primaryColor),
+                    ),
                   ),
-                  _buildContentWrapper(_buildNotificationsTab()),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                  // Content
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverToBoxAdapter(child: _buildActiveTabContent()),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
                 ],
               ),
             ),
@@ -596,14 +577,26 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  Widget _buildContentWrapper(Widget child) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: child,
-    );
+  Widget _buildActiveTabContent() {
+    switch (_activeTab) {
+      case 'General':
+        return _buildGeneralTab();
+      case 'Orders':
+        return _buildOrdersTab();
+      case 'Payments':
+        return _buildPaymentsTab();
+      case 'Payouts':
+        return _buildPayoutsTab();
+      case 'Shipping':
+        return _buildPlaceholderTab('Shipping configuration coming soon');
+      case 'Alerts':
+        return _buildNotificationsTab();
+      default:
+        return const SizedBox();
+    }
   }
 
-  Widget _buildInteractiveBanner(Color primary, Color bg, Color watermark) {
+  Widget _buildInteractiveBannerNew(Color primary, Color bg, Color watermark) {
     return Container(
       decoration: BoxDecoration(
         color: bg,
@@ -705,6 +698,54 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
+  // --- Filter Chips ---
+
+  Widget _buildFilterSegments(Color primary) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildFilterChip("General", "General", primary),
+          const SizedBox(width: 10),
+          _buildFilterChip("Orders", "Orders", primary),
+          const SizedBox(width: 10),
+          _buildFilterChip("Payments", "Payments", primary),
+          const SizedBox(width: 10),
+          _buildFilterChip("Payouts", "Payouts", primary),
+          const SizedBox(width: 10),
+          _buildFilterChip("Shipping", "Shipping", primary),
+          const SizedBox(width: 10),
+          _buildFilterChip("Alerts", "Alerts", primary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, String tabId, Color color) {
+    final isActive = _activeTab == tabId;
+    return FilterChip(
+      label: Text(label),
+      selected: isActive,
+      onSelected: (_) => _onTabChanged(tabId),
+      backgroundColor: Colors.white,
+      selectedColor: color.withOpacity(0.1),
+      labelStyle: TextStyle(
+        color: isActive ? color : Colors.grey[600],
+        fontWeight: FontWeight.w600,
+        fontSize: 13,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(
+          color: isActive ? color.withOpacity(0.3) : Colors.grey[200]!,
+        ),
+      ),
+      showCheckmark: false,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
   // --- TAB CONTENTS ---
 
   Widget _buildGeneralTab() {
@@ -714,7 +755,106 @@ class _SettingsScreenState extends State<SettingsScreen>
         const SizedBox(height: 16),
         _buildCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Store Images Section
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Store Logo",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF475569),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_photo_alternate_rounded,
+                                  color: Colors.blue[300],
+                                  size: 32,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Update Logo",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue[600],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Store Banner",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF475569),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Transform(
+                                  transform: Matrix4.rotationZ(-0.1),
+                                  child: Icon(
+                                    Icons.image_rounded,
+                                    color: Colors.indigo[300],
+                                    size: 32,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+
               _buildModernInput(
                 label: "Store Name",
                 controller: _storeNameController,
@@ -900,13 +1040,106 @@ class _SettingsScreenState extends State<SettingsScreen>
   Widget _buildPayoutsTab() {
     if (_isPayoutsLoading)
       return const Center(child: CircularProgressIndicator());
+    if (_payoutsError != null)
+      return Center(
+        child: Text(_payoutsError!, style: const TextStyle(color: Colors.red)),
+      );
 
     return Column(
       children: [
-        _buildSectionHeader('Bank Accounts'),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildSectionHeader('Payout Accounts'),
+            ElevatedButton.icon(
+              onPressed: () => _showPayoutAccountBottomSheet(),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text(
+                'Add Account',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF2563EB),
+                elevation: 0,
+                side: BorderSide(color: Colors.grey[200]!),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
+
+        // Financial Year Filter
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedFinancialYearId ?? 'all',
+              isExpanded: true,
+              hint: const Text("Filter by Financial Year"),
+              items: [
+                const DropdownMenuItem(
+                  value: 'all',
+                  child: Text(
+                    "All Accounts (No FY Filter)",
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                ..._financialYears.map((fy) {
+                  return DropdownMenuItem(
+                    value: fy.id,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          fy.displayName,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        if (fy.isCurrentFy)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green[50],
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.green[100]!),
+                            ),
+                            child: const Text(
+                              "Active",
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+              onChanged: (val) {
+                setState(() => _selectedFinancialYearId = val);
+                _fetchPayoutAccounts();
+              },
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
         if (_payoutAccounts.isEmpty)
-          _buildEmptyState("No bank accounts linked.")
+          _buildEmptyState("No payout accounts found.")
         else
           ListView.separated(
             shrinkWrap: true,
@@ -915,76 +1148,169 @@ class _SettingsScreenState extends State<SettingsScreen>
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final account = _payoutAccounts[index];
+              final isCash =
+                  account.bankName?.toUpperCase().contains('CASH') == true ||
+                  account.id == 'cash';
+
               return _buildCard(
                 padding: const EdgeInsets.all(16),
-                child: Row(
+                child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo[50],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.account_balance_rounded,
-                        color: Colors.indigo,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isCash
+                                ? Colors.amber[50]
+                                : Colors.indigo[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            isCash
+                                ? Icons.payments_rounded
+                                : Icons.account_balance_rounded,
+                            color: isCash ? Colors.amber[700] : Colors.indigo,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                account.bankName ??
+                                    (isCash ? 'CASH' : 'Bank Account'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                isCash
+                                    ? 'Cash Account'
+                                    : account.accountTypeChoices.toUpperCase(),
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.edit_rounded,
+                            color: Colors.grey[400],
+                            size: 20,
+                          ),
+                          onPressed: () =>
+                              _showPayoutAccountBottomSheet(account: account),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            account.bankName ?? 'Bank Account',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'XXXX-XXXX-${account.accountNumberOrUpiId.substring(math.max(0, account.accountNumberOrUpiId.length - 4))}',
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            account.ifscCode ?? '',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
+                    const Divider(height: 24, thickness: 0.5),
+                    _buildDetailRow(
+                      "Account Number",
+                      account.accountNumberOrUpiId,
                     ),
+                    if (!isCash) ...[
+                      const SizedBox(height: 8),
+                      _buildDetailRow("IFSC Code", account.ifscCode ?? '-'),
+                      const SizedBox(height: 8),
+                      _buildDetailRow(
+                        "Account Holder",
+                        account.accountHolderName,
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDetailRow(
+                        "Holder Type",
+                        account.accountHolderType.toUpperCase(),
+                        isBadge: true,
+                      ),
+                    ],
+                    if (account.isDefault) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.green[100]!),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(
+                              Icons.check_circle_rounded,
+                              size: 14,
+                              color: Colors.green,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              "Default Account",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
             },
           ),
-        const SizedBox(height: 32),
-        _buildSectionHeader('Financial Years'),
-        const SizedBox(height: 16),
-        if (_financialYears.isEmpty)
-          const Text("No financial years found")
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isBadge = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        if (isBadge)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.blue[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          )
         else
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: _financialYears.map((fy) {
-              return Chip(
-                label: Text(fy.displayName),
-                backgroundColor: const Color(0xFFF1F5F9),
-                side: BorderSide.none,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF475569),
-                ),
-              );
-            }).toList(),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF1E293B),
+              fontWeight: FontWeight.w600,
+            ),
           ),
       ],
     );
@@ -995,33 +1321,252 @@ class _SettingsScreenState extends State<SettingsScreen>
       return const Center(child: CircularProgressIndicator());
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('Email Alerts'),
-        const SizedBox(height: 16),
-        _buildSwitchTile(
-          "Order Confirmation",
-          "Receive email when a new order is placed.",
-          "send_email_after_order_placement",
-          Icons.mark_email_read_rounded,
-        ),
-        const SizedBox(height: 12),
-        _buildSwitchTile(
-          "Inventory Alerts",
-          "Get notified when stock is low.",
-          "send_inventory_alert_via_email",
-          Icons.inventory_2_rounded,
+        // Online Ordering Group
+        _buildNotificationGroup(
+          title: 'ONLINE ORDERING',
+          icon: Icons.shopping_cart_rounded,
+          color: const Color(0xFF3B82F6), // Blue
+          children: [
+            _buildModernSwitchTile(
+              title: "Accept Web Orders",
+              subtitle: "Allow customers to order from your website",
+              icon: Icons.language_rounded,
+              iconColor: const Color(0xFF3B82F6),
+              settingsKey: "is_accepting_web_orders",
+            ),
+            _buildTileDivider(),
+            _buildModernSwitchTile(
+              title: "Accept POS Orders",
+              subtitle: "Allow creating orders from Point of Sale",
+              icon: Icons.point_of_sale_rounded,
+              iconColor: const Color(0xFF8B5CF6),
+              settingsKey: "is_accepting_pos_orders",
+            ),
+          ],
         ),
 
-        const SizedBox(height: 32),
-        _buildSectionHeader('System Preferences'),
-        const SizedBox(height: 16),
-        _buildSwitchTile(
-          "Auto-Accept Orders",
-          "Automatically confirm incoming orders.",
-          "auto_accept_orders",
-          Icons.verified_rounded,
+        const SizedBox(height: 20),
+
+        // Branding & Marketing Group
+        _buildNotificationGroup(
+          title: 'BRANDING & MARKETING',
+          icon: Icons.campaign_rounded,
+          color: const Color(0xFFF59E0B), // Amber
+          children: [
+            _buildModernSwitchTile(
+              title: "Branded Invoices",
+              subtitle: "Use your store logo on invoices",
+              icon: Icons.receipt_long_rounded,
+              iconColor: const Color(0xFF10B981),
+              settingsKey: "enable_branded_invoice",
+            ),
+            _buildTileDivider(),
+            _buildModernSwitchTile(
+              title: "Marketing Materials",
+              subtitle: "Enable branded marketing content",
+              icon: Icons.campaign_rounded,
+              iconColor: const Color(0xFFF59E0B),
+              settingsKey: "enable_branded_marketing_materials",
+            ),
+            _buildTileDivider(),
+            _buildModernSwitchTile(
+              title: "Sponsored Listings",
+              subtitle: "Boost visibility as a sponsored store",
+              icon: Icons.auto_awesome_rounded,
+              iconColor: const Color(0xFFEC4899),
+              settingsKey: "is_sponsored",
+            ),
+            _buildTileDivider(),
+            _buildModernSwitchTile(
+              title: "Featured Store",
+              subtitle: "Mark store as featured in listings",
+              icon: Icons.star_rounded,
+              iconColor: const Color(0xFFEAB308),
+              settingsKey: "is_featured",
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // Communication Group
+        _buildNotificationGroup(
+          title: 'COMMUNICATION',
+          icon: Icons.notifications_active_rounded,
+          color: const Color(0xFF10B981), // Emerald
+          children: [
+            _buildModernSwitchTile(
+              title: "Send Invoice via Email",
+              subtitle: "Automatically email invoices to customers",
+              icon: Icons.email_outlined,
+              iconColor: const Color(0xFF6366F1),
+              settingsKey: "send_invoice_in_email",
+            ),
+            _buildTileDivider(),
+            _buildModernSwitchTile(
+              title: "Send Invoice via SMS",
+              subtitle: "Send invoice link via SMS",
+              icon: Icons.sms_rounded,
+              iconColor: const Color(0xFF06B6D4),
+              settingsKey: "send_invoice_in_sms",
+            ),
+            _buildTileDivider(),
+            _buildModernSwitchTile(
+              title: "Push Notifications",
+              subtitle: "Send order updates via app notifications",
+              icon: Icons.notifications_active_rounded,
+              iconColor: const Color(0xFFEF4444),
+              settingsKey: "send_invoice_in_push_notification",
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  /// Build a notification settings group with header
+  Widget _buildNotificationGroup({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Group Header
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 3,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[500],
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Group Card
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(children: children),
         ),
       ],
+    );
+  }
+
+  /// Modern switch tile for grouped notifications
+  Widget _buildModernSwitchTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required String settingsKey,
+  }) {
+    final value = _notificationSettings[settingsKey] ?? false;
+
+    return InkWell(
+      onTap: () => _updateNotificationSetting(settingsKey, !value),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Icon Container with colored background
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+
+            // Text Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Toggle Switch
+            Transform.scale(
+              scale: 0.85,
+              child: Switch(
+                value: value,
+                onChanged: (val) =>
+                    _updateNotificationSetting(settingsKey, val),
+                activeColor: Colors.white,
+                activeTrackColor: const Color(0xFF10B981),
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: const Color(0xFFE2E8F0),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Divider for notification tiles
+  Widget _buildTileDivider() {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      indent: 70, // Align with text start (after icon)
+      endIndent: 16,
+      color: const Color(0xFFF1F5F9),
     );
   }
 
@@ -1211,73 +1756,6 @@ class _SettingsScreenState extends State<SettingsScreen>
               activeColor: const Color(0xFF2563EB),
               activeTrackColor: const Color(0xFFDBEAFE),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSwitchTile(
-    String title,
-    String subtitle,
-    String key,
-    IconData icon,
-  ) {
-    final value = _notificationSettings[key] ?? false;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: value
-                  ? const Color(0xFF10B981).withOpacity(0.1)
-                  : const Color(0xFFF1F5F9),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              color: value ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: (val) => _updateNotificationSetting(key, val),
-            activeColor: const Color(0xFF10B981),
-            activeTrackColor: const Color(0xFFD1FAE5),
           ),
         ],
       ),
@@ -1744,6 +2222,482 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
+  Future<void> _showPayoutAccountBottomSheet({
+    StoreBankDetails? account,
+  }) async {
+    final isEditing = account != null;
+    if (!mounted) return;
+
+    final bankNameController = TextEditingController(
+      text: account?.bankName ?? '',
+    );
+    final accountNumberController = TextEditingController(
+      text: account?.accountNumberOrUpiId ?? '',
+    );
+    final ifscCodeController = TextEditingController(
+      text: account?.ifscCode ?? '',
+    );
+    final holderNameController = TextEditingController(
+      text: account?.accountHolderName ?? '',
+    );
+    final addressController = TextEditingController(
+      text: account?.accountHolderAddress ?? '',
+    );
+    final cityController = TextEditingController(
+      text: account?.accountHolderCity ?? '',
+    );
+    final stateController = TextEditingController(
+      text: account?.accountHolderState ?? '',
+    );
+    final countryController = TextEditingController(
+      text: account?.accountHolderCountry ?? 'India',
+    );
+    final openingBalanceController = TextEditingController(
+      text: account?.openingBalance?.toString() ?? '',
+    );
+
+    String? selectedSheetFinancialYearId;
+
+    // Default values
+    String selectedAccountType = account != null
+        ? (account.accountTypeChoices.isNotEmpty
+              ? account.accountTypeChoices[0].toUpperCase() +
+                    account.accountTypeChoices.substring(1).toLowerCase()
+              : 'Savings')
+        : 'Savings';
+
+    String selectedHolderType = account != null
+        ? (account.accountHolderType.isNotEmpty
+              ? account.accountHolderType[0].toUpperCase() +
+                    account.accountHolderType.substring(1).toLowerCase()
+              : 'Individual')
+        : 'Individual';
+
+    bool isDefault = account?.isDefault ?? false;
+    bool isActive = account?.isActive ?? true;
+
+    // Normalize selection against list
+    if (!_accountTypes.contains(selectedAccountType))
+      selectedAccountType = 'Savings';
+    if (!_holderTypes.contains(selectedHolderType))
+      selectedHolderType = 'Individual';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          24,
+          24,
+          MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    isEditing
+                        ? 'Edit Payout Account'
+                        : 'Add New Payout Account',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  _buildDropdownInput(
+                    label: "Account Type *",
+                    value: selectedAccountType,
+                    items: _accountTypes,
+                    onChanged: (val) =>
+                        setSheetState(() => selectedAccountType = val!),
+                  ),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildBottomSheetInput(
+                          label: "Bank Name **",
+                          controller: bankNameController,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildBottomSheetInput(
+                          label: "Account Number **",
+                          controller: accountNumberController,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildBottomSheetInput(
+                          label: "IFSC Code **",
+                          controller: ifscCodeController,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildBottomSheetInput(
+                          label: "Account Holder Name **",
+                          controller: holderNameController,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDropdownInput(
+                          label: "Holder Type *",
+                          value: selectedHolderType,
+                          items: _holderTypes,
+                          onChanged: (val) =>
+                              setSheetState(() => selectedHolderType = val!),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildBottomSheetInput(
+                          label: "City **",
+                          controller: cityController,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Financial Year (Optional)",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: selectedSheetFinancialYearId,
+                            isExpanded: true,
+                            hint: Text(
+                              "Select Financial Year",
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 14,
+                              ),
+                            ),
+                            items: _financialYears.map((fy) {
+                              return DropdownMenuItem(
+                                value: fy.id,
+                                child: Text(fy.displayName),
+                              );
+                            }).toList(),
+                            onChanged: (val) => setSheetState(
+                              () => selectedSheetFinancialYearId = val,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _buildBottomSheetInput(
+                    label: "Opening Balance (Optional)",
+                    controller: openingBalanceController,
+                  ),
+
+                  const SizedBox(height: 16),
+                  _buildBottomSheetInput(
+                    label: "Address **",
+                    controller: addressController,
+                  ),
+
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildBottomSheetInput(
+                          label: "State **",
+                          controller: stateController,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildBottomSheetInput(
+                          label: "Country **",
+                          controller: countryController,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+                  // Toggles
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Set as Default",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Text(
+                                  "Use this account for all payouts by default",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Switch(
+                              value: isDefault,
+                              activeColor: const Color(0xFF2563EB),
+                              onChanged: (val) =>
+                                  setSheetState(() => isDefault = val),
+                            ),
+                          ],
+                        ),
+                        const Divider(),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Active",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Text(
+                                  "Enable this account for payouts",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Switch(
+                              value: isActive,
+                              activeColor: const Color(0xFF2563EB),
+                              onChanged: (val) =>
+                                  setSheetState(() => isActive = val),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        // Basic Validation
+                        if (bankNameController.text.isEmpty ||
+                            accountNumberController.text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please fill mandatory fields'),
+                            ),
+                          );
+                          return;
+                        }
+
+                        final success = isEditing
+                            ? await StoreOwnerApiService.updateStoreBankDetails(
+                                storeId: widget.storeId,
+                                bankDetailsId: account.id,
+                                accountType: selectedAccountType,
+                                bankName: bankNameController.text,
+                                accountNumber: accountNumberController.text,
+                                ifscCode: ifscCodeController.text,
+                                holderName: holderNameController.text,
+                                holderType: selectedHolderType,
+                                city: cityController.text,
+                                address: addressController.text,
+                                state: stateController.text,
+                                country: countryController.text,
+                                isDefault: isDefault,
+                                isActive: isActive,
+                                financialYearId: selectedSheetFinancialYearId,
+                                openingBalance: double.tryParse(
+                                  openingBalanceController.text,
+                                ),
+                              )
+                            : await StoreOwnerApiService.createStoreBankDetails(
+                                storeId: widget.storeId,
+                                accountType: selectedAccountType,
+                                bankName: bankNameController.text,
+                                accountNumber: accountNumberController.text,
+                                ifscCode: ifscCodeController.text,
+                                holderName: holderNameController.text,
+                                holderType: selectedHolderType,
+                                city: cityController.text,
+                                address: addressController.text,
+                                state: stateController.text,
+                                country: countryController.text,
+                                isDefault: isDefault,
+                                isActive: isActive,
+                                financialYearId: selectedSheetFinancialYearId,
+                                openingBalance: double.tryParse(
+                                  openingBalanceController.text,
+                                ),
+                              );
+
+                        if (success && mounted) {
+                          Navigator.pop(context);
+                          _fetchPayoutAccounts();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isEditing
+                                    ? 'Account Updated'
+                                    : 'Account Created',
+                              ),
+                            ),
+                          );
+                        } else if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Operation Failed. Please try again.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        isEditing ? "UPDATE ACCOUNT" : "CREATE ACCOUNT",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdownInput({
+    required String label,
+    required String value,
+    required List<String> items,
+    required Function(String?) onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              items: items.map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBottomSheetInput({
     required String label,
     required TextEditingController controller,
@@ -1768,16 +2722,16 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
           child: TextField(
             controller: controller,
-            keyboardType: TextInputType.number,
             decoration: InputDecoration(
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
-                vertical: 14,
+                vertical: 12,
               ),
-              hintText: "0",
-              hintStyle: TextStyle(color: Colors.grey[400]),
+              hintText: "Enter value",
+              hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
             ),
+            style: const TextStyle(fontSize: 14),
           ),
         ),
       ],

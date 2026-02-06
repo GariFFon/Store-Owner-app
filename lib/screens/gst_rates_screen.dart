@@ -637,7 +637,9 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    rate.effectiveFrom,
+                    rate.effectiveTo.isNotEmpty
+                        ? "${rate.effectiveFrom} To: ${rate.effectiveTo}"
+                        : rate.effectiveFrom,
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
