@@ -80,6 +80,7 @@ dependencies:
   flutter_secure_storage: ^10.0.0
   audioplayers: ^6.1.0
   volume_controller: ^2.0.7
+  webview_flutter: ^4.10.0
 
 dev_dependencies:
   flutter_test:

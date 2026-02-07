@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
 import 'package:exanor/screens/purchase_screen.dart';
 import 'package:exanor/screens/receipts_screen.dart';
 import 'package:exanor/components/store_main_drawer.dart';
 import 'package:exanor/screens/store_owner_pos_screen.dart';
+import 'package:exanor/screens/assistant_screen.dart';
 
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'package:exanor/services/notification_service.dart';
@@ -25,23 +28,81 @@ class StoreOwnerDashboardScreen extends StatefulWidget {
       _StoreOwnerDashboardScreenState();
 }
 
-class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
+class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
+    with TickerProviderStateMixin {
   int _currentIndex = 0;
+  bool _isAssistantOpen = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<AssistantScreenState> _assistantKey =
+      GlobalKey<AssistantScreenState>();
   List<Map<String, dynamic>> _tabs = [];
+
+  // Animation controllers for the Assistant tab icon
+  late AnimationController _pulseController;
+  late AnimationController _rotateController;
+  late AnimationController _glowController;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _rotateAnimation;
+  late Animation<double> _glowAnimation;
 
   @override
   void initState() {
     super.initState();
+    _initAnimations();
     _loadTabs();
 
     // Create notification token after authentication
     NotificationService.createNotificationToken();
   }
 
+  void _initAnimations() {
+    // Pulse animation - subtle scale effect
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    _pulseController.repeat(reverse: true);
+
+    // Rotate animation - subtle rotation for sparkle effect
+    _rotateController = AnimationController(
+      duration: const Duration(milliseconds: 4000),
+      vsync: this,
+    );
+    _rotateAnimation = Tween<double>(
+      begin: 0,
+      end: 2 * math.pi,
+    ).animate(CurvedAnimation(parent: _rotateController, curve: Curves.linear));
+    _rotateController.repeat();
+
+    // Glow animation - pulsing glow effect
+    _glowController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _glowAnimation = Tween<double>(begin: 0.3, end: 0.8).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+    _glowController.repeat(reverse: true);
+  }
+
   void _loadTabs() {
     setState(() {
+      // Get base tabs from remote config
       _tabs = FirebaseRemoteConfigService.getStoreOwnerBottomNavTabs();
+
+      // Always add Assistant tab at the end if not already present
+      final hasAssistant = _tabs.any((tab) => tab['id'] == 'assistant');
+      if (!hasAssistant) {
+        _tabs.add({
+          'id': 'assistant',
+          'label': 'Assistant',
+          'icon': 'assistant',
+          'activeIcon': 'assistant_active',
+        });
+      }
     });
   }
 
@@ -68,9 +129,20 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
         return Icons.person;
       case 'person_outline':
         return Icons.person_outline;
+      case 'assistant':
+      case 'assistant_active':
+        return Icons.auto_awesome;
       default:
         return Icons.circle;
     }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _rotateController.dispose();
+    _glowController.dispose();
+    super.dispose();
   }
 
   @override
@@ -118,7 +190,7 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
         return Container(); // Fallback for unknown IDs
       }).toList();
 
-      child = Scaffold(
+      final scaffold = Scaffold(
         key: _scaffoldKey,
         drawer: StoreMainDrawer(
           storeId: widget.storeId,
@@ -126,6 +198,29 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
         ),
         body: IndexedStack(index: _currentIndex, children: screens),
         bottomNavigationBar: __buildBottomNavigationBar(theme, _tabs),
+      );
+
+      child = Stack(
+        children: [
+          // 1. The main App Scaffold
+          scaffold,
+
+          // 2. Assistant Overlay (Covering EVERYTHING including bottom nav)
+          if (_isAssistantOpen)
+            Positioned.fill(
+              child: AssistantScreen(
+                key: _assistantKey,
+                storeId: widget.storeId,
+                storeName: widget.storeName,
+                onClose: () {
+                  setState(() {
+                    _isAssistantOpen = false;
+                  });
+                  _assistantKey.currentState?.stopAssistant();
+                },
+              ),
+            ),
+        ],
       );
     }
 
@@ -205,28 +300,48 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
               final inactiveColor = isDark
                   ? Colors.white54
                   : Colors.grey.shade500;
+              final isAssistant = tab['id'] == 'assistant';
 
               return Expanded(
                 child: InkWell(
                   onTap: () {
-                    setState(() {
-                      _currentIndex = index;
-                    });
+                    // Check if tapping assistant
+                    if (tab['id'] == 'assistant') {
+                      setState(() {
+                        _isAssistantOpen = true;
+                      });
+                    } else {
+                      setState(() {
+                        _currentIndex = index;
+                        // Close assistant if switching to other tabs (optional,
+                        // but usually good UX to not keep it open)
+                        // _isAssistantOpen = false;
+                      });
+                    }
                   },
                   splashColor: Colors.transparent,
                   highlightColor: Colors.transparent,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        _getIconData(
-                          isSelected
-                              ? (tab['activeIcon'] ?? tab['icon'])
-                              : tab['icon'],
+                      if (isAssistant)
+                        _buildAnimatedAssistantIcon(
+                          isSelected:
+                              _isAssistantOpen, // Use overlay state for selection
+                          activeColor: activeColor,
+                          inactiveColor: inactiveColor,
+                          isDark: isDark,
+                        )
+                      else
+                        Icon(
+                          _getIconData(
+                            isSelected
+                                ? (tab['activeIcon'] ?? tab['icon'])
+                                : tab['icon'],
+                          ),
+                          color: isSelected ? activeColor : inactiveColor,
+                          size: 26,
                         ),
-                        color: isSelected ? activeColor : inactiveColor,
-                        size: 26,
-                      ),
                       const SizedBox(height: 4),
                       AnimatedDefaultTextStyle(
                         duration: const Duration(milliseconds: 200),
@@ -252,6 +367,109 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Build the animated AI Assistant icon with futuristic effects
+  Widget _buildAnimatedAssistantIcon({
+    required bool isSelected,
+    required Color activeColor,
+    required Color inactiveColor,
+    required bool isDark,
+  }) {
+    // Gradient colors for the AI assistant icon
+    const List<Color> gradientColors = [
+      Color(0xFF6366F1), // Indigo
+      Color(0xFF8B5CF6), // Violet
+      Color(0xFFA855F7), // Purple
+    ];
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _pulseAnimation,
+        _rotateAnimation,
+        _glowAnimation,
+      ]),
+      builder: (context, child) {
+        return SizedBox(
+          width: 32,
+          height: 32,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Glow effect (only when selected)
+              if (isSelected)
+                Container(
+                  width: 28 * _pulseAnimation.value,
+                  height: 28 * _pulseAnimation.value,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: gradientColors[1].withOpacity(
+                          _glowAnimation.value * 0.6,
+                        ),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Rotating sparkle particles (only when selected)
+              if (isSelected) ...[
+                for (int i = 0; i < 3; i++)
+                  Transform.rotate(
+                    angle: _rotateAnimation.value + (i * math.pi * 2 / 3),
+                    child: Transform.translate(
+                      offset: Offset(12 * _pulseAnimation.value, 0),
+                      child: Container(
+                        width: 3,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: gradientColors[i].withOpacity(
+                            _glowAnimation.value,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+
+              // Main icon with gradient (when selected) or plain (when not)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                transform: Matrix4.identity()
+                  ..scale(isSelected ? _pulseAnimation.value : 1.0),
+                transformAlignment: Alignment.center,
+                child: isSelected
+                    ? ShaderMask(
+                        shaderCallback: (Rect bounds) {
+                          return LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: gradientColors,
+                          ).createShader(bounds);
+                        },
+                        blendMode: BlendMode.srcIn,
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          size: 26,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(
+                        Icons.auto_awesome_outlined,
+                        size: 24,
+                        color: inactiveColor,
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
