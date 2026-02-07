@@ -845,18 +845,24 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
     required Function(String?) onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey[300]!),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+          isDense: true,
+          icon: Icon(
+            Icons.keyboard_arrow_down,
+            size: 16,
+            color: Colors.grey[600],
+          ),
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             color: Colors.grey[700],
           ),
@@ -919,7 +925,7 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: const BorderRadius.vertical(
@@ -941,6 +947,7 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
           ),
           ListView.separated(
             shrinkWrap: true,
+            padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: entries.length,
             separatorBuilder: (c, i) =>
@@ -950,7 +957,7 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 12,
+                  vertical: 10,
                 ),
                 child: Row(
                   children: [
@@ -1232,29 +1239,39 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
 
   Widget _buildStatCard(String title, String val, Color color) {
     return Container(
-      padding: const EdgeInsets.all(12),
-      constraints: const BoxConstraints(minWidth: 120),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      constraints: const BoxConstraints(minWidth: 110),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: color.withAlpha(15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: color.withAlpha(40)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
             val,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -1581,57 +1598,109 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
     if (list.isEmpty) return const SizedBox.shrink();
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "HSN-wise Summary",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 16),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: list.length,
-            separatorBuilder: (c, i) => Divider(color: Colors.grey[100]),
-            itemBuilder: (c, i) => Row(
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            child: Row(
               children: [
                 Expanded(
                   flex: 2,
                   child: Text(
-                    list[i].hsnCode,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
+                    "HSN CODE",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
                 Expanded(
                   flex: 2,
                   child: Text(
-                    "₹${list[i].taxableValue}",
+                    "TAXABLE",
                     textAlign: TextAlign.right,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
                 Expanded(
                   flex: 2,
                   child: Text(
-                    "₹${list[i].totalGst}",
+                    "TOTAL GST",
                     textAlign: TextAlign.right,
                     style: TextStyle(
-                      fontSize: 12,
-                      color: _primaryColor,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+          // Content
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: list.length,
+              separatorBuilder: (c, i) => Divider(color: Colors.grey[100]),
+              itemBuilder: (c, i) => Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      list[i].hsnCode,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      "₹${list[i].taxableValue}",
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      "₹${list[i].totalGst}",
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1677,7 +1746,7 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: const BorderRadius.vertical(
@@ -1696,12 +1765,13 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
           ),
           ListView.separated(
             shrinkWrap: true,
+            padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: parties.length,
             separatorBuilder: (c, i) =>
                 Divider(height: 1, color: Colors.grey[100]),
             itemBuilder: (c, i) => Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
                   Expanded(
