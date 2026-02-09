@@ -734,10 +734,10 @@ class AssistantScreenState extends State<AssistantScreen>
 // End of file
 
 // -----------------------------------------------------------------------------
-//  CSS LOADER (Replica of User Request)
+//  CSS LOADER (Pulsing Ring Animation - Refined)
 // -----------------------------------------------------------------------------
 class CSSLoader extends StatefulWidget {
-  const CSSLoader({Key? key}) : super(key: key);
+  const CSSLoader({super.key});
 
   @override
   State<CSSLoader> createState() => _CSSLoaderState();
@@ -752,7 +752,9 @@ class _CSSLoaderState extends State<CSSLoader>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(
+        milliseconds: 2000,
+      ), // Slightly slower for elegance
     )..repeat();
   }
 
@@ -764,15 +766,12 @@ class _CSSLoaderState extends State<CSSLoader>
 
   @override
   Widget build(BuildContext context) {
-    // Theme color
-    final color = Theme.of(context).primaryColor;
-
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         return CustomPaint(
-          painter: CSSLoaderPainter(progress: _controller.value, color: color),
-          size: const Size(60, 60),
+          painter: CSSLoaderPainter(progress: _controller.value),
+          size: const Size(100, 100), // Fixed size ~6rem
         );
       },
     );
@@ -781,96 +780,106 @@ class _CSSLoaderState extends State<CSSLoader>
 
 class CSSLoaderPainter extends CustomPainter {
   final double progress;
-  final Color color;
 
-  CSSLoaderPainter({required this.progress, required this.color});
+  CSSLoaderPainter({required this.progress});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 100px container (from CSS).
-    // We have 60x60 canvas.
-    // Content 40px? Let's scale.
-    // Moving object 40px? On 100px container? 100px - 20px padding = 80px space?
-    // If element is 40px, translate(100%, 0) means move 40px right.
-    // Total width covered = 40 (start) + 40 (move) = 80px. Fits in 80px space.
-    // So visual size is 40px moves in 40px grid.
+    final center = Offset(size.width / 2, size.height / 2);
+    final double rem = size.width / 6; // 1rem approximation
+    final double radiusLarge = size.width / 2;
+    final double radiusSmall = (size.width - (2 * rem)) / 2;
 
-    // In 60x60 canvas:
-    // Box size = 20px?
-    // Move 20px.
-    // Total bounds 40px. Centered.
+    // Soft Glow Paint (Container-level glow)
+    final Paint glowPaint = Paint()
+      ..color = Colors.white
+          .withOpacity(0.3) // Reduced opacity
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
 
-    final double boxSize = 25.0;
-    final double moveDist = 25.0;
+    // -------------------------------------------------------------------------
+    // Animation 1: PulsIn (The shrinking/fading inner ring)
+    // Corresponds to .loader:before
+    // -------------------------------------------------------------------------
+    if (progress <= 0.6) {
+      // Extended phase slightly
+      final t = progress / 0.6;
+      final tCurve = Curves.easeOutQuad.transform(t); // Smoother curve
 
-    // Path function: 0->1 loops square.
-    Offset getPos(double t) {
-      // t = t % 1.0;
-      if (t < 0.25) {
-        // Top: (0,0) -> (1,0)
-        double local = (t / 0.25);
-        local = Curves.easeInOut.transform(local);
-        return Offset(moveDist * local, 0);
-      } else if (t < 0.50) {
-        // Right: (1,0) -> (1,1)
-        double local = (t - 0.25) / 0.25;
-        local = Curves.easeInOut.transform(local);
-        return Offset(moveDist, moveDist * local);
-      } else if (t < 0.75) {
-        // Bottom: (1,1) -> (0,1)
-        double local = (t - 0.50) / 0.25;
-        local = Curves.easeInOut.transform(local);
-        return Offset(moveDist * (1 - local), moveDist);
-      } else {
-        // Left: (0,1) -> (0,0)
-        double local = (t - 0.75) / 0.25;
-        local = Curves.easeInOut.transform(local);
-        return Offset(0, moveDist * (1 - local));
+      // Shrink stroke width from 1rem to 0
+      final double strokeWidth = rem * (1.0 - tCurve);
+      // Fade out opacity from 0.8 to 0
+      final double opacity = (1.0 - tCurve) * 0.8;
+
+      if (strokeWidth > 0.5 && opacity > 0.01) {
+        // We use a MaskFilter.blur on the stroke itself to create "gradient edges"
+        final paint = Paint()
+          ..color = Colors.white.withOpacity(opacity)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(
+            BlurStyle.normal,
+            4,
+          ); // Soft edges
+
+        // Inset calculation: The ring is inside the large radius
+        final drawRadius = radiusLarge - (strokeWidth / 2);
+
+        // Draw soft glow behind
+        canvas.drawCircle(
+          center,
+          drawRadius,
+          glowPaint..color = Colors.white.withOpacity(opacity * 0.4),
+        );
+
+        // Draw the ring
+        canvas.drawCircle(center, drawRadius, paint);
       }
     }
 
-    final Paint circlePaint = Paint()
-      ..color = color
-      ..maskFilter = const MaskFilter.blur(
-        BlurStyle.normal,
-        5,
-      ); // Simulate Blur for goo
+    // -------------------------------------------------------------------------
+    // Animation 2: PulsOut (The expanding/fading outer ring)
+    // Corresponds to .loader:after
+    // -------------------------------------------------------------------------
+    if (progress > 0.4) {
+      // Overlap phases slightly for continuity
+      // Normalize t (0.4 -> 1.0 maps to 0.0 -> 1.0)
+      final t = (progress - 0.4) / 0.6;
+      final tCurve = Curves.easeOutQuad.transform(t);
 
-    // Center the whole animation in 60x60
-    // Total width occupied = boxSize + moveDist = 50.
-    // Offset to center = (60 - 50) / 2 = 5.
-    canvas.save();
-    canvas.translate(5, 5);
+      // Expand "shadow" spread from 0 to 1rem
+      // In CSS box-shadow expansion, the shadow grows outward.
+      // We simulate this with a stroke that gets thicker and moves outward.
+      final double spread = rem * tCurve;
+      final double opacity = tCurve * 0.8; // Fades IN
 
-    // Object 1
-    Offset p1 = getPos(progress);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(p1.dx, p1.dy, boxSize, boxSize),
-        const Radius.circular(12),
-      ),
-      circlePaint,
-    );
+      if (spread > 0.5 && opacity > 0.01) {
+        final paint = Paint()
+          ..color = Colors.white.withOpacity(opacity)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = spread
+          ..maskFilter = const MaskFilter.blur(
+            BlurStyle.normal,
+            8,
+          ); // Softer expansion
 
-    // Object 2 (Offset by 0.5 -> 50%)
-    double t2 = (progress + 0.5) % 1.0;
-    Offset p2 = getPos(t2);
+        // Outset calculation: The ring starts at small radius and grows outward
+        // Center of stroke is at radiusSmall + (spread / 2)
+        final drawRadius = radiusSmall + (spread / 2);
 
-    // Use slightly different color for blend? Or same? CSS uses same #ffff00.
-    // But 'hue-rotate(300deg)' makes it uniform color.
-    // Using same color + blur merges them.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(p2.dx, p2.dy, boxSize, boxSize),
-        const Radius.circular(12),
-      ),
-      circlePaint,
-    );
+        // Draw soft glow behind
+        canvas.drawCircle(
+          center,
+          drawRadius,
+          glowPaint..color = Colors.white.withOpacity(opacity * 0.4),
+        );
 
-    canvas.restore();
+        // Draw the ring
+        canvas.drawCircle(center, drawRadius, paint);
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CSSLoaderPainter old) =>
-      old.progress != progress;
+  bool shouldRepaint(covariant CSSLoaderPainter old) => true;
 }

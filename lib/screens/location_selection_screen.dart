@@ -6,13 +6,15 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
-import 'package:lottie/lottie.dart';
+import 'package:lottie/lottie.dart' hide Marker;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/components/universal_translation_wrapper.dart';
 import 'package:exanor/services/enhanced_translation_service.dart';
+import 'package:exanor/services/google_maps_service.dart';
+import 'package:exanor/screens/auth/login_screen.dart';
 
 class LocationSelectionScreen extends StatefulWidget {
   final bool isStoreCreationMode;
@@ -24,7 +26,8 @@ class LocationSelectionScreen extends StatefulWidget {
       _LocationSelectionScreenState();
 }
 
-class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
+class _LocationSelectionScreenState extends State<LocationSelectionScreen>
+    with OptimizedGoogleMapsMixin {
   // ... existing state variables ...
   String selectedLocation = "Locating...";
   String selectedAddress = "Getting address...";
@@ -53,9 +56,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
 
   // User's current position
   Position? _userPosition;
-
-  // Plus Code (compound code)
-  String _plusCode = '';
 
   // Store administrative level components
   String _storedNeighborhood = '';
@@ -88,40 +88,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
   bool _showSuggestions = false;
   Timer? _searchTimer;
   bool _isKeyboardVisible = false;
-
-  final List<Map<String, dynamic>> _sampleLocations = [
-    {
-      'name': 'Block B',
-      'address':
-          'Block B, Mahipalpur Village, Mahipalpur, New Delhi, Delhi 110037, India',
-      'isCurrentLocation': true,
-      'distance': 0.0,
-      'latLng': LatLng(28.5562, 77.1482),
-    },
-    {
-      'name': 'Borjhar',
-      'address': 'Kahikuchi, Assam, India. (Borjhar)',
-      'isCurrentLocation': false,
-      'distance': 55.9,
-      'latLng': LatLng(26.1445, 91.7362),
-    },
-    {
-      'name': 'Connaught Place',
-      'address': 'Connaught Place, New Delhi, Delhi 110001, India',
-      'isCurrentLocation': false,
-      'distance': 12.3,
-      'latLng': LatLng(28.6315, 77.2167),
-    },
-    {
-      'name': 'India Gate',
-      'address': 'India Gate, Rajpath, New Delhi, Delhi 110001, India',
-      'isCurrentLocation': false,
-      'distance': 15.7,
-      'latLng': LatLng(28.6129, 77.2295),
-    },
-  ];
-
-  int _currentLocationIndex = 0;
 
   // Enhanced translation service for API responses
   final EnhancedTranslationService _enhancedTranslation =
@@ -525,7 +491,7 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
           setState(() {
             selectedLocation = locationName;
             selectedAddress = translatedAddress;
-            _plusCode = plusCode;
+
             _isLoadingAddress = false;
             distanceKm = isCurrentLocation ? 0.0 : 2.5;
           });
@@ -564,7 +530,7 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
       selectedLocation = "Location Found";
       selectedAddress =
           "Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}";
-      _plusCode = '';
+
       _isLoadingAddress = false;
       distanceKm = 2.5;
     });
@@ -594,31 +560,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
     print('   Pincode: $_storedPincode');
   }
 
-  void _changeLocation() {
-    setState(() {
-      _currentLocationIndex =
-          (_currentLocationIndex + 1) % _sampleLocations.length;
-      final location = _sampleLocations[_currentLocationIndex];
-
-      // Update camera position
-      _currentCameraPosition = CameraPosition(
-        target: location['latLng'],
-        zoom: 14.0,
-      );
-
-      // Move camera to new location with optimized animation
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(_currentCameraPosition),
-        duration: const Duration(
-          milliseconds: 500,
-        ), // Reduce animation duration
-      );
-
-      // Get address for the new location
-      _getAddressFromCoordinates(location['latLng']);
-    });
-  }
-
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
 
@@ -643,14 +584,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
     setState(() {
       _currentCameraPosition = position;
     });
-
-    // Cancel any existing timer
-    _addressTimer?.cancel();
-
-    // Start a new timer for 1 second
-    _addressTimer = Timer(const Duration(seconds: 1), () {
-      _getAddressFromCoordinates(position.target);
-    });
   }
 
   void _onCameraIdle() {
@@ -660,9 +593,8 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
   }
 
   bool _shouldShowAddressCard() {
-    // Don't show address card when keyboard is visible and user is searching
-    return !(_isKeyboardVisible &&
-        (_showSuggestions || _searchController.text.isNotEmpty));
+    // Don't show address card when keyboard is visible
+    return !_isKeyboardVisible;
   }
 
   Future<void> _searchPlaces(String query) async {
@@ -781,6 +713,7 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     // Check if keyboard is visible
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
@@ -808,29 +741,17 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
           child: Stack(
             children: [
               // Google Maps
-              GoogleMap(
+              buildOptimizedMap(
                 onMapCreated: _onMapCreated,
                 onCameraMove: _onCameraMove,
                 onCameraIdle: _onCameraIdle,
                 initialCameraPosition: _currentCameraPosition,
+                markers: {},
                 myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-                zoomControlsEnabled: false,
-                mapToolbarEnabled: false,
-                compassEnabled: false, // Disable to reduce rendering load
-                buildingsEnabled: false, // Disable to reduce memory usage
-                trafficEnabled: false,
-                mapType: MapType.normal,
-                // Performance optimizations
-                liteModeEnabled: false,
-                cameraTargetBounds: CameraTargetBounds.unbounded,
-                minMaxZoomPreference: const MinMaxZoomPreference(10.0, 20.0),
-                rotateGesturesEnabled: true,
-                scrollGesturesEnabled: true,
-                tiltGesturesEnabled: false, // Disable tilt to reduce complexity
-                zoomGesturesEnabled: true,
-                indoorViewEnabled: false, // Disable indoor maps
-                fortyFiveDegreeImageryEnabled: false, // Disable 45° imagery
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 70,
+                  bottom: MediaQuery.of(context).size.height * 0.35,
+                ),
               ),
 
               // Top Search Bar
@@ -842,32 +763,36 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
                   children: [
                     // Back Button
                     GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                        );
+                      },
                       child: Container(
-                        width: 40,
-                        height: 40,
+                        height: 48,
+                        width: 48,
+                        margin: const EdgeInsets.only(right: 12),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.surface,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: theme.colorScheme.shadow.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
                         child: Icon(
                           Icons.arrow_back,
                           color: theme.colorScheme.onSurface,
-                          size: 20,
+                          size: 24,
                         ),
                       ),
                     ),
-
-                    SizedBox(width: 12),
-
-                    // Search Bar
                     Expanded(
                       child: Container(
                         height: 48,
@@ -876,96 +801,95 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: theme.colorScheme.shadow.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
                         child: Row(
                           children: [
-                            SizedBox(width: 16),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: TextField(
                                 controller: _searchController,
                                 onChanged: (value) {
-                                  // Cancel previous timer
                                   _searchTimer?.cancel();
-
-                                  // Set new timer for debounced search
                                   _searchTimer = Timer(
-                                    Duration(milliseconds: 500),
-                                    () {
-                                      _searchPlaces(value);
-                                    },
+                                    const Duration(milliseconds: 500),
+                                    () => _searchPlaces(value),
                                   );
-
-                                  // Update state immediately for address card visibility
                                   setState(() {});
                                 },
                                 onSubmitted: (value) {
                                   _searchTimer?.cancel();
-                                  if (value.isNotEmpty) {
-                                    _searchPlaces(value);
-                                  }
+                                  if (value.isNotEmpty) _searchPlaces(value);
                                 },
                                 onTap: () {
-                                  // Show suggestions when tapping on search bar
                                   if (_searchController.text.isNotEmpty &&
                                       _searchSuggestions.isNotEmpty) {
-                                    setState(() {
-                                      _showSuggestions = true;
-                                    });
+                                    setState(() => _showSuggestions = true);
                                   }
                                 },
                                 decoration: InputDecoration(
-                                  hintText: 'Search places, areas or addresses',
+                                  hintText: 'Search for area, street name...',
                                   hintStyle: TextStyle(
-                                    color: theme.colorScheme.onSurface
-                                        .withOpacity(0.6),
-                                    fontSize: 16,
+                                    color: isDark
+                                        ? Colors.grey[300]!.withOpacity(0.6)
+                                        : const Color(
+                                            0xFF1F4C6B,
+                                          ).withOpacity(0.5),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                   border: InputBorder.none,
-                                  suffixIcon: _isSearching
-                                      ? Padding(
-                                          padding: EdgeInsets.all(12),
-                                          child: SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    theme.colorScheme.primary,
-                                                  ),
-                                            ),
-                                          ),
-                                        )
-                                      : null,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  errorBorder: InputBorder.none,
+                                  disabledBorder: InputBorder.none,
+                                  contentPadding: EdgeInsets.zero,
+                                  isDense: true,
+                                  filled: false,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.colorScheme.onSurface,
                                 ),
                               ),
                             ),
-                            if (!_isSearching)
+                            if (_isSearching)
                               Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 12),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    if (_searchController.text.isNotEmpty) {
-                                      // Clear search
-                                      _searchController.clear();
-                                      setState(() {
-                                        _searchSuggestions = [];
-                                        _showSuggestions = false;
-                                      });
-                                    }
-                                  },
+                                padding: const EdgeInsets.only(right: 16),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else if (_searchController.text.isNotEmpty)
+                              GestureDetector(
+                                onTap: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchSuggestions = [];
+                                    _showSuggestions = false;
+                                  });
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
                                   child: Icon(
-                                    _searchController.text.isNotEmpty
-                                        ? Icons.clear
-                                        : Icons.search,
+                                    Icons.close_rounded,
                                     color: theme.colorScheme.onSurface
-                                        .withOpacity(0.6),
-                                    size: 24,
+                                        .withOpacity(0.5),
+                                    size: 20,
                                   ),
                                 ),
                               ),
@@ -980,407 +904,437 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
               // Search Suggestions Overlay
               if (_showSuggestions && _searchSuggestions.isNotEmpty)
                 Positioned(
-                  top: 120, // Below the search bar
+                  top: MediaQuery.of(context).padding.top + 70,
                   left: 16,
                   right: 16,
                   child: Container(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.4,
+                    ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: theme.colorScheme.shadow.withOpacity(0.15),
-                          blurRadius: 8,
-                          offset: Offset(0, 4),
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
-                    child: Column(
-                      children: _searchSuggestions.map((suggestion) {
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => _selectPlace(suggestion),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: EdgeInsets.all(16),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.place,
-                                    color: theme.colorScheme.primary,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          suggestion['name'] ?? '',
-                                          style: TextStyle(
-                                            color: theme.colorScheme.onSurface,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (suggestion['formatted_address'] !=
-                                                null &&
-                                            suggestion['formatted_address']
-                                                .isNotEmpty)
-                                          Padding(
-                                            padding: EdgeInsets.only(top: 4),
-                                            child: Text(
-                                              suggestion['formatted_address'],
-                                              style: TextStyle(
-                                                color: theme
-                                                    .colorScheme
-                                                    .onSurface
-                                                    .withOpacity(0.6),
-                                                fontSize: 14,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                      ],
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: _searchSuggestions.length,
+                        separatorBuilder: (context, index) => Divider(
+                          height: 1,
+                          thickness: 0.5,
+                          color: theme.colorScheme.outline.withOpacity(0.1),
+                        ),
+                        itemBuilder: (context, index) {
+                          final suggestion = _searchSuggestions[index];
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => _selectPlace(suggestion),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                  horizontal: 16,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary
+                                            .withOpacity(0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.location_on_rounded,
+                                        color: theme.colorScheme.primary,
+                                        size: 20,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            suggestion['name'] ?? '',
+                                            style: TextStyle(
+                                              color:
+                                                  theme.colorScheme.onSurface,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if (suggestion['formatted_address'] !=
+                                                  null &&
+                                              suggestion['formatted_address']
+                                                  .isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                              ),
+                                              child: Text(
+                                                suggestion['formatted_address'],
+                                                style: TextStyle(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onSurface
+                                                      .withOpacity(0.6),
+                                                  fontSize: 13,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.north_west_rounded,
+                                      color: theme.colorScheme.onSurface
+                                          .withOpacity(0.3),
+                                      size: 16,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
 
               // Center Location Pin
               if (_shouldShowAddressCard())
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Location Pin - Lottie Animation
-                      Container(
-                        width: 80,
-                        height: 80,
-                        child: Lottie.asset(
-                          'assets/lottie/location_marker.json',
-                          width: 80,
-                          height: 80,
-                          fit: BoxFit.contain,
-                          repeat: true,
-                          animate: true,
-                          onLoaded: (composition) {
-                            print('✅ Lottie animation loaded successfully');
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            print('❌ Lottie loading failed: $error');
-                            // Fallback to default pin if Lottie fails to load
-                            return Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: Colors.orange,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.location_on,
-                                color: Colors.white,
-                                size: 30,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      SizedBox(height: 20),
-
-                      // Pin instruction
-                      TranslatedText(
-                        'Move the pin to change location',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              // Current Location Button
-              if (_shouldShowAddressCard())
-                Positioned(
-                  bottom: 180,
-                  right: 16,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.shadow.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
+                Positioned.fill(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.of(context).padding.top + 70,
+                      bottom: MediaQuery.of(context).size.height * 0.35,
                     ),
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        onTap: () {
-                          if (_userPosition != null) {
-                            // Use actual user location if available
-                            LatLng userLatLng = LatLng(
-                              _userPosition!.latitude,
-                              _userPosition!.longitude,
-                            );
-                            setState(() {
-                              _currentCameraPosition = CameraPosition(
-                                target: userLatLng,
-                                zoom: 16.0,
-                              );
-                              isCurrentLocation = true;
-                            });
-
-                            _mapController?.animateCamera(
-                              CameraUpdate.newCameraPosition(
-                                _currentCameraPosition,
-                              ),
-                              duration: const Duration(milliseconds: 400),
-                            );
-
-                            _getAddressFromCoordinates(userLatLng);
-                          } else {
-                            // Request location permission again
-                            _requestLocationPermissionAndGetLocation();
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                padding: EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.my_location,
-                                  color: theme.colorScheme.primary,
-                                  size: 18,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              TranslatedText(
-                                'Current Location',
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Floating Action Button for cycling locations
-              if (_shouldShowAddressCard())
-                Positioned(
-                  bottom: 240,
-                  right: 16,
-                  child: FloatingActionButton(
-                    mini: true,
-                    backgroundColor: theme.colorScheme.surface,
-                    foregroundColor: theme.colorScheme.primary,
-                    onPressed: _changeLocation,
-                    elevation: 4,
-                    child: Icon(
-                      Icons.refresh,
-                      color: theme.colorScheme.primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
-
-              // Bottom Location Details Card
-              if (_shouldShowAddressCard())
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.shadow.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: Offset(0, -2),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
+                    child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Location Pin - Lottie Animation
+                          Container(
+                            width: 80,
+                            height: 80,
+                            child: Lottie.asset(
+                              'assets/lottie/location_marker.json',
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.contain,
+                              repeat: true,
+                              animate: true,
+                              onLoaded: (composition) {
+                                print('✅ Lottie animation loaded successfully');
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                print('❌ Lottie loading failed: $error');
+                                // Fallback to default pin if Lottie fails to load
+                                return Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.location_on,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+
+                          SizedBox(height: 20),
+
+                          // Pin instruction
                           TranslatedText(
-                            'Place the pin at exact location',
+                            'Move the pin to change location',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: FontWeight.w500,
                               color: theme.colorScheme.onSurface.withOpacity(
                                 0.7,
                               ),
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
-                          SizedBox(height: 16),
+              if (_shouldShowAddressCard())
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Current Location Button
+                      Padding(
+                        padding: const EdgeInsets.only(right: 16, bottom: 16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(30),
+                            child: InkWell(
+                              onTap: () {
+                                if (_userPosition != null) {
+                                  LatLng userLatLng = LatLng(
+                                    _userPosition!.latitude,
+                                    _userPosition!.longitude,
+                                  );
+                                  setState(() {
+                                    _currentCameraPosition = CameraPosition(
+                                      target: userLatLng,
+                                      zoom: 16.0,
+                                    );
+                                    isCurrentLocation = true;
+                                  });
 
-                          Row(
-                            children: [
-                              _isLoadingAddress
-                                  ? SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              theme.colorScheme.primary,
-                                            ),
-                                      ),
-                                    )
-                                  : Icon(
-                                      Icons.location_on,
-                                      color: theme.colorScheme.primary,
-                                      size: 24,
+                                  _mapController?.animateCamera(
+                                    CameraUpdate.newCameraPosition(
+                                      _currentCameraPosition,
                                     ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                    duration: const Duration(milliseconds: 400),
+                                  );
+
+                                  _getAddressFromCoordinates(userLatLng);
+                                } else {
+                                  _requestLocationPermissionAndGetLocation();
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(30),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
-                                      selectedLocation,
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.colorScheme.onSurface,
-                                      ),
+                                    Icon(
+                                      Icons.my_location_rounded,
+                                      color: theme.colorScheme.primary,
+                                      size: 20,
                                     ),
-                                    SizedBox(height: 4),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      selectedAddress,
+                                      "Use Current Location",
                                       style: TextStyle(
+                                        color: theme.colorScheme.primary,
                                         fontSize: 14,
-                                        color: theme.colorScheme.onSurface
-                                            .withOpacity(0.6),
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    if (_plusCode.isNotEmpty) ...[
-                                      SizedBox(height: 4),
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Bottom Location Details Card Container
+                      Container(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 10,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Handle bar
+                            Center(
+                              child: Container(
+                                margin: const EdgeInsets.only(top: 12),
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                20,
+                                20,
+                                24,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Confirm Location",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  // Location Info Box
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.surface,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.grey[200]!,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          margin: const EdgeInsets.only(top: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFFE0F2F1,
+                                            ), // Light teal background
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.location_on,
+                                            color: const Color(
+                                              0xFF009688,
+                                            ), // Teal icon
+                                            size: 24,
+                                          ),
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.primary
-                                              .withOpacity(0.1),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                selectedLocation.isNotEmpty &&
+                                                        selectedLocation !=
+                                                            "Locating..."
+                                                    ? selectedLocation
+                                                    : "Selecting Location...",
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 16,
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onSurface,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                selectedAddress.isNotEmpty &&
+                                                        selectedAddress !=
+                                                            "Getting address..."
+                                                    ? selectedAddress
+                                                    : "Fetching precise location...",
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 14,
+                                                  height: 1.4,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 24),
+
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 50,
+                                    child: ElevatedButton(
+                                      onPressed: _hasValidLocationData
+                                          ? () =>
+                                                _showAddressDetailsBottomSheet(
+                                                  context,
+                                                )
+                                          : null,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF4285F4,
+                                        ), // Google Blue
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
                                         ),
-                                        child: Text(
-                                          'Plus Code: $_plusCode',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: theme.colorScheme.primary,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
+                                        padding: EdgeInsets.zero,
                                       ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          if (!isCurrentLocation && distanceKm > 0) ...[
-                            SizedBox(height: 12),
-                            Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.amber[50],
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.amber[200]!),
-                              ),
-                              child: TranslatedText(
-                                'This is a different location from your current location.',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.amber[800],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-
-                          if (isCurrentLocation) ...[
-                            SizedBox(height: 12),
-                            Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.red[50],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.zoom_in,
-                                    color: Colors.red,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: TranslatedText(
-                                      'Zoom in to place the pin at exact location',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.red[700],
-                                        fontWeight: FontWeight.w500,
+                                      child: Text(
+                                        widget.isStoreCreationMode
+                                            ? "Confirm Store Location"
+                                            : "Confirm Location",
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1388,81 +1342,9 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
                               ),
                             ),
                           ],
-
-                          SizedBox(height: 16),
-
-                          // Confirm Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: _hasValidLocationData
-                                  ? () =>
-                                        _showAddressDetailsBottomSheet(context)
-                                  : null, // Disable button when location data isn't ready
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _hasValidLocationData
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.outline.withOpacity(
-                                        0.3,
-                                      ),
-                                foregroundColor: _hasValidLocationData
-                                    ? theme.colorScheme.onPrimary
-                                    : theme.colorScheme.onSurface.withOpacity(
-                                        0.6,
-                                      ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: _isGettingLocation || _isLoadingAddress
-                                  ? Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  theme.colorScheme.onSurface
-                                                      .withOpacity(0.6),
-                                                ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        TranslatedText(
-                                          _isGettingLocation
-                                              ? 'Getting location...'
-                                              : 'Loading address...',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : TranslatedText(
-                                      _hasValidLocationData
-                                          ? 'Confirm & proceed'
-                                          : 'Please wait for location...',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                            ),
-                          ),
-
-                          SizedBox(
-                            height: MediaQuery.of(context).padding.bottom,
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
             ],
@@ -1551,14 +1433,19 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
   final TextEditingController _pincodeController = TextEditingController();
   final TextEditingController _countryController = TextEditingController();
 
-  String selectedAddressType = 'Home';
-  bool isRecording = false;
   bool _isSaving = false;
 
   // Validation states
   String? _houseError;
   String? _apartmentError;
-  String? _customAddressNameError;
+
+  // Store creation validation states
+  String? _localityError;
+  String? _cityError;
+  String? _stateError;
+  String? _districtError;
+  String? _pincodeError;
+  String? _countryError;
 
   @override
   void initState() {
@@ -1605,7 +1492,13 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
     setState(() {
       _houseError = null;
       _apartmentError = null;
-      _customAddressNameError = null;
+
+      _localityError = null;
+      _cityError = null;
+      _stateError = null;
+      _districtError = null;
+      _pincodeError = null;
+      _countryError = null;
     });
     print('✅ Cleared previous validation errors');
 
@@ -1634,16 +1527,31 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
       print('✅ Apartment field validation passed');
     }
 
-    // Validate custom address name if "Other" is selected
-    if (selectedAddressType == 'Other') {
-      if (_customAddressNameController.text.trim().isEmpty) {
-        print('❌ Custom address name is empty when Other is selected');
-        setState(() {
-          _customAddressNameError = 'Please enter a custom address name';
-        });
+    // Validate store creation fields if in store creation mode
+    if (widget.isStoreCreationMode) {
+      if (_localityController.text.trim().isEmpty) {
+        setState(() => _localityError = 'Locality is required');
         isValid = false;
-      } else {
-        print('✅ Custom address name validation passed');
+      }
+      if (_cityController.text.trim().isEmpty) {
+        setState(() => _cityError = 'City is required');
+        isValid = false;
+      }
+      if (_stateController.text.trim().isEmpty) {
+        setState(() => _stateError = 'State is required');
+        isValid = false;
+      }
+      if (_districtController.text.trim().isEmpty) {
+        setState(() => _districtError = 'District is required');
+        isValid = false;
+      }
+      if (_pincodeController.text.trim().isEmpty) {
+        setState(() => _pincodeError = 'Pincode is required');
+        isValid = false;
+      }
+      if (_countryController.text.trim().isEmpty) {
+        setState(() => _countryError = 'Country is required');
+        isValid = false;
       }
     }
 
@@ -1857,267 +1765,312 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
         child: Column(
           children: [
             // Handle Bar
-            Container(
-              margin: EdgeInsets.only(top: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.onSurface.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
 
             // Header
             Padding(
-              padding: EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Icon(
-                      Icons.arrow_back,
-                      color: theme.colorScheme.onSurface,
-                      size: 24,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              padding: EdgeInsets.fromLTRB(20, 24, 20, 0),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        if (widget.isStoreCreationMode) ...[
-                          Text(
-                            'Step 4 of 7',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.grey[200]!),
+                            ),
+                            child: Icon(
+                              Icons.arrow_back,
+                              color: theme.colorScheme.onSurface,
+                              size: 20,
                             ),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Setup Address',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
+                        ),
+                        SizedBox(width: 16),
+                        Text(
+                          widget.isStoreCreationMode
+                              ? 'Setup Store Address'
+                              : 'Confirm Address',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurface,
+                            letterSpacing: -0.5,
                           ),
-                        ] else ...[
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                color: theme.colorScheme.primary,
-                                size: 20,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                widget.locationName,
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            widget.locationAddress,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                        ),
                       ],
                     ),
-                  ),
-                ],
+                    SizedBox(height: 24),
+
+                    // Location Summary Card - Innovative Look
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.grey[100]!, width: 1),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFFE0F2F1), Color(0xFFB2DFDB)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.location_on_rounded,
+                              color: const Color(0xFF00796B), // Darker teal
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.locationName.isNotEmpty
+                                      ? widget.locationName
+                                      : "Selected Location",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  widget.locationAddress.isNotEmpty
+                                      ? widget.locationAddress
+                                      : "Address details not available",
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                    height: 1.5,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            Divider(height: 1),
+            const SizedBox(height: 24),
 
-            // Content
+            // Content Form
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(16),
-                child: widget.isStoreCreationMode
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TranslatedText(
-                            'Add address details for the store',
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Helper Text
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.onPrimaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: TranslatedText(
+                            'Providing a detailed address helps customers find your store easily.',
                             style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
+                              fontSize: 13,
+                              color: const Color(
+                                0xFF1565C0,
+                              ), // Darker blue for better visibility
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                          SizedBox(height: 24),
-                          _buildTextField('Address Line 1', _houseController),
-                          SizedBox(height: 16),
+                        ),
+
+                        SizedBox(height: 24),
+
+                        // Shop No / Building Name
+                        TranslatedText(
+                          'SHOP NO. / BUILDING NAME',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[600],
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        TextField(
+                          controller: _houseController,
+                          decoration: InputDecoration(
+                            hintText: 'e.g. Shop 12, Solaris Complex',
+                            hintStyle: TextStyle(color: Colors.grey[400]),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: _houseError != null
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.outline,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: _houseError != null
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.primary,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            errorText: _houseError,
+                            errorStyle: TextStyle(
+                              color: theme.colorScheme.error,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+
+                        SizedBox(height: 24),
+
+                        // Street / Colony / Area
+                        TranslatedText(
+                          'STREET / COLONY / AREA',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[600],
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        TextField(
+                          controller: _apartmentController,
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: _apartmentError != null
+                                    ? Colors.red
+                                    : Colors.grey[300]!,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: _apartmentError != null
+                                    ? Colors.red
+                                    : Colors.blue,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.red),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.red,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            errorText: _apartmentError,
+                            errorStyle: TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+
+                        SizedBox(height: 24),
+
+                        if (widget.isStoreCreationMode) ...[
                           _buildTextField(
-                            'Address Line 2',
-                            _apartmentController,
+                            'Locality',
+                            _localityController,
+                            errorText: _localityError,
                           ),
                           SizedBox(height: 16),
-                          _buildTextField('Locality', _localityController),
+                          _buildTextField(
+                            'City',
+                            _cityController,
+                            errorText: _cityError,
+                          ),
                           SizedBox(height: 16),
-                          _buildTextField('City', _cityController),
+                          _buildTextField(
+                            'District',
+                            _districtController,
+                            errorText: _districtError,
+                          ),
                           SizedBox(height: 16),
-                          _buildTextField('State', _stateController),
-                          SizedBox(height: 16),
-                          _buildTextField('District', _districtController),
+                          _buildTextField(
+                            'State',
+                            _stateController,
+                            errorText: _stateError,
+                          ),
                           SizedBox(height: 16),
                           _buildTextField(
                             'Pincode',
                             _pincodeController,
                             isNumber: true,
+                            errorText: _pincodeError,
                           ),
                           SizedBox(height: 16),
-                          _buildTextField('Country', _countryController),
+                          _buildTextField(
+                            'Country',
+                            _countryController,
+                            errorText: _countryError,
+                          ),
                           SizedBox(height: 24),
                         ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Helper Text
-                          Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.onPrimaryContainer,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: TranslatedText(
-                              'A detailed address will help us find the best professional for you',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
 
-                          SizedBox(height: 24),
-
-                          // House/Flat/Floor Number
-                          TranslatedText(
-                            'HOUSE / FLAT / FLOOR NO.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[600],
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextField(
-                            controller: _houseController,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: _houseError != null
-                                      ? theme.colorScheme.error
-                                      : theme.colorScheme.outline,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: _houseError != null
-                                      ? theme.colorScheme.error
-                                      : theme.colorScheme.primary,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              errorBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: theme.colorScheme.error,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              focusedErrorBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: theme.colorScheme.error,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 16,
-                              ),
-                              errorText: _houseError,
-                              errorStyle: TextStyle(
-                                color: theme.colorScheme.error,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-
-                          SizedBox(height: 24),
-
-                          // Apartment/Road/Area
-                          TranslatedText(
-                            'APARTMENT / ROAD / AREA (RECOMMENDED)',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[600],
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextField(
-                            controller: _apartmentController,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: _apartmentError != null
-                                      ? Colors.red
-                                      : Colors.grey[300]!,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: _apartmentError != null
-                                      ? Colors.red
-                                      : Colors.blue,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              errorBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.red),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              focusedErrorBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Colors.red,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 16,
-                              ),
-                              errorText: _apartmentError,
-                              errorStyle: TextStyle(
-                                color: Colors.red,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-
-                          SizedBox(height: 24),
-
-                          // COMMENTED OUT: Directions to Reach
-                          /*
+                        // COMMENTED OUT: Directions to Reach
+                        /*
                     // Directions to Reach
                     Text(
                       'DIRECTIONS TO REACH (OPTIONAL)',
@@ -2240,430 +2193,310 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
 
                     SizedBox(height: 24),
                     */
-
-                          // Save As
-                          Text(
-                            'SAVE AS',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[600],
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          SizedBox(height: 12),
-
-                          // Address Type Selection
-                          Wrap(
-                            spacing: 12,
-                            children: [
-                              _buildAddressTypeChip('Home', Icons.home),
-                              _buildAddressTypeChip('Work', Icons.work),
-                              _buildAddressTypeChip(
-                                'Friends and Family',
-                                Icons.people,
-                              ),
-                              _buildAddressTypeChip('Other', Icons.location_on),
-                            ],
-                          ),
-
-                          SizedBox(height: 16),
-
-                          // Custom Address Name (shown when "Other" is selected)
-                          if (selectedAddressType == 'Other') ...[
-                            Text(
-                              'CUSTOM ADDRESS NAME',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[600],
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            TextField(
-                              controller: _customAddressNameController,
-                              decoration: InputDecoration(
-                                hintText:
-                                    'e.g. Gym, Restaurant, Friend\'s House',
-                                hintStyle: TextStyle(color: Colors.grey[500]),
-                                border: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: _customAddressNameError != null
-                                        ? Colors.red
-                                        : Colors.grey[300]!,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: _customAddressNameError != null
-                                        ? Colors.red
-                                        : Colors.blue,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                errorBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(color: Colors.red),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                focusedErrorBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: Colors.red,
-                                    width: 2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 16,
-                                ),
-                                errorText: _customAddressNameError,
-                                errorStyle: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 16),
-                          ],
-
-                          SizedBox(height: 16),
-                        ],
-                      ),
+                        SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
 
             // Save Button
-            Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isSaving
-                      ? null
-                      : () async {
-                          if (!_validateFields()) {
-                            return;
-                          }
-
-                          if (widget.isStoreCreationMode) {
-                            // Logic for Store Creation Mode
-
-                            // Construct return data
-                            final returnData = {
-                              "addressLine1": _houseController.text.trim(),
-                              "addressLine2": _apartmentController.text.trim(),
-                              "locality": _localityController.text.trim(),
-                              "city": _cityController.text.trim(),
-                              "state": _stateController.text.trim(),
-                              "district": _districtController.text.trim(),
-                              "pincode": _pincodeController.text.trim(),
-                              "country": _countryController.text.trim(),
-                              "lat": widget.latitude,
-                              "lng": widget.longitude,
-                            };
-
-                            Navigator.pop(context, returnData);
-                            return;
-                          }
-
-                          print(
-                            '🔘 SAVE BUTTON PRESSED - Starting save process',
-                          );
-
-                          // Validate fields before saving
-                          print('🔍 Starting field validation...');
-                          print(
-                            '📝 House field: "${_houseController.text.trim()}"',
-                          );
-                          print(
-                            '📝 Apartment field: "${_apartmentController.text.trim()}"',
-                          );
-                          print(
-                            '📝 Selected address type: "$selectedAddressType"',
-                          );
-
-                          if (!_validateFields()) {
-                            print('❌ Validation failed, stopping save process');
-                            return; // Stop if validation fails
-                          }
-                          print('✅ Field validation passed');
-
-                          print('⏳ Setting loading state to true');
-                          setState(() {
-                            _isSaving = true;
-                          });
-                          print('✅ Loading state set');
-
-                          try {
-                            print(
-                              '📱 Getting user data from SharedPreferences...',
-                            );
-                            // Get user data from SharedPreferences
-                            final prefs = await SharedPreferences.getInstance();
-                            final phoneNumber =
-                                prefs.getString('phone_number') ?? '';
-                            final firstName =
-                                prefs.getString('first_name') ?? '';
-                            final lastName = prefs.getString('last_name') ?? '';
-                            final userName = '$firstName $lastName'.trim();
-
-                            print('📞 Phone number: "$phoneNumber"');
-                            print('👤 User name: "$userName"');
-                            print(
-                              '📍 Location coordinates: lat=${widget.latitude}, lng=${widget.longitude}',
-                            );
-                            print(
-                              '🏠 Location address: "${widget.locationAddress}"',
-                            );
-
-                            // Parse address components from the location address
-                            print('🗺️ Parsing address components...');
-                            final addressParts = _parseAddressComponents(
-                              widget.locationAddress,
-                            );
-                            print(
-                              '🗺️ Parsed address components: $addressParts',
-                            );
-
-                            // Prepare API request body
-                            final addressName = selectedAddressType == 'Other'
-                                ? _customAddressNameController.text.trim()
-                                : selectedAddressType.toLowerCase();
-                            final requestBody = {
-                              "address_name": addressName,
-                              "phone_number": int.tryParse(phoneNumber) ?? 0,
-                              "attendee_name": userName.isNotEmpty
-                                  ? userName
-                                  : "User",
-                              "address_line_1": _houseController.text.trim(),
-                              "address_line_2": _apartmentController.text
-                                  .trim(),
-                              "locality": addressParts['locality'] ?? '',
-                              "state": addressParts['state'] ?? '',
-                              "country": addressParts['country'] ?? 'India',
-                              "district": addressParts['district'] ?? '',
-                              "city": addressParts['city'] ?? '',
-                              "area": addressParts['area'] ?? '',
-                              "pincode":
-                                  int.tryParse(
-                                    addressParts['pincode'] ?? '000000',
-                                  ) ??
-                                  0,
-                              "lat": widget.latitude,
-                              "lng": widget.longitude,
-                              "is_billing": true,
-                              "is_shipping": true,
-                            };
-
-                            print('📦 API Request Body prepared:');
-                            print(json.encode(requestBody));
-
-                            // Send POST request to /add-user-address/
-                            print(
-                              '🚀 Sending POST request to /add-user-address/...',
-                            );
-                            final response = await ApiService.post(
-                              '/add-user-address/',
-                              body: requestBody,
-                              useBearerToken: true,
-                            );
-
-                            print('📥 API Response received:');
-                            print(
-                              '📊 Response structure: ${response.keys.toList()}',
-                            );
-                            print('📊 Full response: $response');
-
-                            if (mounted) {
-                              print(
-                                '✅ Widget still mounted, processing response...',
-                              );
-                              setState(() {
-                                _isSaving = false;
-                              });
-                              print('✅ Loading state reset to false');
-
-                              // Check if response status is 200
-                              print('🔍 Checking response status...');
-                              print(
-                                '📊 response[\'data\']: ${response['data']}',
-                              );
-                              if (response['data'] != null) {
-                                print(
-                                  '📊 response[\'data\'][\'status\']: ${response['data']['status']}',
-                                );
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isSaving
+                          ? null
+                          : () async {
+                              if (!_validateFields()) {
+                                return;
                               }
 
-                              if (response['data'] != null &&
-                                  response['data']['status'] == 200) {
-                                print(
-                                  '✅ Success response received! Status 200',
-                                );
+                              if (widget.isStoreCreationMode) {
+                                // Logic for Store Creation Mode
 
-                                // Save address details to local storage
-                                print('💾 Saving address to local storage...');
-                                await _saveAddressToLocalStorage(requestBody);
-                                print('✅ Address saved to local storage');
+                                // Construct return data
+                                final returnData = {
+                                  "addressLine1": _houseController.text.trim(),
+                                  "addressLine2": _apartmentController.text
+                                      .trim(),
+                                  "locality": _localityController.text.trim(),
+                                  "city": _cityController.text.trim(),
+                                  "state": _stateController.text.trim(),
+                                  "district": _districtController.text.trim(),
+                                  "pincode": _pincodeController.text.trim(),
+                                  "country": _countryController.text.trim(),
+                                  "lat": widget.latitude,
+                                  "lng": widget.longitude,
+                                };
 
-                                // Show success message
-                                print('🎉 Showing success message...');
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: TranslatedText(
-                                      'Address saved successfully!',
-                                    ),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-
-                                // Navigate to HomeScreen
-                                print('🏠 Navigating to HomeScreen...');
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const StoreSelectionScreen(),
-                                  ),
-                                  (route) => false,
-                                );
-                                print('✅ Navigation completed');
-                              } else {
-                                print('❌ API Error: Status is not 200');
-                                print('📊 Response data: ${response['data']}');
-
-                                // Show error message
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: TranslatedText(
-                                      'Failed to save address. Please try again.',
-                                    ),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
+                                Navigator.pop(context, returnData);
+                                return;
                               }
-                            } else {
-                              print(
-                                '❌ Widget not mounted, skipping response processing',
-                              );
-                            }
-                          } catch (e) {
-                            print('💥 Exception caught during save process:');
-                            print('💥 Exception type: ${e.runtimeType}');
-                            print('💥 Exception message: $e');
-                            print('💥 Stack trace: ${StackTrace.current}');
 
-                            if (mounted) {
                               print(
-                                '🔄 Widget mounted, resetting loading state and showing error',
+                                '🔘 SAVE BUTTON PRESSED - Starting save process',
                               );
+
+                              // Validate fields before saving
+                              print('🔍 Starting field validation...');
+                              print(
+                                '📝 House field: "${_houseController.text.trim()}"',
+                              );
+                              print(
+                                '📝 Apartment field: "${_apartmentController.text.trim()}"',
+                              );
+
+                              if (!_validateFields()) {
+                                print(
+                                  '❌ Validation failed, stopping save process',
+                                );
+                                return; // Stop if validation fails
+                              }
+                              print('✅ Field validation passed');
+
+                              print('⏳ Setting loading state to true');
                               setState(() {
-                                _isSaving = false;
+                                _isSaving = true;
                               });
+                              print('✅ Loading state set');
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Network error: $e'),
-                                  backgroundColor: Colors.red,
+                              try {
+                                print(
+                                  '📱 Getting user data from SharedPreferences...',
+                                );
+                                // Get user data from SharedPreferences
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                final phoneNumber =
+                                    prefs.getString('phone_number') ?? '';
+                                final firstName =
+                                    prefs.getString('first_name') ?? '';
+                                final lastName =
+                                    prefs.getString('last_name') ?? '';
+                                final userName = '$firstName $lastName'.trim();
+
+                                print('📞 Phone number: "$phoneNumber"');
+                                print('👤 User name: "$userName"');
+                                print(
+                                  '📍 Location coordinates: lat=${widget.latitude}, lng=${widget.longitude}',
+                                );
+                                print(
+                                  '🏠 Location address: "${widget.locationAddress}"',
+                                );
+
+                                // Parse address components from the location address
+                                print('🗺️ Parsing address components...');
+                                final addressParts = _parseAddressComponents(
+                                  widget.locationAddress,
+                                );
+                                print(
+                                  '🗺️ Parsed address components: $addressParts',
+                                );
+
+                                // Prepare API request body
+                                final requestBody = {
+                                  "address_name": "Store Address",
+                                  "phone_number":
+                                      int.tryParse(phoneNumber) ?? 0,
+                                  "attendee_name": userName.isNotEmpty
+                                      ? userName
+                                      : "User",
+                                  "address_line_1": _houseController.text
+                                      .trim(),
+                                  "address_line_2": _apartmentController.text
+                                      .trim(),
+                                  "locality": addressParts['locality'] ?? '',
+                                  "state": addressParts['state'] ?? '',
+                                  "country": addressParts['country'] ?? 'India',
+                                  "district": addressParts['district'] ?? '',
+                                  "city": addressParts['city'] ?? '',
+                                  "area": addressParts['area'] ?? '',
+                                  "pincode":
+                                      int.tryParse(
+                                        addressParts['pincode'] ?? '000000',
+                                      ) ??
+                                      0,
+                                  "lat": widget.latitude,
+                                  "lng": widget.longitude,
+                                  "is_billing": true,
+                                  "is_shipping": true,
+                                };
+
+                                print('📦 API Request Body prepared:');
+                                print(json.encode(requestBody));
+
+                                // Send POST request to /add-user-address/
+                                print(
+                                  '🚀 Sending POST request to /add-user-address/...',
+                                );
+                                final response = await ApiService.post(
+                                  '/add-user-address/',
+                                  body: requestBody,
+                                  useBearerToken: true,
+                                );
+
+                                print('📥 API Response received:');
+                                print(
+                                  '📊 Response structure: ${response.keys.toList()}',
+                                );
+                                print('📊 Full response: $response');
+
+                                if (mounted) {
+                                  print(
+                                    '✅ Widget still mounted, processing response...',
+                                  );
+                                  setState(() {
+                                    _isSaving = false;
+                                  });
+                                  print('✅ Loading state reset to false');
+
+                                  // Check if response status is 200
+                                  print('🔍 Checking response status...');
+                                  print(
+                                    '📊 response[\'data\']: ${response['data']}',
+                                  );
+                                  if (response['data'] != null) {
+                                    print(
+                                      '📊 response[\'data\'][\'status\']: ${response['data']['status']}',
+                                    );
+                                  }
+
+                                  if (response['data'] != null &&
+                                      response['data']['status'] == 200) {
+                                    print(
+                                      '✅ Success response received! Status 200',
+                                    );
+
+                                    // Save address details to local storage
+                                    print(
+                                      '💾 Saving address to local storage...',
+                                    );
+                                    await _saveAddressToLocalStorage(
+                                      requestBody,
+                                    );
+                                    print('✅ Address saved to local storage');
+
+                                    // Show success message
+                                    print('🎉 Showing success message...');
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: TranslatedText(
+                                          'Address saved successfully!',
+                                        ),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+
+                                    // Navigate to HomeScreen
+                                    print('🏠 Navigating to HomeScreen...');
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const StoreSelectionScreen(),
+                                      ),
+                                      (route) => false,
+                                    );
+                                    print('✅ Navigation completed');
+                                  } else {
+                                    print('❌ API Error: Status is not 200');
+                                    print(
+                                      '📊 Response data: ${response['data']}',
+                                    );
+
+                                    // Show error message
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: TranslatedText(
+                                          'Failed to save address. Please try again.',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                } else {
+                                  print(
+                                    '❌ Widget not mounted, skipping response processing',
+                                  );
+                                }
+                              } catch (e) {
+                                print(
+                                  '💥 Exception caught during save process:',
+                                );
+                                print('💥 Exception type: ${e.runtimeType}');
+                                print('💥 Exception message: $e');
+                                print('💥 Stack trace: ${StackTrace.current}');
+
+                                if (mounted) {
+                                  print(
+                                    '🔄 Widget mounted, resetting loading state and showing error',
+                                  );
+                                  setState(() {
+                                    _isSaving = false;
+                                  });
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Network error: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                } else {
+                                  print(
+                                    '❌ Widget not mounted, skipping error handling',
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: _isSaving
+                          ? const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
                                 ),
-                              );
-                            } else {
-                              print(
-                                '❌ Widget not mounted, skipping error handling',
-                              );
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _isSaving
-                      ? const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                            SizedBox(width: 12),
-                            TranslatedText(
-                              'SAVING...',
+                                SizedBox(width: 12),
+                                TranslatedText(
+                                  'SAVING...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : TranslatedText(
+                              widget.isStoreCreationMode
+                                  ? 'CONFIRM LOCATION'
+                                  : 'SAVE ADDRESS DETAILS',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ],
-                        )
-                      : TranslatedText(
-                          widget.isStoreCreationMode
-                              ? 'CONFIRM LOCATION'
-                              : 'SAVE ADDRESS DETAILS',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAddressTypeChip(String label, IconData icon) {
-    final isSelected = selectedAddressType == label;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedAddressType = label;
-          // Clear custom address name error when changing address type
-          _customAddressNameError = null;
-          // Clear custom address name if switching away from Other
-          if (label != 'Other') {
-            _customAddressNameController.clear();
-          }
-        });
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue[50] : Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? Colors.blue : Colors.grey[300]!,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.blue : Colors.grey[600],
-            ),
-            SizedBox(width: 8),
-            TranslatedText(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? Colors.blue : Colors.grey[700],
               ),
             ),
           ],
@@ -2676,6 +2509,7 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
     String label,
     TextEditingController controller, {
     bool isNumber = false,
+    String? errorText,
   }) {
     // Assuming you want a style similar to what was there or consistent with your app
     // I'll use the style from CreateStoreScreen based on the images.
@@ -2699,6 +2533,7 @@ class _AddressDetailsBottomSheetState extends State<AddressDetailsBottomSheet> {
           controller: controller,
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
           decoration: InputDecoration(
+            errorText: errorText,
             border: OutlineInputBorder(
               borderSide: BorderSide(color: Colors.grey.shade400),
               borderRadius: BorderRadius.circular(8),

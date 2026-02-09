@@ -423,11 +423,31 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
   Widget _buildCategoryStep() {
     if (_isLoading) {
-      return Center(child: CircularProgressIndicator(color: _primaryColor));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: _primaryColor),
+            const SizedBox(height: 16),
+            Text(
+              "Loading Categories...",
+              style: TextStyle(color: _slate500, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      );
     }
     if (_errorMessage != null) {
       return Center(
-        child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 48, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+            TextButton(onPressed: _fetchCategories, child: const Text("Retry")),
+          ],
+        ),
       );
     }
 
@@ -435,25 +455,32 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "What kind of store is this?",
+          "What's your niche?",
           style: TextStyle(
-            fontSize: 18,
-            color: _slate500,
-            fontWeight: FontWeight.w500,
+            fontSize: 22,
+            color: _slate900,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
           ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Select a category that best describes your store.",
+          style: TextStyle(fontSize: 14, color: _slate500, height: 1.4),
         ),
         const SizedBox(height: 24),
         LayoutBuilder(
           builder: (context, constraints) {
-            final count = constraints.maxWidth > 600 ? 4 : 2;
+            // 3 columns for mobile to make them smaller and neater
+            final crossAxisCount = constraints.maxWidth > 600 ? 5 : 3;
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: count,
-                childAspectRatio: 0.85,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: 0.8, // Taller for elegant look
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
               ),
               itemCount: _categories.length,
               itemBuilder: (context, index) {
@@ -462,24 +489,28 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  transform: isSel
+                      ? (Matrix4.identity()..scale(1.02))
+                      : Matrix4.identity(),
                   decoration: BoxDecoration(
-                    color: isSel ? _bgLight : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    color: isSel ? const Color(0xFFEFF6FF) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isSel ? _primaryColor : _slate200,
+                      color: isSel ? _primaryColor : _slate200.withOpacity(0.6),
                       width: isSel ? 2 : 1,
                     ),
                     boxShadow: isSel
                         ? [
                             BoxShadow(
-                              color: _primaryColor.withOpacity(0.15),
+                              color: _primaryColor.withOpacity(0.2),
                               blurRadius: 12,
-                              offset: const Offset(0, 4),
+                              offset: const Offset(0, 6),
                             ),
                           ]
                         : [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
+                              color: const Color(0xFF64748B).withOpacity(0.05),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
                             ),
@@ -488,51 +519,91 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
                   child: InkWell(
                     onTap: () =>
                         setState(() => _selectedCategoryId = cat['id']),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    borderRadius: BorderRadius.circular(16),
+                    splashColor: _primaryColor.withOpacity(0.1),
+                    child: Stack(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                        // Selection Checkmark
+                        if (isSel)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: _primaryColor,
+                                shape: BoxShape.circle,
                               ),
-                            ],
-                          ),
-                          child: cat['category_icon'] != null
-                              ? Image.network(
-                                  cat['category_icon'],
-                                  width: 40,
-                                  height: 40,
-                                  errorBuilder: (_, __, ___) =>
-                                      Icon(Icons.store, color: _primaryColor),
-                                )
-                              : Icon(
-                                  Icons.store,
-                                  size: 40,
-                                  color: _primaryColor,
-                                ),
-                        ),
-                        const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            cat['category_name'] ?? 'Unknown',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: isSel
-                                  ? FontWeight.bold
-                                  : FontWeight.w600,
-                              color: isSel ? _primaryColor : _slate900,
+                              child: const Icon(
+                                Icons.check,
+                                size: 10,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
+
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Icon Container
+                            Container(
+                              width: 48,
+                              height: 48, // Compact
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isSel
+                                    ? Colors.white
+                                    : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: isSel
+                                    ? [
+                                        BoxShadow(
+                                          color: _primaryColor.withOpacity(0.1),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: cat['category_icon'] != null
+                                  ? Image.network(
+                                      cat['category_icon'],
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        Icons.store_rounded,
+                                        color: isSel
+                                            ? _primaryColor
+                                            : _slate500,
+                                        size: 24,
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.store_rounded,
+                                      color: isSel ? _primaryColor : _slate500,
+                                      size: 24,
+                                    ),
+                            ),
+                            const SizedBox(height: 12),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              child: Text(
+                                cat['category_name'] ?? 'General',
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSel
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSel ? _primaryColor : _slate900,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

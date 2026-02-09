@@ -92,10 +92,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     // This method is kept for compatibility but uses local data
     if (_orderData != null && mounted) {
       setState(() {
-        _statusOptions = _orderData!['allowed_order_status_options_for_store'] as List? ?? [];
+        _statusOptions =
+            _orderData!['allowed_order_status_options_for_store'] as List? ??
+            [];
         _isLoadingStatusOptions = false;
       });
-      print("✅ Status options loaded from order data: ${_statusOptions.length} options");
+      print(
+        "✅ Status options loaded from order data: ${_statusOptions.length} options",
+      );
     }
   }
 
@@ -221,7 +225,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             setState(() {
               _orderData = orders.first;
               // Extract status options from order data
-              _statusOptions = _orderData!['allowed_order_status_options_for_store'] as List? ?? [];
+              _statusOptions =
+                  _orderData!['allowed_order_status_options_for_store']
+                      as List? ??
+                  [];
               _isLoadingStatusOptions = false;
               _isLoadingOrder = false;
             });
@@ -382,6 +389,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         ),
                       ],
                     ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -442,6 +450,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         ),
                       ],
                     ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -714,81 +723,103 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 isOrderReturned || isOrderCompleted || isOrderPartiallyPaid;
             final showAmountInput = isOrderCompleted || isOrderPartiallyPaid;
 
-            // Reset amount controller when switching to partially paid (user should enter amount)
-            // But validation logic is complex in build(), so we handle initial values carefully or rely on user editing.
-            // For completed, we pre-fill full amount. For partial, we might want it empty or 0.
-            // A simple approach is handled in the UI logic below or just letting user edit.
-
-            return Padding(
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
                 ),
-                padding: const EdgeInsets.only(top: 20, bottom: 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Handle
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 12, bottom: 8),
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+
                     // Header
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           TranslatedText(
-                            'Change Order Status',
-                            style: theme.textTheme.titleLarge?.copyWith(
+                            'Update Status',
+                            style: theme.textTheme.headlineSmall?.copyWith(
                               fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1E293B),
                             ),
                           ),
+                          const Spacer(),
                           IconButton(
                             onPressed: () => Navigator.pop(context),
-                            icon: const Icon(Icons.close_rounded),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.grey,
+                            ),
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.grey.shade100,
+                              padding: const EdgeInsets.all(8),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const Divider(),
+                    const Divider(height: 1),
 
                     if (_isUpdatingStatus)
-                      const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    else ...[
-                      // Status Selection List
-                      Flexible(
-                        child: SingleChildScrollView(
+                      Expanded(
+                        child: Center(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  10,
-                                  20,
-                                  10,
-                                ),
-                                child: TranslatedText(
-                                  'Select New Status *',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    color: theme.colorScheme.onSurface
-                                        .withOpacity(0.6),
-                                  ),
+                              const CircularProgressIndicator(),
+                              const SizedBox(height: 16),
+                              TranslatedText(
+                                'Updating order...',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: Colors.grey.shade600,
                                 ),
                               ),
-                              Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal:
-                                      10, // Adjusted margin for grid/list
-                                ),
-                                child: ListView.separated(
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Status Selection List
+                                ListView.separated(
                                   shrinkWrap: true,
                                   physics: const NeverScrollableScrollPhysics(),
                                   itemCount: _statusOptions.length,
@@ -819,48 +850,56 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
                                           color: isSelected
-                                              ? statusColor.withOpacity(0.1)
-                                              : theme.cardColor,
+                                              ? Colors.white
+                                              : const Color(0xFFF8FAFC),
                                           borderRadius: BorderRadius.circular(
                                             16,
                                           ),
                                           border: Border.all(
                                             color: isSelected
                                                 ? statusColor
-                                                : theme.dividerColor
-                                                      .withOpacity(0.1),
-                                            width: isSelected ? 2 : 1,
+                                                : Colors.transparent,
+                                            width: 2,
                                           ),
                                           boxShadow: isSelected
                                               ? [
                                                   BoxShadow(
                                                     color: statusColor
-                                                        .withOpacity(0.2),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 2),
+                                                        .withOpacity(0.15),
+                                                    blurRadius: 12,
+                                                    offset: const Offset(0, 4),
                                                   ),
                                                 ]
                                               : [],
                                         ),
                                         child: Row(
                                           children: [
+                                            // Icon Box
                                             Container(
                                               padding: const EdgeInsets.all(10),
                                               decoration: BoxDecoration(
                                                 color: isSelected
-                                                    ? statusColor
-                                                    : theme.disabledColor
-                                                          .withOpacity(0.1),
-                                                shape: BoxShape.circle,
+                                                    ? statusColor.withOpacity(
+                                                        0.1,
+                                                      )
+                                                    : Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: isSelected
+                                                      ? statusColor.withOpacity(
+                                                          0.2,
+                                                        )
+                                                      : Colors.grey.shade200,
+                                                ),
                                               ),
                                               child: Icon(
                                                 _getStatusIcon(
                                                   option['status'],
                                                 ),
                                                 color: isSelected
-                                                    ? Colors.white
-                                                    : theme.iconTheme.color
-                                                          ?.withOpacity(0.5),
+                                                    ? statusColor
+                                                    : Colors.grey.shade400,
                                                 size: 20,
                                               ),
                                             ),
@@ -873,49 +912,65 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                                   TranslatedText(
                                                     option['status_title_for_seller'] ??
                                                         option['status'],
-                                                    style: theme
-                                                        .textTheme
-                                                        .titleMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          color: isSelected
-                                                              ? theme
-                                                                    .colorScheme
-                                                                    .onSurface
-                                                              : theme
-                                                                    .colorScheme
-                                                                    .onSurface
-                                                                    .withOpacity(
-                                                                      0.7,
-                                                                    ),
-                                                        ),
-                                                  ),
-                                                  if (isSelected) ...[
-                                                    const SizedBox(height: 4),
-                                                    TranslatedText(
-                                                      option['description'] ??
-                                                          'Tap Update to confirm',
-                                                      style: theme
-                                                          .textTheme
-                                                          .bodySmall
-                                                          ?.copyWith(
-                                                            color: theme
-                                                                .colorScheme
-                                                                .onSurface
-                                                                .withOpacity(
-                                                                  0.5,
-                                                                ),
-                                                          ),
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 15,
+                                                      color: isSelected
+                                                          ? const Color(
+                                                              0xFF0F172A,
+                                                            )
+                                                          : Colors
+                                                                .grey
+                                                                .shade600,
                                                     ),
-                                                  ],
+                                                  ),
+                                                  if (isSelected &&
+                                                      option['description'] !=
+                                                          null)
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            top: 4,
+                                                          ),
+                                                      child: TranslatedText(
+                                                        option['description'],
+                                                        style: TextStyle(
+                                                          color: statusColor,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ),
                                                 ],
                                               ),
                                             ),
                                             if (isSelected)
-                                              Icon(
-                                                Icons.check_circle_rounded,
-                                                color: statusColor,
+                                              Container(
+                                                padding: const EdgeInsets.all(
+                                                  4,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: statusColor,
+                                                  shape: BoxShape.circle,
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: statusColor
+                                                          .withOpacity(0.4),
+                                                      blurRadius: 6,
+                                                      offset: const Offset(
+                                                        0,
+                                                        2,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: const Icon(
+                                                  Icons.check,
+                                                  color: Colors.white,
+                                                  size: 14,
+                                                ),
                                               ),
                                           ],
                                         ),
@@ -923,304 +978,370 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                     );
                                   },
                                 ),
-                              ),
 
-                              // Info Banner for selected status
-                              if (selectedStatusId != null) ...[
-                                const SizedBox(height: 16),
-                                Container(
-                                  width: double.infinity,
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                  ),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Icon(
-                                        Icons.info_outline_rounded,
-                                        color: Colors.blue,
-                                        size: 20,
+                                // Payment & Action Section
+                                if (selectedStatusId != null) ...[
+                                  const SizedBox(height: 24),
+
+                                  // Payment Receipt Card
+                                  if (showAmountInput || showPaymentOptions)
+                                    Container(
+                                      margin: const EdgeInsets.only(bottom: 24),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: Colors.grey.shade200,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                              0.04,
+                                            ),
+                                            blurRadius: 16,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            TranslatedText(
-                                              selectedStatusValue ?? '',
-                                              style: theme.textTheme.bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.blue.shade800,
+                                      child: Column(
+                                        children: [
+                                          // Header Pattern
+                                          Container(
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.primary
+                                                  .withOpacity(0.1),
+                                              borderRadius:
+                                                  const BorderRadius.vertical(
+                                                    top: Radius.circular(20),
                                                   ),
                                             ),
-                                            const SizedBox(height: 4),
-                                            TranslatedText(
-                                              _statusOptions.firstWhere(
-                                                    (e) =>
-                                                        e['id'] ==
-                                                        selectedStatusId,
-                                                  )['description'] ??
-                                                  'Status update',
-                                              style: theme.textTheme.bodySmall
-                                                  ?.copyWith(
-                                                    color: Colors.blue.shade900,
+                                          ),
+
+                                          if (showAmountInput)
+                                            Padding(
+                                              padding: const EdgeInsets.all(20),
+                                              child: Column(
+                                                children: [
+                                                  TranslatedText(
+                                                    'AMOUNT TO COLLECT',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      letterSpacing: 1.2,
+                                                      color:
+                                                          Colors.grey.shade500,
+                                                    ),
                                                   ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-
-                              // Amount Paid Input (For order_completed & order_partially_paid)
-                              if (showAmountInput) ...[
-                                const SizedBox(height: 20),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      TranslatedText(
-                                        'Amount Paid',
-                                        style: theme.textTheme.labelMedium
-                                            ?.copyWith(
-                                              color: theme.colorScheme.onSurface
-                                                  .withOpacity(0.6),
-                                            ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Divider(
-                                          color: theme.dividerColor.withOpacity(
-                                            0.2,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                  ),
-                                  child: TextField(
-                                    controller: amountController,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(
-                                          color: theme.dividerColor.withOpacity(
-                                            0.2,
-                                          ),
-                                        ),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(
-                                          color: theme.dividerColor.withOpacity(
-                                            0.2,
-                                          ),
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(
-                                          color: theme.colorScheme.primary,
-                                        ),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                    ),
-                                    onTap: () {
-                                      // Make it easier to edit by selecting all if pre-filled
-                                      amountController.selection =
-                                          TextSelection(
-                                            baseOffset: 0,
-                                            extentOffset:
-                                                amountController.text.length,
-                                          );
-                                    },
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 4,
-                                  ),
-                                  child: TranslatedText(
-                                    isOrderCompleted
-                                        ? 'Full amount (₹${grandTotal.toStringAsFixed(2)}) will be recorded as paid'
-                                        : 'Maximum: ₹${grandTotal.toStringAsFixed(2)}',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurface
-                                          .withOpacity(0.5),
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ],
-
-                              // Payment/Refund Method (Bank Account) Dropdown
-                              if (showPaymentOptions) ...[
-                                const SizedBox(height: 20),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: TranslatedText(
-                                          isOrderReturned
-                                              ? 'Refund Method (Bank Account)'
-                                              : 'Payment Method (Bank Account)',
-                                          style: theme.textTheme.labelMedium
-                                              ?.copyWith(
-                                                color: Colors.blue,
-                                                fontWeight: FontWeight.bold,
+                                                  const SizedBox(height: 8),
+                                                  IntrinsicWidth(
+                                                    child: TextField(
+                                                      controller:
+                                                          amountController,
+                                                      keyboardType:
+                                                          const TextInputType.numberWithOptions(
+                                                            decimal: true,
+                                                          ),
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style: const TextStyle(
+                                                        fontSize: 32,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: Color(
+                                                          0xFF0F172A,
+                                                        ),
+                                                        height: 1.2,
+                                                      ),
+                                                      decoration:
+                                                          const InputDecoration(
+                                                            prefixText: '₹',
+                                                            prefixStyle:
+                                                                TextStyle(
+                                                                  fontSize: 32,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w800,
+                                                                  color: Color(
+                                                                    0xFF94A3B8,
+                                                                  ),
+                                                                ),
+                                                            border: InputBorder
+                                                                .none,
+                                                            isDense: true,
+                                                            contentPadding:
+                                                                EdgeInsets.zero,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  Container(
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                          top: 8,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 4,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.grey.shade100,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                    ),
+                                                    child: TranslatedText(
+                                                      isOrderCompleted
+                                                          ? 'Total: ₹${grandTotal.toStringAsFixed(2)}'
+                                                          : 'Max: ₹${grandTotal.toStringAsFixed(2)}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: Colors
+                                                            .grey
+                                                            .shade600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Divider(
-                                          color: Colors.blue.withOpacity(0.3),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.blue.withOpacity(0.5),
-                                      width: 1.5,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: ButtonTheme(
-                                      alignedDropdown: true,
-                                      child: DropdownButton<String>(
-                                        isExpanded: true,
-                                        value: selectedBankId,
-                                        hint: TranslatedText(
-                                          isOrderReturned
-                                              ? 'Select Refund Account'
-                                              : 'Select Payment Account',
-                                        ),
-                                        items: _storeBankDetails.map((bank) {
-                                          final name =
-                                              bank['account_holder_name'] ??
-                                              bank['bank_name'] ??
-                                              'Unknown Account';
-                                          final number =
-                                              bank['account_number_or_upi_id'] ??
-                                              '';
-                                          return DropdownMenuItem<String>(
-                                            value: bank['id'],
-                                            child: Text('$name ($number)'),
-                                          );
-                                        }).toList(),
-                                        onChanged: (value) {
-                                          setStateSheet(() {
-                                            selectedBankId = value;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 4,
-                                  ),
-                                  child: TranslatedText(
-                                    'Optional - defaults to cash if not selected',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurface
-                                          .withOpacity(0.5),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                            ),
 
-                              const SizedBox(height: 30),
+                                          if (showAmountInput &&
+                                              showPaymentOptions)
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 20,
+                                                  ),
+                                              child: Row(
+                                                children: List.generate(
+                                                  30,
+                                                  (index) => Expanded(
+                                                    child: Container(
+                                                      margin:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 2,
+                                                          ),
+                                                      height: 1,
+                                                      color:
+                                                          Colors.grey.shade200,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
 
-                              // Update Button
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const TranslatedText('CANCEL'),
+                                          if (showPaymentOptions)
+                                            Padding(
+                                              padding: const EdgeInsets.all(20),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  TranslatedText(
+                                                    isOrderReturned
+                                                        ? 'REFUND VIA'
+                                                        : 'PAYMENT VIA',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      letterSpacing: 1.2,
+                                                      color:
+                                                          Colors.grey.shade500,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 4,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(
+                                                        0xFFF1F5F9,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: const Color(
+                                                          0xFFE2E8F0,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    child: DropdownButtonHideUnderline(
+                                                      child: DropdownButton<String>(
+                                                        isExpanded: true,
+                                                        value: selectedBankId,
+                                                        hint: TranslatedText(
+                                                          isOrderReturned
+                                                              ? 'Select Refund Account'
+                                                              : 'Select Payment Account',
+                                                          style: TextStyle(
+                                                            color: Colors
+                                                                .grey
+                                                                .shade500,
+                                                            fontSize: 14,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .keyboard_arrow_down_rounded,
+                                                          color: Color(
+                                                            0xFF64748B,
+                                                          ),
+                                                        ),
+                                                        style: const TextStyle(
+                                                          color: Color(
+                                                            0xFF0F172A,
+                                                          ),
+                                                          fontSize: 15,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                        items: _storeBankDetails.map((
+                                                          bank,
+                                                        ) {
+                                                          final name =
+                                                              bank['account_holder_name'] ??
+                                                              bank['bank_name'] ??
+                                                              'Unknown';
+                                                          return DropdownMenuItem<
+                                                            String
+                                                          >(
+                                                            value: bank['id'],
+                                                            child: Text(name),
+                                                          );
+                                                        }).toList(),
+                                                        onChanged: (value) {
+                                                          setStateSheet(() {
+                                                            selectedBankId =
+                                                                value;
+                                                          });
+                                                        },
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton(
+
+                                  /* Gradient Action Button */
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          theme.colorScheme.primary,
+                                          theme.colorScheme.primary
+                                              .withBlue(255)
+                                              .withOpacity(0.8),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: theme.colorScheme.primary
+                                              .withOpacity(0.3),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            theme.colorScheme.primary,
+                                        backgroundColor: Colors.transparent,
                                         foregroundColor: Colors.white,
+                                        shadowColor: Colors.transparent,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
-                                            8,
+                                            16,
                                           ),
                                         ),
                                       ),
-                                      onPressed: selectedStatusId == null
-                                          ? null
-                                          : () {
-                                              final amount = double.tryParse(
-                                                amountController.text,
-                                              );
-                                              _updateOrderStatus(
-                                                selectedStatusValue!,
-                                                selectedStatusId!,
-                                                bankId: selectedBankId,
-                                                amountPaid: amount,
-                                              );
-                                            },
-                                      child: const TranslatedText(
-                                        'UPDATE STATUS',
+                                      onPressed: () {
+                                        final amount = double.tryParse(
+                                          amountController.text,
+                                        );
+                                        _updateOrderStatus(
+                                          selectedStatusValue!,
+                                          selectedStatusId!,
+                                          bankId: selectedBankId,
+                                          amountPaid: amount,
+                                        );
+                                      },
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const TranslatedText(
+                                            'Update Status',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Icon(
+                                            Icons.arrow_forward_rounded,
+                                            size: 20,
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                                  ),
+
+                                  const SizedBox(height: 12),
+
+                                  /* Cancel Button */
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.grey.shade500,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const TranslatedText(
+                                        'Cancel',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ],
                   ],
                 ),
               ),

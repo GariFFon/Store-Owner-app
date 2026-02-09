@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
-import 'dart:convert';
 
 /// Singleton service to manage Google Maps instances efficiently
 /// This reduces API charges by reusing map controllers and minimizing reloads
@@ -78,13 +77,24 @@ class GoogleMapsService {
     CameraPosition? initialCameraPosition,
     Function(CameraPosition)? onCameraMove,
     Function(LatLng)? onTap,
+    Function(GoogleMapController)? onMapCreated,
+    VoidCallback? onCameraIdle, // Added support for onCameraIdle
 
     bool myLocationEnabled = true,
+    bool myLocationButtonEnabled = false,
+    bool zoomControlsEnabled = false,
     bool trafficEnabled = false,
     MapType mapType = MapType.normal,
+    EdgeInsets padding = EdgeInsets.zero,
   }) {
     return GoogleMap(
-      onMapCreated: onMapCreated,
+      padding: padding,
+      onMapCreated: (controller) {
+        this.onMapCreated(controller);
+        if (onMapCreated != null) {
+          onMapCreated(controller);
+        }
+      },
       initialCameraPosition: initialCameraPosition ?? _defaultPosition,
       markers: markers ?? {},
       polylines: polylines ?? {},
@@ -94,8 +104,9 @@ class GoogleMapsService {
       // Performance optimizations - disable 3D and heavy features
       mapType: mapType,
       myLocationEnabled: myLocationEnabled,
-      myLocationButtonEnabled: false, // Use custom button for better control
-      zoomControlsEnabled: false, // Use custom controls
+      myLocationButtonEnabled:
+          myLocationButtonEnabled, // Use custom button for better control
+      zoomControlsEnabled: zoomControlsEnabled, // Use custom controls
       compassEnabled: false, // Reduce rendering load
       rotateGesturesEnabled: true,
       scrollGesturesEnabled: true,
@@ -114,7 +125,7 @@ class GoogleMapsService {
       // Callbacks
       onCameraMove: onCameraMove,
       onTap: onTap,
-
+      onCameraIdle: onCameraIdle, // Pass through
       // Optimize camera bounds to reduce unnecessary tile loads
       cameraTargetBounds: CameraTargetBounds.unbounded,
     );
@@ -197,9 +208,14 @@ mixin OptimizedGoogleMapsMixin<T extends StatefulWidget> on State<T> {
     CameraPosition? initialCameraPosition,
     Function(CameraPosition)? onCameraMove,
     Function(LatLng)? onTap,
+    Function(GoogleMapController)? onMapCreated,
+    VoidCallback? onCameraIdle, // Added support for onCameraIdle
     bool myLocationEnabled = true,
+    bool myLocationButtonEnabled = false,
+    bool zoomControlsEnabled = false,
     bool trafficEnabled = false,
     MapType mapType = MapType.normal,
+    EdgeInsets padding = EdgeInsets.zero,
   }) {
     return _mapsService.createOptimizedMap(
       markers: markers,
@@ -209,9 +225,14 @@ mixin OptimizedGoogleMapsMixin<T extends StatefulWidget> on State<T> {
       initialCameraPosition: initialCameraPosition,
       onCameraMove: onCameraMove,
       onTap: onTap,
+      onMapCreated: onMapCreated,
+      onCameraIdle: onCameraIdle, // Pass through
       myLocationEnabled: myLocationEnabled,
+      myLocationButtonEnabled: myLocationButtonEnabled,
+      zoomControlsEnabled: zoomControlsEnabled,
       trafficEnabled: trafficEnabled,
       mapType: mapType,
+      padding: padding,
     );
   }
 
