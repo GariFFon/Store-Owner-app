@@ -822,10 +822,24 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     var items = [];
     if (order['product_names'] != null) {
       final names = order['product_names'].toString().split(',');
-      items = names
-          .where((n) => n.trim().isNotEmpty)
-          .map((name) => {'product_name': name.trim(), 'quantity': 1})
-          .toList();
+      items = names.where((n) => n.trim().isNotEmpty).map((name) {
+        final trimmedName = name.trim();
+        // Parse quantity from format "ProductName - X pc" or "ProductName - X"
+        // Example: "Dolo-650 - 1 pc" -> product_name: "Dolo-650", quantity: 1
+        final regex = RegExp(
+          r'^(.+?)\s*-\s*(\d+)\s*(pc|pcs|pieces?)?$',
+          caseSensitive: false,
+        );
+        final match = regex.firstMatch(trimmedName);
+        if (match != null) {
+          return {
+            'product_name': match.group(1)?.trim() ?? trimmedName,
+            'quantity': int.tryParse(match.group(2) ?? '1') ?? 1,
+          };
+        }
+        // Fallback: if format doesn't match, use the whole name and quantity 1
+        return {'product_name': trimmedName, 'quantity': 1};
+      }).toList();
     } else if (order['products'] != null) {
       items = order['products'] as List;
     }

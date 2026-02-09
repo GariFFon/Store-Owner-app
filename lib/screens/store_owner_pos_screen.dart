@@ -269,7 +269,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             _categories.insert(0, {
               'id': 'all',
               'category_name': 'All',
-              'category_icon': null,
+              'category_icon':
+                  'https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=200&auto=format&fit=crop', // Shopping cart image
             });
 
             _isCategoriesLoading = false;
@@ -1140,475 +1141,588 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
+  Widget _buildQtyBtn(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Icon(icon, size: 16, color: Theme.of(context).primaryColor),
+      ),
+    );
+  }
+
   void _showCartBottomSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (context) {
         bool showDetails = false;
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final theme = Theme.of(context);
             return DraggableScrollableSheet(
-              initialChildSize: 0.7,
+              initialChildSize: 0.85,
               minChildSize: 0.5,
               maxChildSize: 0.95,
-              expand: false,
               builder: (context, scrollController) {
-                final theme = Theme.of(context);
-                return Column(
-                  children: [
-                    // Handle bar
-                    Container(
-                      margin: const EdgeInsets.only(top: 8, bottom: 4),
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
                     ),
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          TranslatedText(
-                            'Cart ($_totalProductsInCart ${_totalProductsInCart == 1 ? 'item' : 'items'})',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 20,
+                        offset: Offset(0, -5),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    // Cart items list
-                    Expanded(
-                      child: _cartItemsAvailable.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.shopping_cart_outlined,
-                                    size: 64,
-                                    color: Colors.grey,
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.grey[100]!,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const TranslatedText(
+                                  'Shopping Cart',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.black87,
+                                    letterSpacing: -0.5,
                                   ),
-                                  const SizedBox(height: 16),
-                                  TranslatedText(
-                                    'Your cart is empty',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
+                                ),
+                                const SizedBox(width: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
                                   ),
-                                ],
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.grey[200]!,
+                                    ),
+                                  ),
+                                  child: TranslatedText(
+                                    '$_totalProductsInCart Items',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey[800],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            InkWell(
+                              onTap: () => Navigator.pop(context),
+                              borderRadius: BorderRadius.circular(50),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.grey[200]!),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.black87,
+                                  size: 20,
+                                ),
                               ),
-                            )
-                          : ListView.builder(
-                              controller: scrollController,
-                              padding: const EdgeInsets.all(16),
-                              itemCount: _cartItemsAvailable.length,
-                              itemBuilder: (context, index) {
-                                final item = _cartItemsAvailable[index];
-                                final pricing = item['pricing_details'] ?? {};
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  child: Padding(
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Cart Items
+                      Expanded(
+                        child: _cartItemsAvailable.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.shopping_cart_outlined,
+                                      size: 64,
+                                      color: Colors.grey[300],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const TranslatedText(
+                                      'Your cart is empty',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollController,
+                                padding: const EdgeInsets.all(20),
+                                itemCount: _cartItemsAvailable.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 16),
+                                itemBuilder: (context, index) {
+                                  final item = _cartItemsAvailable[index];
+                                  final pricing = item['pricing_details'] ?? {};
+                                  final quantity =
+                                      item['enquired_quantity'] ??
+                                      item['quantity'] ??
+                                      0;
+                                  final productImg =
+                                      item['product_image'] ??
+                                      item['image'] ??
+                                      item['img_url'];
+
+                                  return Container(
                                     padding: const EdgeInsets.all(12),
-                                    child: Column(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.grey[200]!,
+                                      ),
+                                    ),
+                                    child: Row(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
+                                        // Product Image
+                                        Container(
+                                          width: 72,
+                                          height: 72,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey[100],
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: productImg != null
+                                              ? ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  child:
+                                                      CustomCachedNetworkImage(
+                                                        imgUrl: productImg,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                )
+                                              : const Icon(
+                                                  Icons
+                                                      .image_not_supported_outlined,
+                                                  color: Colors.grey,
+                                                ),
+                                        ),
+                                        const SizedBox(width: 16),
+
+                                        // Details
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              TranslatedText(
+                                                item['product_name'] ?? '',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 15,
+                                                  color: Colors.black87,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
                                                 children: [
                                                   TranslatedText(
-                                                    item['product_name'] ?? '',
-                                                    style: const TextStyle(
+                                                    '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
+                                                    style: TextStyle(
                                                       fontWeight:
                                                           FontWeight.bold,
-                                                      fontSize: 16,
+                                                      fontSize: 15,
+                                                      color: theme.primaryColor,
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 8),
-                                                  // Cart Counter
+                                                  // Quantity Button
                                                   Container(
+                                                    height: 32,
                                                     decoration: BoxDecoration(
-                                                      border: Border.all(
-                                                        color:
-                                                            Colors.grey[300]!,
-                                                      ),
+                                                      color: Colors.grey[50],
                                                       borderRadius:
                                                           BorderRadius.circular(
-                                                            8,
+                                                            20,
                                                           ),
+                                                      border: Border.all(
+                                                        color:
+                                                            Colors.grey[200]!,
+                                                      ),
                                                     ),
                                                     child: Row(
                                                       mainAxisSize:
                                                           MainAxisSize.min,
                                                       children: [
-                                                        InkWell(
-                                                          onTap: () async {
+                                                        _buildQtyBtn(
+                                                          Icons.remove,
+                                                          () async {
                                                             await _decrementCartItem(
                                                               item['product_combination_id'] ??
                                                                   '',
                                                               item['product_id'] ??
                                                                   '',
                                                             );
-                                                            // Update sheet state
                                                             setSheetState(
                                                               () {},
                                                             );
                                                           },
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.symmetric(
-                                                                  horizontal: 8,
-                                                                  vertical: 4,
-                                                                ),
-                                                            child: Icon(
-                                                              Icons.remove,
-                                                              size: 16,
-                                                              color: theme
-                                                                  .primaryColor,
-                                                            ),
-                                                          ),
                                                         ),
-                                                        Container(
+                                                        Padding(
                                                           padding:
                                                               const EdgeInsets.symmetric(
-                                                                horizontal: 8,
+                                                                horizontal: 10,
                                                               ),
-                                                          child: TranslatedText(
-                                                            '${item['enquired_quantity']}',
+                                                          child: Text(
+                                                            '$quantity',
                                                             style:
                                                                 const TextStyle(
                                                                   fontWeight:
                                                                       FontWeight
                                                                           .bold,
+                                                                  fontSize: 14,
                                                                 ),
                                                           ),
                                                         ),
-                                                        InkWell(
-                                                          onTap: () async {
+                                                        _buildQtyBtn(
+                                                          Icons.add,
+                                                          () async {
                                                             await _incrementCartItem(
                                                               item['product_combination_id'] ??
                                                                   '',
                                                               item['product_id'] ??
                                                                   '',
                                                             );
-                                                            // Update sheet state
                                                             setSheetState(
                                                               () {},
                                                             );
                                                           },
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.symmetric(
-                                                                  horizontal: 8,
-                                                                  vertical: 4,
-                                                                ),
-                                                            child: Icon(
-                                                              Icons.add,
-                                                              size: 16,
-                                                              color: theme
-                                                                  .primaryColor,
-                                                            ),
-                                                          ),
                                                         ),
                                                       ],
                                                     ),
                                                   ),
                                                 ],
                                               ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+
+                      // Bottom Section: Payment Breakdown & Checkout
+                      if (_cartItemsAvailable.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 16,
+                                offset: const Offset(0, -4),
+                              ),
+                            ],
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(24),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Order Summary / Payment Breakdown
+                              if (_cartData != null &&
+                                  _cartData!['cart_total'] != null) ...[
+                                GestureDetector(
+                                  onTap: () {
+                                    setSheetState(() {
+                                      showDetails = !showDetails;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.grey[100]!,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const TranslatedText(
+                                                  'Order Summary',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Icon(
+                                                  showDetails
+                                                      ? Icons
+                                                            .keyboard_arrow_up_rounded
+                                                      : Icons
+                                                            .keyboard_arrow_down_rounded,
+                                                  size: 18,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ],
                                             ),
-                                            TranslatedText(
-                                              '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
+                                            if (!showDetails)
+                                              Text(
+                                                '₹${_grandTotal.toStringAsFixed(2)}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                  color: theme.primaryColor,
+                                                ),
                                               ),
-                                            ),
                                           ],
                                         ),
-                                        if (item['is_available'] == false)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 8,
+                                        if (showDetails) ...[
+                                          const SizedBox(height: 12),
+                                          const Divider(height: 1),
+                                          const SizedBox(height: 12),
+                                          ...(_cartData!['cart_total'] as List).map(
+                                            (e) => Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 8,
+                                              ),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  TranslatedText(
+                                                    e['title'] ?? '',
+                                                    style: TextStyle(
+                                                      color: Colors.grey[600],
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                  TranslatedText(
+                                                    '₹${e['value']?.toString() ?? '0.0'}',
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 12,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                            child: Container(
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // Payment & Review Row
+                              Row(
+                                children: [
+                                  // Payment Dropdown
+                                  Expanded(
+                                    flex: 3,
+                                    child: Container(
+                                      height: 48,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.grey[300]!,
+                                        ),
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<String>(
+                                          value: _selectedPaymentMode,
+                                          isExpanded: true,
+                                          hint: const TranslatedText(
+                                            'Payment',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          icon: Icon(
+                                            Icons.expand_more_rounded,
+                                            color: theme.primaryColor,
+                                            size: 20,
+                                          ),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.black87,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          items: [
+                                            const DropdownMenuItem(
+                                              value: 'UNPAID',
+                                              child: TranslatedText('Unpaid'),
+                                            ),
+                                            const DropdownMenuItem(
+                                              value: 'MULTI-MODE',
+                                              child: TranslatedText('Split'),
+                                            ),
+                                            ..._bankDetails.map((bank) {
+                                              final label =
+                                                  bank['bank_name'] ??
+                                                  bank['account_holder_name'] ??
+                                                  'Bank';
+                                              return DropdownMenuItem(
+                                                value: bank['id'].toString(),
+                                                child: Text(
+                                                  label,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              );
+                                            }),
+                                          ],
+                                          onChanged: (value) {
+                                            if (value != null) {
+                                              if (value == 'MULTI-MODE') {
+                                                setSheetState(() {
+                                                  _selectedPaymentMode = value;
+                                                });
+                                                _showMultiModeDialog(
+                                                  setSheetState,
+                                                );
+                                              } else {
+                                                setSheetState(() {
+                                                  _selectedPaymentMode = value;
+                                                });
+                                              }
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Review Button
+                                  Expanded(
+                                    flex: 4,
+                                    child: SizedBox(
+                                      height: 48,
+                                      child: ElevatedButton(
+                                        onPressed: () => _reviewOrder(),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: theme.primaryColor,
+                                          foregroundColor: Colors.white,
+                                          padding: EdgeInsets.zero,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            const TranslatedText(
+                                              'Review',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
                                                     horizontal: 8,
                                                     vertical: 4,
                                                   ),
                                               decoration: BoxDecoration(
-                                                color: Colors.red[50],
+                                                color: Colors.white.withOpacity(
+                                                  0.2,
+                                                ),
                                                 borderRadius:
-                                                    BorderRadius.circular(4),
+                                                    BorderRadius.circular(8),
                                               ),
-                                              child: TranslatedText(
-                                                'Currently unavailable',
-                                                style: TextStyle(
-                                                  color: Colors.red[700],
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                    // Total section
-                    if (_cartItemsAvailable.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, -2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    GestureDetector(
-                                      onTap: () {
-                                        setSheetState(() {
-                                          showDetails = !showDetails;
-                                        });
-                                      },
-                                      child: TranslatedText(
-                                        'Grand Total',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: Icon(
-                                        showDetails
-                                            ? Icons.keyboard_arrow_up
-                                            : Icons.keyboard_arrow_down,
-                                      ),
-                                      onPressed: () {
-                                        setSheetState(() {
-                                          showDetails = !showDetails;
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                TranslatedText(
-                                  '₹${_grandTotal.toStringAsFixed(2)}',
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context).primaryColor,
-                                      ),
-                                ),
-                              ],
-                            ),
-                            if (showDetails && _cartData != null) ...[
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[50],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  children: [
-                                    if (_cartData!['cart_total'] != null)
-                                      ...(_cartData!['cart_total'] as List).map(
-                                        (e) => Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              TranslatedText(
-                                                e['title'] ?? '',
-                                                style: TextStyle(
-                                                  color: Colors.grey[700],
-                                                ),
-                                              ),
-                                              TranslatedText(
-                                                '₹${e['value']?.toString() ?? '0.0'}',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    if (_cartData!['platform_fees'] != null)
-                                      ...(_cartData!['platform_fees'] as List).map(
-                                        (e) => Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              TranslatedText(
-                                                e['title'] ?? '',
-                                                style: TextStyle(
-                                                  color: Colors.grey[700],
-                                                ),
-                                              ),
-                                              TranslatedText(
-                                                '₹${e['value']?.toString() ?? '0.0'}',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                // Payment Method Dropdown
-                                Expanded(
-                                  flex: 2,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.grey[300]!,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: _selectedPaymentMode,
-                                        isExpanded: true,
-                                        hint: const TranslatedText(
-                                          'Select Mode',
-                                        ),
-                                        items: [
-                                          const DropdownMenuItem(
-                                            value: 'UNPAID',
-                                            child: TranslatedText('UNPAID'),
-                                          ),
-                                          const DropdownMenuItem(
-                                            value: 'MULTI-MODE',
-                                            child: TranslatedText('MULTI-MODE'),
-                                          ),
-                                          ..._bankDetails.map((bank) {
-                                            final label =
-                                                bank['bank_name'] != null
-                                                ? "${bank['bank_name']} - ${bank['account_holder_name']}"
-                                                : bank['account_holder_name'] ??
-                                                      'Unknown';
-                                            return DropdownMenuItem(
-                                              value: bank['id'].toString(),
                                               child: Text(
-                                                label,
-                                                overflow: TextOverflow.ellipsis,
+                                                '₹${_grandTotal.toStringAsFixed(0)}',
                                                 style: const TextStyle(
-                                                  fontSize: 14,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
-                                            );
-                                          }),
-                                        ],
-                                        onChanged: (value) {
-                                          if (value != null) {
-                                            if (value == 'MULTI-MODE') {
-                                              setSheetState(() {
-                                                _selectedPaymentMode = value;
-                                              });
-                                              _showMultiModeDialog(
-                                                setSheetState,
-                                              );
-                                            } else {
-                                              setSheetState(() {
-                                                _selectedPaymentMode = value;
-                                              });
-                                            }
-                                          }
-                                        },
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                // Checkout Button
-                                Expanded(
-                                  flex: 3,
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      _reviewOrder();
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Theme.of(
-                                        context,
-                                      ).primaryColor,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: const TranslatedText(
-                                      'Review Order',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 );
               },
             );
@@ -1798,7 +1912,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       isDismissible: false,
-      enableDrag: true,
+      enableDrag:
+          false, // Prevent dismissing by drag - user must enter number or continue as guest
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
@@ -3416,7 +3531,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                     child: CustomCachedNetworkImage(
                                       imgUrl:
                                           category['category_icon'] ??
-                                          'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=200&auto=format&fit=crop',
+                                          'https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=200&auto=format&fit=crop',
                                       width: 40,
                                       height: 40,
                                       fit: BoxFit.cover,
@@ -3459,7 +3574,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                         // Use sample image if icon is null for visualization
                                         imgUrl:
                                             category['category_icon'] ??
-                                            'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=200&auto=format&fit=crop',
+                                            'https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=200&auto=format&fit=crop',
                                         width: 80, // Large rectangular image
                                         height: 80,
                                         fit: BoxFit.cover,

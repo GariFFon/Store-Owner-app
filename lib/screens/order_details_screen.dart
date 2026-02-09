@@ -1646,13 +1646,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ),
               ),
             )
-          else if (_orderData?['status'] == 'order_completed' &&
-              _products.length > 1)
-            _ReviewCarousel(
-              products: _products,
-              orderId: widget.orderId,
-              theme: theme,
-            )
           else
             ListView.separated(
               shrinkWrap: true,
@@ -1661,17 +1654,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               separatorBuilder: (context, index) => _buildDashedDivider(theme),
               itemBuilder: (context, index) {
                 final product = _products[index];
-                // Check if order is completed to show review items
-                final isCompleted = _orderData?['status'] == 'order_completed';
-
-                if (isCompleted) {
-                  return _ProductReviewItem(
-                    product: product,
-                    orderId: widget.orderId,
-                    theme: theme,
-                  );
-                }
-
                 return _buildProductItem(theme, product);
               },
             ),
@@ -1683,6 +1665,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Widget _buildProductItem(ThemeData theme, Map<String, dynamic> product) {
     final double quantity =
         double.tryParse(product['quantity']?.toString() ?? '0') ?? 0.0;
+
+    // Clean up product name by removing quantity suffix if present
+    // Example: "Dolo-650 - 1 pc" -> "Dolo-650"
+    String productName = product['product_name'] ?? 'Unknown Product';
+    final nameRegex = RegExp(
+      r'^(.+?)\s*-\s*\d+\s*(pc|pcs|pieces?)?$',
+      caseSensitive: false,
+    );
+    final nameMatch = nameRegex.firstMatch(productName);
+    if (nameMatch != null && nameMatch.group(1) != null) {
+      productName = nameMatch.group(1)!.trim();
+    }
 
     // PRICING FIX:
     // Backend returns `amount_including_tax` as the TOTAL for all items (price × quantity)
@@ -1725,7 +1719,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         children: [
           // Product Name - Prominent at top
           Text(
-            product['product_name'] ?? 'Unknown Product',
+            productName,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 15,
