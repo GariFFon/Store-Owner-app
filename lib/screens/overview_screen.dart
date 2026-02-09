@@ -160,14 +160,59 @@ class _OverviewScreenState extends State<OverviewScreen> {
           _sentimentData = List<dynamic>.from(results[4]);
 
           // Calculate Totals
-          _totalRevenue = _revenueData.fold(
-            0.0,
-            (sum, item) => sum + ((item['revenue'] ?? 0.0) as num).toDouble(),
-          );
-          _totalOrders = _orderCountData.fold(
-            0,
-            (sum, item) => sum + ((item['order_count'] ?? 0) as int),
-          );
+          if (_selectedFilter == 'Weekly') {
+            final now = DateTime.now();
+            // Start of week (Sunday)
+            final startOfWeek = DateTime(
+              now.year,
+              now.month,
+              now.day,
+            ).subtract(Duration(days: now.weekday % 7));
+            final endOfWeek = startOfWeek.add(
+              const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+            );
+
+            _totalRevenue = _revenueData.fold(0.0, (sum, item) {
+              if (item['date'] == null) return sum;
+              try {
+                final date = DateTime.parse(item['date']);
+                if (date.isAfter(
+                      startOfWeek.subtract(const Duration(seconds: 1)),
+                    ) &&
+                    date.isBefore(endOfWeek.add(const Duration(seconds: 1)))) {
+                  return sum + ((item['revenue'] ?? 0.0) as num).toDouble();
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
+              return sum;
+            });
+
+            _totalOrders = _orderCountData.fold(0, (sum, item) {
+              if (item['date'] == null) return sum;
+              try {
+                final date = DateTime.parse(item['date']);
+                if (date.isAfter(
+                      startOfWeek.subtract(const Duration(seconds: 1)),
+                    ) &&
+                    date.isBefore(endOfWeek.add(const Duration(seconds: 1)))) {
+                  return sum + ((item['order_count'] ?? 0) as int);
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
+              return sum;
+            });
+          } else {
+            _totalRevenue = _revenueData.fold(
+              0.0,
+              (sum, item) => sum + ((item['revenue'] ?? 0.0) as num).toDouble(),
+            );
+            _totalOrders = _orderCountData.fold(
+              0,
+              (sum, item) => sum + ((item['order_count'] ?? 0) as int),
+            );
+          }
 
           // Mock growth
           _revenueGrowth = -90.1;
