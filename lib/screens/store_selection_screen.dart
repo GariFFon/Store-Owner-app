@@ -8,6 +8,7 @@ import 'package:exanor/services/api_service.dart';
 import 'package:exanor/services/notification_service.dart';
 import 'dart:ui';
 import 'dart:math' as math;
+import 'package:exanor/screens/auth/login_screen.dart';
 
 class StoreSelectionScreen extends StatefulWidget {
   const StoreSelectionScreen({super.key});
@@ -23,7 +24,7 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
   String? _errorMessage;
   final TextEditingController _searchController = TextEditingController();
 
-  final double _headerHeight = 230.0;
+  double get _headerHeight => 200.0;
 
   @override
   void initState() {
@@ -194,7 +195,7 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEEEEEE), // UPDATED TO VISIBLE GREY
+      backgroundColor: const Color(0xFFEEEEEE),
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
@@ -234,10 +235,9 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF94A3B8),
-            blurRadius: 0,
+            color: const Color(0xFF94A3B8).withOpacity(0.2),
+            blurRadius: 12,
             offset: const Offset(0, 4),
-            spreadRadius: 0,
           ),
         ],
       ),
@@ -261,191 +261,246 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
 
             // MAIN CONTENT
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Greeting
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 4,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            _getGreeting(),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.blueGrey[700],
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Header
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          RichText(
-                            text: const TextSpan(
+                      // TEXT SECTION
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Greeting
+                            Row(
                               children: [
-                                TextSpan(
-                                  text: 'Select ',
-                                  style: TextStyle(
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w400,
-                                    color: Color(0xFF0F172A),
-                                    fontFamily: 'Roboto',
-                                    letterSpacing: -0.8,
-                                    height: 1.1,
+                                Container(
+                                  width: 3,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB),
+                                    borderRadius: BorderRadius.circular(2),
                                   ),
                                 ),
-                                TextSpan(
-                                  text: 'Store',
+                                const SizedBox(width: 8),
+                                Text(
+                                  _getGreeting(),
                                   style: TextStyle(
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.black,
-                                    fontFamily: 'Roboto',
-                                    letterSpacing: -0.5,
-                                    height: 1.1,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.blueGrey[700],
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          InkWell(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const CreateStoreScreen(),
-                                ),
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2563EB), // Blue color
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFF2563EB,
-                                    ).withOpacity(0.3),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
+                            const SizedBox(height: 4),
+                            // Select Store Text
+                            RichText(
+                              text: const TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Select ',
+                                    style: TextStyle(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w300,
+                                      color: Color(0xFF0F172A),
+                                      fontFamily: 'Roboto',
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: 'Store',
+                                    style: TextStyle(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
+                                      fontFamily: 'Roboto',
+                                      letterSpacing: -0.5,
+                                    ),
                                   ),
                                 ],
                               ),
-                              child: const Icon(
-                                Icons.add,
-                                color: Colors.white,
-                                size: 24,
-                              ),
                             ),
+                          ],
+                        ),
+                      ),
+
+                      // BUTTONS SECTION
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // LOGOUT BUTTON
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "LOGOUT",
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey[500],
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: () async {
+                                  final prefs =
+                                      await SharedPreferences.getInstance();
+                                  await prefs.clear();
+                                  if (context.mounted) {
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const LoginScreen(),
+                                      ),
+                                      (route) => false,
+                                    );
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.red.withOpacity(0.1),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                    border: Border.all(
+                                      color: Colors.red.withOpacity(0.1),
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.logout_rounded,
+                                    color: Colors.red[400],
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 16),
+                          // NEW STORE BUTTON
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "NEW STORE",
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.blue[300],
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const CreateStoreScreen(),
+                                    ),
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFF2563EB,
+                                        ).withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.add_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
 
-                  // USER APP SEARCH BAR
+                  // SEARCH BAR
                   Container(
+                    height: 50,
                     decoration: BoxDecoration(
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF1F4C6B).withOpacity(0.12),
-                          blurRadius: 20,
-                          offset: const Offset(0, 6),
-                          spreadRadius: 0,
+                          color: const Color(0xFF1F4C6B).withOpacity(0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          height: 48,
+                    child: TextField(
+                      controller: _searchController,
+                      textAlignVertical: TextAlignVertical.center,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        border: InputBorder.none,
+                        prefixIcon: const Icon(
+                          CupertinoIcons.search,
+                          color: Color(0xFF94A3B8),
+                          size: 22,
+                        ),
+                        hintText: 'Search for an outlet...',
+                        hintStyle: TextStyle(
+                          color: const Color(0xFF94A3B8).withOpacity(0.8),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        suffixIcon: Container(
+                          margin: const EdgeInsets.all(8),
+                          width: 34,
+                          height: 34,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.transparent,
-                              width: 1,
-                            ),
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFF1F5F9),
                           ),
-                          child: TextField(
-                            controller: _searchController,
-                            textAlignVertical: TextAlignVertical.center,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1E293B),
-                            ),
-                            decoration: InputDecoration(
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 0,
-                              ),
-                              border: InputBorder.none,
-                              prefixIcon: const Icon(
-                                CupertinoIcons.search,
-                                color: Color(0xFF8E8E93),
-                                size: 24,
-                              ),
-                              hintText: 'Search for an outlet...',
-                              hintStyle: TextStyle(
-                                color: const Color(0xFF1F4C6B).withOpacity(0.5),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              suffixIcon: Container(
-                                margin: const EdgeInsets.all(6),
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white.withOpacity(0.4),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.15),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.mic_rounded,
-                                  color: Color(0xFF1F4C6B),
-                                  size: 20,
-                                ),
-                              ),
-                            ),
+                          child: const Icon(
+                            Icons.mic_none_rounded,
+                            color: Color(0xFF64748B),
+                            size: 18,
                           ),
                         ),
-                      ),
-                    ),
+                      ), // TextField
+                    ), // Container
                   ),
                 ],
               ),
@@ -496,6 +551,7 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
           style: TextStyle(
             color: Colors.grey[400],
             fontWeight: FontWeight.w500,
+            fontSize: 16,
           ),
         ),
       );
@@ -503,20 +559,24 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth > 600) {
+        final isBroad = constraints.maxWidth > 700;
+
+        if (isBroad) {
           // Tablet / Desktop: Grid Layout
           return GridView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            padding: const EdgeInsets.all(24),
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 500,
+              maxCrossAxisExtent: 400,
               mainAxisSpacing: 24,
               crossAxisSpacing: 24,
-              mainAxisExtent: 290,
+              mainAxisExtent: 320, // Taller structure for vertical cards
             ),
             itemCount: _filteredStores.length,
             itemBuilder: (context, index) {
-              final store = _filteredStores[index];
-              return _buildStructuredCard(store);
+              return _buildPremiumStoreCard(
+                _filteredStores[index],
+                isTable: true,
+              );
             },
           );
         } else {
@@ -526,8 +586,13 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
             itemCount: _filteredStores.length,
             separatorBuilder: (context, index) => const SizedBox(height: 24),
             itemBuilder: (context, index) {
-              final store = _filteredStores[index];
-              return _buildStructuredCard(store);
+              return SizedBox(
+                height: 300, // Fixed height for vertical card
+                child: _buildPremiumStoreCard(
+                  _filteredStores[index],
+                  isTable: false,
+                ),
+              );
             },
           );
         }
@@ -535,233 +600,117 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
     );
   }
 
-  Widget _buildStructuredCard(dynamic store) {
-    // CARD: Forced Height 130px, Image Fit Cover, Grey App BG
+  Widget _buildPremiumStoreCard(dynamic store, {bool isTable = false}) {
     final storeName = store['name'] ?? store['store_name'] ?? 'Store';
     final storeImage = store['store_logo_img_url'];
     final String city = store['city'] ?? 'City N/A';
     final String area = store['area'] ?? 'Area';
-    final String fullAddress = area.isNotEmpty ? area : 'Address Not Available';
-    final roleName = store['role_name'] ?? 'ADMIN';
-    final storeId = store['id'] ?? store['store_id'] ?? '...';
+    final String fullAddress = area.isNotEmpty ? '$area, $city' : city;
+    final String category = store['store_category_name'] ?? 'Retail';
+    final roleName = (store['role_name'] ?? 'ADMIN').toString().toUpperCase();
 
-    final radius = BorderRadius.circular(20);
-    final hasImage =
-        (storeImage != null &&
-        storeImage != 'undefined' &&
-        storeImage.isNotEmpty);
+    final bool hasImage =
+        storeImage != null &&
+        storeImage.isNotEmpty &&
+        storeImage != 'undefined';
+
+    // Role Theming
+    final isOwner = roleName.contains('ADMIN') || roleName.contains('OWNER');
+    final roleBg = isOwner
+        ? const Color(0xFFEFF6FF)
+        : const Color(0xFFF0FDF4); // Blue/Green
+    final roleText = isOwner
+        ? const Color(0xFF1E40AF)
+        : const Color(0xFF15803D);
+
+    // Responsive Flex
+    final int imageFlex = isTable ? 65 : 60;
+    final int contentFlex = isTable ? 35 : 40;
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: radius,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+            color: const Color(0xFF64748B).withOpacity(0.12),
+            offset: const Offset(0, 10),
+            blurRadius: 30,
+            spreadRadius: -5,
           ),
         ],
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withOpacity(0.5), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: radius,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _selectStore(store),
-          borderRadius: radius,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // SECTION 1: Header (Store Icon + Name) - SUBTLE PREMIUM LIGHT
-              Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFFE0F2FE), // Sky 100
-                      Color(0xFFDBEAFE), // Blue 100
-                    ],
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Colors.blue.withOpacity(0.1),
-                      width: 1,
-                    ),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-                child: Row(
+              // 1. HERO IMAGE AREA
+              Expanded(
+                flex: imageFlex,
+                child: Stack(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.store_mall_directory_rounded,
-                        size: 20,
-                        color: Color(0xFF0284C7), // Sky 600
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        storeName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A), // Slate 900
-                          letterSpacing: -0.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 14,
-                        color: Color(0xFF64748B), // Slate 500
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // DIVIDER 1
-              _buildDashedDivider(),
-
-              // SECTION 2: SPLIT (Image | Role + Status)
-              SizedBox(
-                height: 130,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // LEFT: Image (40%)
-                    Expanded(
-                      flex: 4,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          border: Border(
-                            right: BorderSide(
-                              color: Colors.grey.withOpacity(0.1),
-                            ),
-                          ),
-                        ),
-                        clipBehavior: Clip.hardEdge,
-                        child: hasImage
-                            ? Image.network(
-                                storeImage,
+                        color: Colors.grey[100],
+                        image: hasImage
+                            ? DecorationImage(
+                                image: NetworkImage(storeImage),
                                 fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity,
-                                errorBuilder: (_, __, ___) =>
-                                    Icon(Icons.store, color: Colors.grey[300]),
                               )
-                            : Center(
-                                child: Icon(
-                                  Icons.store,
-                                  color: Colors.grey[300],
-                                  size: 30,
-                                ),
-                              ),
+                            : null,
                       ),
-                    ),
-
-                    // RIGHT: Info (60%)
-                    Expanded(
-                      flex: 6,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'ACCESS ROLE',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.grey[400],
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFDCFCE7),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                roleName.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF166534),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            Text(
-                              'STATUS',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.grey[400],
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
+                      child: !hasImage
+                          ? Stack(
                               children: [
                                 Container(
-                                  margin: const EdgeInsets.only(right: 6),
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.green,
-                                    shape: BoxShape.circle,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.blue[50]!,
+                                        Colors.blue[100]!.withOpacity(0.3),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                                const Text(
-                                  'Active Now',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1E293B),
+                                Center(
+                                  child: Icon(
+                                    Icons.storefront_rounded,
+                                    size: 48,
+                                    color: Colors.blue[200],
                                   ),
                                 ),
                               ],
-                            ),
-                          ],
+                            )
+                          : null,
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          category.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                     ),
@@ -769,96 +718,164 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                 ),
               ),
 
-              // DIVIDER 2
-              _buildDashedDivider(),
+              Divider(height: 1, thickness: 1, color: Colors.grey[200]),
 
-              // SECTION 3: Footer - SUBTLE LIGHT GREY
-              Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8FAFC), // Slate 50
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(20),
+              // 2. CONTENT AREA
+              Expanded(
+                flex: contentFlex,
+                child: Container(
+                  color: const Color(
+                    0xFFF8FAFC,
+                  ), // Slate 50 - Premium light grey
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
                   ),
-                  border: Border(
-                    top: BorderSide(
-                      color: Color(0xFFF1F5F9), // Slate 100
-                      width: 1,
-                    ),
-                  ),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE2E8F0), // Slate 200
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.location_on_rounded,
-                        size: 16,
-                        color: Color(0xFF64748B), // Slate 500
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
+                  child: Stack(
+                    children: [
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.start,
                         children: [
-                          Text(
-                            fullAddress,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF334155), // Slate 700
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          // HEADER SECTION
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      storeName,
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF0F172A),
+                                        letterSpacing: -0.5,
+                                        height: 1.1,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDCFCE7),
+                                      borderRadius: BorderRadius.circular(100),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.circle,
+                                          size: 8,
+                                          color: Color(0xFF166534),
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          "Active",
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF166534),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.location_on_outlined,
+                                    size: 14,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      fullAddress,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF64748B),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            city,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF94A3B8), // Slate 400
+
+                          const SizedBox(height: 12),
+
+                          // FOOTER SECTION (Role Tag)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: roleBg,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              roleName,
+                              style: TextStyle(
+                                fontSize: 11, // Increased from 10
+                                fontWeight: FontWeight.w700,
+                                color: roleText,
+                                letterSpacing: 0.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+
+                      // FLOAT BUTTON
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 28, // Shrunk from 32
+                          height: 28, // Shrunk from 32
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF0F172A).withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 14, // Shrunk from 16
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildDashedDivider() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final boxWidth = constraints.constrainWidth();
-        const dashWidth = 6.0;
-        const dashHeight = 1.0;
-        final dashCount = (boxWidth / (2 * dashWidth)).floor();
-        return Flex(
-          children: List.generate(dashCount, (_) {
-            return SizedBox(
-              width: dashWidth,
-              height: dashHeight,
-              child: DecoratedBox(
-                decoration: BoxDecoration(color: Colors.grey[300]),
-              ),
-            );
-          }),
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          direction: Axis.horizontal,
-        );
-      },
     );
   }
 }
