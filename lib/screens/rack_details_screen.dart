@@ -517,17 +517,29 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                 children: [
                   _buildStatItem(
                     "Purchased",
-                    item['total_stocks_purchased']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_purchased']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                   Container(width: 1, height: 24, color: Colors.grey[200]),
                   _buildStatItem(
                     "Sold",
-                    item['total_stocks_sold']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_sold']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                   Container(width: 1, height: 24, color: Colors.grey[200]),
                   _buildStatItem(
                     "Returned",
-                    item['total_stocks_returned']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_returned']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                 ],
               ),
