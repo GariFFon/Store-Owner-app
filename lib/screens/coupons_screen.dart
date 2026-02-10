@@ -487,7 +487,7 @@ class _CouponsScreenState extends State<CouponsScreen> {
             ), // Extra bottom padding
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 400,
-              mainAxisExtent: 156, // Slightly more than card height for spacing
+              mainAxisExtent: 520, // Increased for vertical card layout
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
             ),
@@ -528,241 +528,398 @@ class _CouponsScreenState extends State<CouponsScreen> {
     );
     final isExpired = expiryDate.isBefore(DateTime.now());
 
-    // A compact horizontal ticket
+    // Calculate days left
+    final now = DateTime.now();
+    final daysLeft = expiryDate.difference(now).inDays;
+
     return Container(
-      height: 140,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: isExpired
             ? Border.all(color: Colors.red.withOpacity(0.3), width: 1)
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Row(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Left Side: Image with Status Overlay
-            Stack(
-              children: [
-                Container(
-                  width: 100,
-                  height: double.infinity,
-                  color: Colors.grey[100],
-                  child: Image.network(
-                    coupon.imgUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Center(
-                      child: Icon(
-                        Icons.confirmation_number_outlined,
-                        color: Colors.blueGrey[200],
-                        size: 32,
-                      ),
-                    ),
-                  ),
+            // Top: Image
+            Container(
+              height: 120,
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82F6),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
                 ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.4),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                ),
-                // Status Badge on Image
-                Positioned(
-                  bottom: 8,
-                  left: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isExpired ? Colors.red : const Color(0xFF22C55E),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isExpired
-                              ? Icons.cancel_rounded
-                              : Icons.check_circle_rounded,
-                          size: 10,
-                          color: Colors.white,
+              ),
+              child: Stack(
+                children: [
+                  // Coupon Image
+                  Positioned.fill(
+                    child: Image.network(
+                      coupon.imgUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Icon(
+                          Icons.confirmation_number_outlined,
+                          color: Colors.white.withOpacity(0.5),
+                          size: 48,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isExpired ? 'EXPIRED' : 'ACTIVE',
+                      ),
+                    ),
+                  ),
+                  // Gradient Overlay
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.3),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Coupon Code with Copy Icon
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          coupon.couponCode,
                           style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF1E293B),
+                            letterSpacing: -0.5,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(
+                            ClipboardData(text: coupon.couponCode),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Copied: ${coupon.couponCode}'),
+                              duration: const Duration(seconds: 1),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.content_copy_rounded,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Discount Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF9333EA), Color(0xFF7C3AED)],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF9333EA).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
-            ),
-
-            // Dashed Divider
-            Container(
-              width: 1,
-              color: Colors.grey[300],
-              margin: const EdgeInsets.symmetric(vertical: 12),
-            ),
-
-            // Right Side: Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header: Code only
-                    Text(
-                      coupon.couponCode,
+                    child: Text(
+                      '₹${coupon.amount.toStringAsFixed(2)} OFF',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF1E293B),
-                        letterSpacing: -0.5,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    const Spacer(),
-
-                    // Discount
-                    Text(
-                      '₹${coupon.amount.toStringAsFixed(0)} OFF',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1E293B),
-                        height: 1.0,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Description
+                  if (coupon.description.isNotEmpty)
                     Text(
-                      'Min Spend: ₹${coupon.minimumAmount.toStringAsFixed(0)}',
+                      coupon.description,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[500],
+                        fontSize: 12,
+                        color: Colors.grey[700],
                         fontWeight: FontWeight.w500,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  if (coupon.description.isNotEmpty) const SizedBox(height: 12),
 
-                    const Spacer(),
-
-                    // Divider
-                    Divider(height: 1, color: Colors.grey[200]),
-                    const SizedBox(height: 8),
-
-                    // Footer: Date + Edit Button
-                    Row(
-                      children: [
-                        // Date Info - Vertical Layout
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  // Badges Row
+                  Row(
+                    children: [
+                      // Days Left Badge
+                      if (!isExpired && daysLeft >= 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: const Color(0xFFFBBF24).withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                'Expires',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.grey[400],
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: 0.3,
-                                ),
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 10,
+                                color: Color(0xFFD97706),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(width: 4),
                               Text(
-                                DateFormat('dd MMM yy').format(expiryDate),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isExpired
-                                      ? Colors.red
-                                      : const Color(0xFF1E293B),
+                                () {
+                                  if (daysLeft > 365) {
+                                    // Show years and months
+                                    final years = daysLeft ~/ 365;
+                                    final remainingDays = daysLeft % 365;
+                                    final months = remainingDays ~/ 30;
+                                    if (months > 0) {
+                                      return '${years}y ${months}m left';
+                                    } else {
+                                      return '${years}y left';
+                                    }
+                                  } else if (daysLeft > 31) {
+                                    // Show months and days
+                                    final months = daysLeft ~/ 30;
+                                    final remainingDays = daysLeft % 30;
+                                    if (remainingDays > 0) {
+                                      return '${months}m ${remainingDays}d left';
+                                    } else {
+                                      return '${months}m left';
+                                    }
+                                  } else {
+                                    // Show days only
+                                    return '${daysLeft}d left';
+                                  }
+                                }(),
+                                style: const TextStyle(
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w700,
+                                  color: Color(0xFFD97706),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
                         ),
-
-                        // Edit Button
-                        InkWell(
-                          onTap: () async {
-                            final result = await showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) =>
-                                  EditCouponBottomSheet(coupon: coupon),
-                            );
-
-                            if (result == true) {
-                              _fetchCoupons();
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(6),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF3B82F6),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.edit_rounded,
-                                  size: 12,
-                                  color: Colors.white,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Edit',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
+                      if (!isExpired && daysLeft >= 0 && coupon.isUniversal)
+                        const SizedBox(width: 6),
+                      // Universal Badge
+                      if (coupon.isUniversal)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDEEAFF),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: const Color(0xFF3B82F6).withOpacity(0.3),
                             ),
                           ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.public_rounded,
+                                size: 10,
+                                color: Color(0xFF3B82F6),
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'Universal',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF3B82F6),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Divider
+                  Divider(height: 1, color: Colors.grey[200]),
+                  const SizedBox(height: 12),
+
+                  // Details
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Min Amount:',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[500],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '₹${coupon.minimumAmount.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF1E293B),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Max Discount:',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[500],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '₹${coupon.maximumDiscountAmountLimit.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF1E293B),
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Expires:',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[500],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('dd MMM yyyy').format(expiryDate),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isExpired
+                                    ? Colors.red
+                                    : const Color(0xFF1E293B),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Edit Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final result = await showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) =>
+                              EditCouponBottomSheet(coupon: coupon),
+                        );
+
+                        if (result == true) {
+                          _fetchCoupons();
+                        }
+                      },
+                      icon: const Icon(Icons.edit_rounded, size: 16),
+                      label: const Text(
+                        'Edit Coupon',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
