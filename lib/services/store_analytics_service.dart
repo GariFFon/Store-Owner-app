@@ -86,6 +86,8 @@ class StoreAnalyticsService {
     required String storeId,
     required String startDate,
     required String endDate,
+    String? year,
+    String? month,
     String type = 'custom',
     String orderStatus = 'order_placed',
   }) async {
@@ -97,6 +99,8 @@ class StoreAnalyticsService {
         'order_status': orderStatus,
         'start_date': startDate,
         'end_date': endDate,
+        if (year != null) 'year': int.tryParse(year) ?? year,
+        if (month != null) 'month': month,
       };
 
       final response = await ApiService.post(

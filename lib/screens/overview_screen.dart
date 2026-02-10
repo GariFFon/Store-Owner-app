@@ -117,17 +117,37 @@ class _OverviewScreenState extends State<OverviewScreen> {
       final results = await Future.wait([
         StoreAnalyticsService.getRevenueAnalytics(
           storeId: widget.storeId,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          type: 'custom',
+          startDate:
+              (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? ''
+              : startDateStr,
+          endDate: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? ''
+              : endDateStr,
+          type: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? _selectedFilter.toLowerCase()
+              : 'custom',
           year: yearStr,
+          month: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? DateFormat('MMMM').format(DateTime.now()).toLowerCase()
+              : null,
         ),
         StoreAnalyticsService.getOrderCountAnalytics(
           storeId: widget.storeId,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          type: 'custom',
+          startDate:
+              (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? ''
+              : startDateStr,
+          endDate: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? ''
+              : endDateStr,
+          type: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? _selectedFilter.toLowerCase()
+              : 'custom',
           year: yearStr,
+          month: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? DateFormat('MMMM').format(DateTime.now()).toLowerCase()
+              : null,
         ),
         StoreAnalyticsService.getPaymentMethodAnalytics(
           storeId: widget.storeId,
@@ -159,9 +179,20 @@ class _OverviewScreenState extends State<OverviewScreen> {
         ),
         StoreAnalyticsService.getSentimentAnalytics(
           storeId: widget.storeId,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          type: 'custom',
+          startDate:
+              (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? ''
+              : startDateStr,
+          endDate: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? ''
+              : endDateStr,
+          type: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? _selectedFilter.toLowerCase()
+              : 'custom',
+          year: yearStr,
+          month: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              ? DateFormat('MMMM').format(DateTime.now()).toLowerCase()
+              : null,
         ),
       ]);
 
@@ -894,6 +925,12 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 if (_selectedFilter == 'Weekly') {
                   if (index % 5 == 0 && index < 53)
                     return _chartLabel('W${index + 1}');
+                } else if (_selectedFilter == 'Yearly') {
+                  if (index >= 0 && index < _revenueData.length) {
+                    return _chartLabel(
+                      (_revenueData[index]['year'] ?? '').toString(),
+                    );
+                  }
                 } else {
                   if (index >= 0 && index < 12)
                     return _chartLabel(_getMonthName(index));
@@ -1073,6 +1110,12 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 if (_selectedFilter == 'Weekly') {
                   if (index % 5 == 0 && index < 53)
                     return _chartLabel('W${index + 1}');
+                } else if (_selectedFilter == 'Yearly') {
+                  if (index >= 0 && index < _sentimentData.length) {
+                    return _chartLabel(
+                      (_sentimentData[index]['year'] ?? '').toString(),
+                    );
+                  }
                 } else {
                   if (index >= 0 && index < 12)
                     return _chartLabel(_getMonthName(index));
@@ -1085,25 +1128,64 @@ class _OverviewScreenState extends State<OverviewScreen> {
           rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: false),
-        barGroups: List.generate(12, (index) {
-          // Mock
-          double val = 0;
-          if (index == 0) val = 4.5;
-          if (index == 1) val = 3.2;
-          return BarChartGroupData(
-            x: index,
-            barRods: [
-              BarChartRodData(
-                toY: val,
-                color: const Color(0xFFEC4899), // Pink
-                width: 16,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(4),
-                ),
-              ),
-            ],
-          );
-        }),
+        barGroups: _selectedFilter == 'Monthly'
+            ? List.generate(12, (index) {
+                double val = 0;
+                // Find matching month in _sentimentData
+
+                // Map short name 'jan', 'feb' to full names if needed, or rely on API using full names
+                // The API sample shows 'january', 'february'.
+                // Need a helper to match short names or just convert index to full name.
+                // Or loop and find.
+                final fullMonthName = DateFormat(
+                  'MMMM',
+                ).format(DateTime(2022, index + 1, 1)).toLowerCase();
+
+                final item = _sentimentData.firstWhere(
+                  (element) =>
+                      (element['month'] ?? '').toString().toLowerCase() ==
+                      fullMonthName,
+                  orElse: () => {},
+                );
+
+                if (item.isNotEmpty && item['average_sentiment'] != null) {
+                  val = (item['average_sentiment'] as num).toDouble();
+                }
+
+                return BarChartGroupData(
+                  x: index,
+                  barRods: [
+                    BarChartRodData(
+                      toY: val,
+                      color: const Color(0xFFEC4899), // Pink
+                      width: 16,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(4),
+                      ),
+                    ),
+                  ],
+                );
+              })
+            : List.generate(_sentimentData.length, (index) {
+                double val = 0;
+                var item = _sentimentData[index];
+                if (item['average_sentiment'] != null) {
+                  val = (item['average_sentiment'] as num).toDouble();
+                }
+                return BarChartGroupData(
+                  x: index,
+                  barRods: [
+                    BarChartRodData(
+                      toY: val,
+                      color: const Color(0xFFEC4899), // Pink
+                      width: 16,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(4),
+                      ),
+                    ),
+                  ],
+                );
+              }),
       ),
     );
   }
@@ -1134,6 +1216,12 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 if (_selectedFilter == 'Weekly') {
                   if (index % 5 == 0 && index < 53)
                     return _chartLabel('W${index + 1}');
+                } else if (_selectedFilter == 'Yearly') {
+                  if (index >= 0 && index < _orderCountData.length) {
+                    return _chartLabel(
+                      (_orderCountData[index]['year'] ?? '').toString(),
+                    );
+                  }
                 } else {
                   if (index >= 0 && index < 12)
                     return _chartLabel(_getMonthName(index));
@@ -1201,6 +1289,55 @@ class _OverviewScreenState extends State<OverviewScreen> {
           ],
         ),
       );
+    } else if (_selectedFilter == 'Yearly') {
+      return List.generate(_revenueData.length, (i) {
+        final item = _revenueData[i];
+        double val = 0;
+        if (item['revenue'] != null) {
+          val = (item['revenue'] as num).toDouble();
+        }
+        return BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: val,
+              color: const Color(0xFF3B82F6),
+              width: 32,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        );
+      });
+    } else if (_selectedFilter == 'Monthly') {
+      List<double> monthlyRevenue = List.filled(12, 0.0);
+      for (var item in _revenueData) {
+        if (item['month'] != null) {
+          String mName = item['month'].toString().toLowerCase();
+          for (int i = 0; i < 12; i++) {
+            if (DateFormat(
+                  'MMMM',
+                ).format(DateTime(2022, i + 1, 1)).toLowerCase() ==
+                mName) {
+              monthlyRevenue[i] = (item['revenue'] as num).toDouble();
+              break;
+            }
+          }
+        }
+      }
+      return List.generate(
+        12,
+        (i) => BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: monthlyRevenue[i],
+              color: const Color(0xFF3B82F6),
+              width: 16,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
+      );
     } else {
       List<double> monthlyRevenue = List.filled(12, 0.0);
       for (var item in _revenueData) {
@@ -1255,6 +1392,55 @@ class _OverviewScreenState extends State<OverviewScreen> {
               color: const Color(0xFFF97316),
               width: 8,
               borderRadius: BorderRadius.circular(2),
+            ),
+          ],
+        ),
+      );
+    } else if (_selectedFilter == 'Yearly') {
+      return List.generate(_orderCountData.length, (i) {
+        final item = _orderCountData[i];
+        double val = 0;
+        if (item['order_count'] != null) {
+          val = (item['order_count'] as num).toDouble();
+        }
+        return BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: val,
+              color: const Color(0xFFF97316),
+              width: 32, // Wider for single year
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        );
+      });
+    } else if (_selectedFilter == 'Monthly') {
+      List<double> monthly = List.filled(12, 0.0);
+      for (var item in _orderCountData) {
+        if (item['month'] != null) {
+          String mName = item['month'].toString().toLowerCase();
+          for (int i = 0; i < 12; i++) {
+            if (DateFormat(
+                  'MMMM',
+                ).format(DateTime(2022, i + 1, 1)).toLowerCase() ==
+                mName) {
+              monthly[i] = (item['order_count'] as num).toDouble();
+              break;
+            }
+          }
+        }
+      }
+      return List.generate(
+        12,
+        (i) => BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: monthly[i],
+              color: const Color(0xFFF97316),
+              width: 16,
+              borderRadius: BorderRadius.circular(4),
             ),
           ],
         ),
