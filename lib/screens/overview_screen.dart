@@ -248,6 +248,26 @@ class _OverviewScreenState extends State<OverviewScreen> {
               }
               return sum;
             });
+          } else if (_selectedFilter == 'Monthly') {
+            final currentMonthName = DateFormat(
+              'MMMM',
+            ).format(DateTime.now()).toLowerCase();
+
+            final revenueItem = _revenueData.firstWhere(
+              (item) =>
+                  (item['month'] ?? '').toString().toLowerCase() ==
+                  currentMonthName,
+              orElse: () => {},
+            );
+            _totalRevenue = ((revenueItem['revenue'] ?? 0.0) as num).toDouble();
+
+            final orderItem = _orderCountData.firstWhere(
+              (item) =>
+                  (item['month'] ?? '').toString().toLowerCase() ==
+                  currentMonthName,
+              orElse: () => {},
+            );
+            _totalOrders = ((orderItem['order_count'] ?? 0) as int);
           } else {
             _totalRevenue = _revenueData.fold(
               0.0,
