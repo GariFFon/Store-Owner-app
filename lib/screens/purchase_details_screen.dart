@@ -530,7 +530,7 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'HSN: ${item['product']?['hsn_code'] ?? item['product']?['hsn'] ?? 'N/A'}',
+                  'HSN: ${item['inventory']?['hsn_code'] ?? item['product']?['hsn_code'] ?? item['product']?['hsn'] ?? 'N/A'}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(0.5),
                     fontSize: 10,
@@ -639,11 +639,17 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
               _formatCurrency(taxBreakdown['total_tax']),
             ),
             const SizedBox(height: 4),
+            _buildSummaryRow(
+              theme,
+              'Total CESS',
+              _formatCurrency(taxBreakdown['total_cess']),
+            ),
+            const SizedBox(height: 4),
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    'CGST: ${_formatCurrency(taxBreakdown['total_cgst'])} | SGST: ${_formatCurrency(taxBreakdown['total_sgst'])} | IGST: ${_formatCurrency(taxBreakdown['total_igst'])}',
+                    'CGST: ${_formatCurrency(taxBreakdown['total_cgst'])} | SGST: ${_formatCurrency(taxBreakdown['total_sgst'])} | IGST: ${_formatCurrency(taxBreakdown['total_igst'])} | CESS: ${_formatCurrency(taxBreakdown['total_cess'])}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.5),
                       fontSize: 11,
