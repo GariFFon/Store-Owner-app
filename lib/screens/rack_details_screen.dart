@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
+import 'package:exanor/services/api_service.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'dart:math' as math;
 
@@ -687,8 +688,59 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
 
   // --- EDIT SHEET (Revamped & Responsive) ---
 
+  Future<void> _updateProductAccess(
+    String productInventoryId,
+    bool isOnline,
+    bool isPos,
+  ) async {
+    try {
+      final response = await ApiService.put(
+        '/product-inventory/',
+        body: {
+          "product_inventory_id": productInventoryId,
+          "store_id": widget.storeId,
+          "store_access": true,
+          "data": {
+            "is_accessible_online": isOnline,
+            "is_accessible_pos": isPos,
+          },
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          // Success - refresh the product list
+          await _fetchProducts();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Access settings updated successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating access: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showEditProductSheet(Map<String, dynamic> item) {
     final productData = item['product_combination_data'] ?? {};
+
+    // Initialize access control state variables outside StatefulBuilder
+    bool isWebEnabled = item['is_accessible_online'] ?? false;
+    bool isPosEnabled = item['is_accessible_pos'] ?? false;
 
     showModalBottomSheet(
       context: context,
@@ -705,10 +757,6 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
             final expiryTimestamp = item['expiry_timestamp'];
             final createdTimestamp =
                 item['created_timestamp'] ?? purchaseTimestamp;
-
-            // Access Control
-            bool isWebEnabled = item['is_accessible_online'] ?? false;
-            bool isPosEnabled = item['is_accessible_pos'] ?? false;
 
             return DraggableScrollableSheet(
               initialChildSize: 0.9,
@@ -843,10 +891,12 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                 _buildAccessSection(
                                   isWebEnabled,
                                   isPosEnabled,
-                                  (val) =>
-                                      setSheetState(() => isWebEnabled = val),
-                                  (val) =>
-                                      setSheetState(() => isPosEnabled = val),
+                                  (val) {
+                                    setSheetState(() => isWebEnabled = val);
+                                  },
+                                  (val) {
+                                    setSheetState(() => isPosEnabled = val);
+                                  },
                                 ),
                               ],
                             ),
@@ -887,9 +937,16 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () {
-                                      // TODO: Save Logic
-                                      Navigator.pop(context);
+                                    onPressed: () async {
+                                      // Save access control changes
+                                      await _updateProductAccess(
+                                        item['id'],
+                                        isWebEnabled,
+                                        isPosEnabled,
+                                      );
+                                      if (context.mounted) {
+                                        Navigator.pop(context);
+                                      }
                                     },
                                     style: ElevatedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(
