@@ -374,7 +374,31 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
     );
   }
 
+  Color _getStatusColor(String? status) {
+    if (status == null) return Colors.grey;
+    switch (status.toUpperCase()) {
+      case 'PAID':
+      case 'COMPLETED':
+        return Colors.green;
+      case 'PENDING':
+        return Colors.orange;
+      case 'PARTIAL':
+        return Colors.blue;
+      case 'CREDIT':
+      case 'CANCELLED':
+        return Colors.red;
+      default:
+        return Colors.black87;
+    }
+  }
+
   Widget _buildInformationCard(ThemeData theme) {
+    final paymentInfo =
+        _purchaseData!['payment_info'] as Map<String, dynamic>? ?? {};
+    final paymentStatus = paymentInfo['payment_status'] as String?;
+    final voucherStatus = _purchaseData!['status'] as String?;
+    final isPosted = _purchaseData!['is_posted'] == true;
+
     return _buildSectionCard(
       theme,
       title: 'Purchase Information',
@@ -406,11 +430,26 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
           _buildInfoRow(
             theme,
             'Voucher Status',
-            _purchaseData!['is_posted'] == true ? 'Posted' : 'Draft',
+            voucherStatus ?? 'UNKNOWN',
+            Icons.info_outline_rounded,
+            valueColor: _getStatusColor(voucherStatus),
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Posted',
+            isPosted ? 'Yes' : 'No',
             Icons.check_circle_outline_rounded,
-            valueColor: _purchaseData!['is_posted'] == true
-                ? Colors.green
-                : Colors.orange,
+            valueColor: isPosted ? Colors.green : Colors.grey,
+          ),
+          _buildDashedDivider(),
+          _buildInfoRow(
+            theme,
+            'Payment Status',
+            paymentStatus ?? 'UNKNOWN',
+            Icons.payment_outlined,
+            valueColor: _getStatusColor(paymentStatus),
+            isBold: true,
           ),
         ],
       ),
