@@ -131,10 +131,17 @@ class _OverviewScreenState extends State<OverviewScreen> {
         ),
         StoreAnalyticsService.getPaymentMethodAnalytics(
           storeId: widget.storeId,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          type: 'custom',
+          startDate: _selectedFilter == 'Weekly' ? '' : startDateStr,
+          endDate: _selectedFilter == 'Weekly' ? '' : endDateStr,
+          type: _selectedFilter == 'Weekly' ? 'weekly' : 'custom',
           year: yearStr,
+          month: _selectedFilter == 'Weekly'
+              ? DateTime.now().month.toString()
+              : null,
+          week: _selectedFilter == 'Weekly'
+              ? ((DateTime.now().day - 1) ~/ 7 + 1)
+              : null,
+          day: _selectedFilter == 'Weekly' ? DateTime.now().day : null,
         ),
         StoreAnalyticsService.getOrderMethodAnalytics(
           storeId: widget.storeId,
