@@ -124,6 +124,8 @@ class StoreAnalyticsService {
     required String endDate,
     String? year,
     String? month,
+    int? week,
+    int? day,
     String type = 'custom',
   }) async {
     try {
@@ -134,7 +136,9 @@ class StoreAnalyticsService {
         'start_date': startDate,
         'end_date': endDate,
         if (year != null) 'year': int.tryParse(year) ?? year,
-        if (month != null) 'month': month,
+        if (month != null) 'month': int.tryParse(month) ?? month,
+        if (week != null) 'week': week,
+        if (day != null) 'day': day,
       };
 
       final response = await ApiService.post(
