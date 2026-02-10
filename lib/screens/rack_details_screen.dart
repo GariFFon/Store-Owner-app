@@ -792,6 +792,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                             _buildStockSection(item, stockLeft),
                                             const SizedBox(height: 20),
                                             _buildDateSection(
+                                              item['manufactured_on_timestamp'],
                                               purchaseTimestamp,
                                               expiryTimestamp,
                                               createdTimestamp,
@@ -817,6 +818,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                   _buildPricingSection(item),
                                   const SizedBox(height: 20),
                                   _buildDateSection(
+                                    item['manufactured_on_timestamp'],
                                     purchaseTimestamp,
                                     expiryTimestamp,
                                     createdTimestamp,
@@ -971,12 +973,32 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                   ),
                 ),
                 Text(
-                  "undefined",
+                  productData['brand_name']?.toString() ?? "undefined",
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF94A3B8),
                   ),
                 ),
+                const SizedBox(height: 4),
+                if (productData['product_type'] != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDBEAFE),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      productData['product_type'],
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E40AF),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -1045,11 +1067,11 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
       _buildRow("MRP:", _formatCurrency(item['mrp'])),
       _buildRow(
         "Cost (Excl. Tax):",
-        _formatCurrency(item['purchase_amount_excluding_tax']),
+        _formatCurrency(item['cost_amount_excluding_tax']),
       ),
       _buildRow(
         "Cost (Incl. Tax):",
-        _formatCurrency(item['purchase_amount_including_tax']),
+        _formatCurrency(item['cost_amount_including_tax']),
       ),
       _buildRow(
         "Selling Price:",
@@ -1059,12 +1081,13 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
   }
 
   Widget _buildDateSection(
+    dynamic manufactured,
     dynamic purchased,
     dynamic expired,
     dynamic created,
   ) {
     return _buildInfoCard("Date Information", [
-      _buildRow("Manufactured:", "Jan 31, 2026"), // Mock data as per image
+      _buildRow("Manufactured:", _formatDate(manufactured)),
       _buildRow("Purchased:", _formatDate(purchased)),
       if (expired != null) _buildRow("Expires:", _formatDate(expired)),
       _buildRow("Created:", _formatDate(created)),
@@ -1072,12 +1095,25 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
   }
 
   Widget _buildAdditionalSection(Map<String, dynamic> item) {
+    final productData = item['product_combination_data'] ?? {};
+    final parentCategory = productData['parent_category'];
+    final childCategory = productData['child_category'];
+
+    String category = 'N/A';
+    if (parentCategory != null && childCategory != null) {
+      category = '$parentCategory / $childCategory';
+    } else if (parentCategory != null) {
+      category = parentCategory;
+    } else if (childCategory != null) {
+      category = childCategory;
+    }
+
     return _buildInfoCard("Additional Information", [
-      _buildRow("State Code:", item['state_code']?.toString() ?? "maharashtra"),
       _buildRow(
-        "Category:",
-        item['category_name'] ?? "women's health / feminine hygiene",
+        "State Code:",
+        item['state_code_of_purchase']?.toString() ?? "N/A",
       ),
+      _buildRow("Category:", category),
     ]);
   }
 
