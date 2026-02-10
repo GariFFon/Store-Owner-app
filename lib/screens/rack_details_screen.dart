@@ -484,9 +484,9 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      _formatCurrency(item['selling_amount_excluding_tax']),
+                      "SP: ${_formatCurrency(item['selling_amount_excluding_tax'])}",
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w800,
                         color: _primary,
                       ),
@@ -498,7 +498,6 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                         color: _textSub,
-                        decoration: TextDecoration.lineThrough,
                       ),
                     ),
                   ],
@@ -1029,7 +1028,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _formatCurrency(item['selling_amount_excluding_tax']),
+                  _formatCurrency(item['mrp']),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
@@ -1094,6 +1093,17 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
     ]);
   }
 
+  String _capitalizeFirstLetter(String? text) {
+    if (text == null || text.isEmpty) return '';
+    return text
+        .split(' ')
+        .map((word) {
+          if (word.isEmpty) return word;
+          return word[0].toUpperCase() + word.substring(1).toLowerCase();
+        })
+        .join(' ');
+  }
+
   Widget _buildAdditionalSection(Map<String, dynamic> item) {
     final productData = item['product_combination_data'] ?? {};
     final parentCategory = productData['parent_category'];
@@ -1101,17 +1111,20 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
 
     String category = 'N/A';
     if (parentCategory != null && childCategory != null) {
-      category = '$parentCategory / $childCategory';
+      category =
+          '${_capitalizeFirstLetter(parentCategory)} / ${_capitalizeFirstLetter(childCategory)}';
     } else if (parentCategory != null) {
-      category = parentCategory;
+      category = _capitalizeFirstLetter(parentCategory);
     } else if (childCategory != null) {
-      category = childCategory;
+      category = _capitalizeFirstLetter(childCategory);
     }
 
     return _buildInfoCard("Additional Information", [
       _buildRow(
         "State Code:",
-        item['state_code_of_purchase']?.toString() ?? "N/A",
+        _capitalizeFirstLetter(item['state_code_of_purchase']?.toString()) != ''
+            ? _capitalizeFirstLetter(item['state_code_of_purchase']?.toString())
+            : "N/A",
       ),
       _buildRow("Category:", category),
     ]);
