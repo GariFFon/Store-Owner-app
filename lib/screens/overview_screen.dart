@@ -118,34 +118,56 @@ class _OverviewScreenState extends State<OverviewScreen> {
         StoreAnalyticsService.getRevenueAnalytics(
           storeId: widget.storeId,
           startDate:
-              (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? ''
               : startDateStr,
-          endDate: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          endDate:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? ''
               : endDateStr,
-          type: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          type:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? _selectedFilter.toLowerCase()
               : 'custom',
           year: yearStr,
-          month: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          month:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? DateFormat('MMMM').format(DateTime.now()).toLowerCase()
               : null,
         ),
         StoreAnalyticsService.getOrderCountAnalytics(
           storeId: widget.storeId,
           startDate:
-              (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? ''
               : startDateStr,
-          endDate: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          endDate:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? ''
               : endDateStr,
-          type: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          type:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? _selectedFilter.toLowerCase()
               : 'custom',
           year: yearStr,
-          month: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          month:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? DateFormat('MMMM').format(DateTime.now()).toLowerCase()
               : null,
         ),
@@ -180,17 +202,28 @@ class _OverviewScreenState extends State<OverviewScreen> {
         StoreAnalyticsService.getSentimentAnalytics(
           storeId: widget.storeId,
           startDate:
-              (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? ''
               : startDateStr,
-          endDate: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          endDate:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? ''
               : endDateStr,
-          type: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          type:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? _selectedFilter.toLowerCase()
               : 'custom',
           year: yearStr,
-          month: (_selectedFilter == 'Yearly' || _selectedFilter == 'Monthly')
+          month:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
               ? DateFormat('MMMM').format(DateTime.now()).toLowerCase()
               : null,
         ),
@@ -207,47 +240,33 @@ class _OverviewScreenState extends State<OverviewScreen> {
           // Calculate Totals
           if (_selectedFilter == 'Weekly') {
             final now = DateTime.now();
-            // Start of week (Sunday)
-            final startOfWeek = DateTime(
-              now.year,
-              now.month,
-              now.day,
-            ).subtract(Duration(days: now.weekday % 7));
-            final endOfWeek = startOfWeek.add(
-              const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+            // find the current week key, e.g "2026-W06"
+            // The API response for weeks typically looks like "2026-W01"
+            // We need a helper or careful calculation to match "2026-Wxx".
+            // Since we don't have a direct "week number" getter that matches ISO 8601 easily without package,
+            // we will approximate or parse.
+            // However, the USER REQUEST implies "show correct values".
+            // If the user means the Total Revenue / Total Orders at the top,
+            // usually "Weekly" filter implies "This Week".
+            // Let's sum up the values for the *current week* from the API response list of weeks.
+
+            // Simple ISO week calculation
+            int dayOfYear = int.parse(DateFormat("D").format(now));
+            int week = ((dayOfYear - now.weekday + 10) / 7).floor();
+            String currentWeekKey =
+                "${now.year}-W${week.toString().padLeft(2, '0')}";
+
+            final revenueItem = _revenueData.firstWhere(
+              (item) => (item['week'] ?? '') == currentWeekKey,
+              orElse: () => {},
             );
+            _totalRevenue = ((revenueItem['revenue'] ?? 0.0) as num).toDouble();
 
-            _totalRevenue = _revenueData.fold(0.0, (sum, item) {
-              if (item['date'] == null) return sum;
-              try {
-                final date = DateTime.parse(item['date']);
-                if (date.isAfter(
-                      startOfWeek.subtract(const Duration(seconds: 1)),
-                    ) &&
-                    date.isBefore(endOfWeek.add(const Duration(seconds: 1)))) {
-                  return sum + ((item['revenue'] ?? 0.0) as num).toDouble();
-                }
-              } catch (e) {
-                // Ignore parsing errors
-              }
-              return sum;
-            });
-
-            _totalOrders = _orderCountData.fold(0, (sum, item) {
-              if (item['date'] == null) return sum;
-              try {
-                final date = DateTime.parse(item['date']);
-                if (date.isAfter(
-                      startOfWeek.subtract(const Duration(seconds: 1)),
-                    ) &&
-                    date.isBefore(endOfWeek.add(const Duration(seconds: 1)))) {
-                  return sum + ((item['order_count'] ?? 0) as int);
-                }
-              } catch (e) {
-                // Ignore parsing errors
-              }
-              return sum;
-            });
+            final orderItem = _orderCountData.firstWhere(
+              (item) => (item['week'] ?? '') == currentWeekKey,
+              orElse: () => {},
+            );
+            _totalOrders = ((orderItem['order_count'] ?? 0) as int);
           } else if (_selectedFilter == 'Monthly') {
             final currentMonthName = DateFormat(
               'MMMM',
@@ -1151,12 +1170,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
         barGroups: _selectedFilter == 'Monthly'
             ? List.generate(12, (index) {
                 double val = 0;
-                // Find matching month in _sentimentData
-
-                // Map short name 'jan', 'feb' to full names if needed, or rely on API using full names
-                // The API sample shows 'january', 'february'.
-                // Need a helper to match short names or just convert index to full name.
-                // Or loop and find.
                 final fullMonthName = DateFormat(
                   'MMMM',
                 ).format(DateTime(2022, index + 1, 1)).toLowerCase();
@@ -1177,10 +1190,42 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   barRods: [
                     BarChartRodData(
                       toY: val,
-                      color: const Color(0xFFEC4899), // Pink
+                      color: const Color(0xFFEC4899),
                       width: 16,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(4),
+                      ),
+                    ),
+                  ],
+                );
+              })
+            : _selectedFilter == 'Weekly'
+            ? List.generate(53, (index) {
+                double val = 0;
+                // match "2026-W00", "2026-W01"...
+                // the index 0 -> week 0
+                // assuming year is current year for simplicity or derived from data
+                final year = DateTime.now().year;
+                final weekKey = "$year-W${index.toString().padLeft(2, '0')}";
+
+                final item = _sentimentData.firstWhere(
+                  (element) => (element['week'] ?? '') == weekKey,
+                  orElse: () => {},
+                );
+
+                if (item.isNotEmpty && item['average_sentiment'] != null) {
+                  val = (item['average_sentiment'] as num).toDouble();
+                }
+
+                return BarChartGroupData(
+                  x: index,
+                  barRods: [
+                    BarChartRodData(
+                      toY: val,
+                      color: const Color(0xFFEC4899),
+                      width: 8,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(2),
                       ),
                     ),
                   ],
@@ -1197,7 +1242,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   barRods: [
                     BarChartRodData(
                       toY: val,
-                      color: const Color(0xFFEC4899), // Pink
+                      color: const Color(0xFFEC4899),
                       width: 16,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(4),
@@ -1281,34 +1326,34 @@ class _OverviewScreenState extends State<OverviewScreen> {
   List<BarChartGroupData> _generateRevenueBarGroups() {
     // Re-using simplified logic for brevity, assuming _revenueData is populated
     if (_selectedFilter == 'Weekly') {
-      List<double> weeklyRevenue = List.filled(53, 0.0);
-      for (var item in _revenueData) {
-        // ... parsing logic ...
-        if (item['date'] != null) {
-          try {
-            DateTime d = DateTime.parse(item['date']);
-            int week =
-                ((int.parse(DateFormat("D").format(d)) - d.weekday + 10) / 7)
-                    .floor();
-            if (week >= 1 && week <= 53)
-              weeklyRevenue[week - 1] += (item['revenue'] as num).toDouble();
-          } catch (e) {}
+      // Use the API response structure for weeks
+      return List.generate(53, (i) {
+        final year = DateTime.now().year;
+        // Matches "2026-W00", "2026-W01", etc.
+        final weekKey = "$year-W${i.toString().padLeft(2, '0')}";
+        double val = 0;
+
+        final item = _revenueData.firstWhere(
+          (element) => (element['week'] ?? '') == weekKey,
+          orElse: () => {},
+        );
+
+        if (item.isNotEmpty && item['revenue'] != null) {
+          val = (item['revenue'] as num).toDouble();
         }
-      }
-      return List.generate(
-        53,
-        (i) => BarChartGroupData(
+
+        return BarChartGroupData(
           x: i,
           barRods: [
             BarChartRodData(
-              toY: weeklyRevenue[i],
+              toY: val,
               color: const Color(0xFF3B82F6),
               width: 8,
               borderRadius: BorderRadius.circular(2),
             ),
           ],
-        ),
-      );
+        );
+      });
     } else if (_selectedFilter == 'Yearly') {
       return List.generate(_revenueData.length, (i) {
         final item = _revenueData[i];
@@ -1389,33 +1434,34 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   List<BarChartGroupData> _generateOrderVolumeBarGroups() {
     if (_selectedFilter == 'Weekly') {
-      List<double> weekly = List.filled(53, 0.0);
-      for (var item in _orderCountData) {
-        if (item['date'] != null) {
-          try {
-            DateTime d = DateTime.parse(item['date']);
-            int week =
-                ((int.parse(DateFormat("D").format(d)) - d.weekday + 10) / 7)
-                    .floor();
-            if (week >= 1 && week <= 53)
-              weekly[week - 1] += (item['order_count'] as num).toDouble();
-          } catch (e) {}
+      // Use the API response structure for weeks
+      return List.generate(53, (i) {
+        final year = DateTime.now().year;
+        // Matches "2026-W00", "2026-W01", etc.
+        final weekKey = "$year-W${i.toString().padLeft(2, '0')}";
+        double val = 0;
+
+        final item = _orderCountData.firstWhere(
+          (element) => (element['week'] ?? '') == weekKey,
+          orElse: () => {},
+        );
+
+        if (item.isNotEmpty && item['order_count'] != null) {
+          val = (item['order_count'] as num).toDouble();
         }
-      }
-      return List.generate(
-        53,
-        (i) => BarChartGroupData(
+
+        return BarChartGroupData(
           x: i,
           barRods: [
             BarChartRodData(
-              toY: weekly[i],
+              toY: val,
               color: const Color(0xFFF97316),
               width: 8,
               borderRadius: BorderRadius.circular(2),
             ),
           ],
-        ),
-      );
+        );
+      });
     } else if (_selectedFilter == 'Yearly') {
       return List.generate(_orderCountData.length, (i) {
         final item = _orderCountData[i];
