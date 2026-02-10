@@ -250,9 +250,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
             // usually "Weekly" filter implies "This Week".
             // Let's sum up the values for the *current week* from the API response list of weeks.
 
-            // Simple ISO week calculation
+            // Simple week calculation matching API logic (1-based index of 7-day chunks)
             int dayOfYear = int.parse(DateFormat("D").format(now));
-            int week = ((dayOfYear - now.weekday + 10) / 7).floor();
+            int week = ((dayOfYear - 1) ~/ 7) + 1;
             String currentWeekKey =
                 "${now.year}-W${week.toString().padLeft(2, '0')}";
 
