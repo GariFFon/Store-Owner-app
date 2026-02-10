@@ -755,16 +755,16 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF5FCF7), // Subtle green background
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.08),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: Colors.green.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withOpacity(0.15)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -846,9 +846,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w800,
-                                        color: Color(
-                                          0xFF14532D,
-                                        ), // Darker green
+                                        color: Colors.green,
                                       ),
                                     ),
                                   ],
@@ -872,10 +870,10 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                                       ),
                                       child: Text(
                                         "#${receipt['voucher_number'] ?? 'N/A'}",
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
-                                          color: Colors.green[800],
+                                          color: Colors.green,
                                         ),
                                       ),
                                     ),
