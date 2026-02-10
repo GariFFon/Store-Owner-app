@@ -484,9 +484,9 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      _formatCurrency(item['selling_amount_excluding_tax']),
+                      "SP: ${_formatCurrency(item['selling_amount_excluding_tax'])}",
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w800,
                         color: _primary,
                       ),
@@ -498,7 +498,6 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                         color: _textSub,
-                        decoration: TextDecoration.lineThrough,
                       ),
                     ),
                   ],
@@ -518,17 +517,29 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                 children: [
                   _buildStatItem(
                     "Purchased",
-                    item['total_stocks_purchased']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_purchased']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                   Container(width: 1, height: 24, color: Colors.grey[200]),
                   _buildStatItem(
                     "Sold",
-                    item['total_stocks_sold']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_sold']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                   Container(width: 1, height: 24, color: Colors.grey[200]),
                   _buildStatItem(
                     "Returned",
-                    item['total_stocks_returned']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_returned']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                 ],
               ),
@@ -792,6 +803,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                             _buildStockSection(item, stockLeft),
                                             const SizedBox(height: 20),
                                             _buildDateSection(
+                                              item['manufactured_on_timestamp'],
                                               purchaseTimestamp,
                                               expiryTimestamp,
                                               createdTimestamp,
@@ -817,6 +829,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                   _buildPricingSection(item),
                                   const SizedBox(height: 20),
                                   _buildDateSection(
+                                    item['manufactured_on_timestamp'],
                                     purchaseTimestamp,
                                     expiryTimestamp,
                                     createdTimestamp,
@@ -971,12 +984,32 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                   ),
                 ),
                 Text(
-                  "undefined",
+                  productData['brand_name']?.toString() ?? "undefined",
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF94A3B8),
                   ),
                 ),
+                const SizedBox(height: 4),
+                if (productData['product_type'] != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDBEAFE),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      productData['product_type'],
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E40AF),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -1007,7 +1040,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _formatCurrency(item['selling_amount_excluding_tax']),
+                  _formatCurrency(item['mrp']),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
@@ -1045,11 +1078,11 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
       _buildRow("MRP:", _formatCurrency(item['mrp'])),
       _buildRow(
         "Cost (Excl. Tax):",
-        _formatCurrency(item['purchase_amount_excluding_tax']),
+        _formatCurrency(item['cost_amount_excluding_tax']),
       ),
       _buildRow(
         "Cost (Incl. Tax):",
-        _formatCurrency(item['purchase_amount_including_tax']),
+        _formatCurrency(item['cost_amount_including_tax']),
       ),
       _buildRow(
         "Selling Price:",
@@ -1059,25 +1092,53 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
   }
 
   Widget _buildDateSection(
+    dynamic manufactured,
     dynamic purchased,
     dynamic expired,
     dynamic created,
   ) {
     return _buildInfoCard("Date Information", [
-      _buildRow("Manufactured:", "Jan 31, 2026"), // Mock data as per image
+      _buildRow("Manufactured:", _formatDate(manufactured)),
       _buildRow("Purchased:", _formatDate(purchased)),
       if (expired != null) _buildRow("Expires:", _formatDate(expired)),
       _buildRow("Created:", _formatDate(created)),
     ]);
   }
 
+  String _capitalizeFirstLetter(String? text) {
+    if (text == null || text.isEmpty) return '';
+    return text
+        .split(' ')
+        .map((word) {
+          if (word.isEmpty) return word;
+          return word[0].toUpperCase() + word.substring(1).toLowerCase();
+        })
+        .join(' ');
+  }
+
   Widget _buildAdditionalSection(Map<String, dynamic> item) {
+    final productData = item['product_combination_data'] ?? {};
+    final parentCategory = productData['parent_category'];
+    final childCategory = productData['child_category'];
+
+    String category = 'N/A';
+    if (parentCategory != null && childCategory != null) {
+      category =
+          '${_capitalizeFirstLetter(parentCategory)} / ${_capitalizeFirstLetter(childCategory)}';
+    } else if (parentCategory != null) {
+      category = _capitalizeFirstLetter(parentCategory);
+    } else if (childCategory != null) {
+      category = _capitalizeFirstLetter(childCategory);
+    }
+
     return _buildInfoCard("Additional Information", [
-      _buildRow("State Code:", item['state_code']?.toString() ?? "maharashtra"),
       _buildRow(
-        "Category:",
-        item['category_name'] ?? "women's health / feminine hygiene",
+        "State Code:",
+        _capitalizeFirstLetter(item['state_code_of_purchase']?.toString()) != ''
+            ? _capitalizeFirstLetter(item['state_code_of_purchase']?.toString())
+            : "N/A",
       ),
+      _buildRow("Category:", category),
     ]);
   }
 
