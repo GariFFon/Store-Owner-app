@@ -241,20 +241,25 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
   }
 
   void _nextStep() {
-    // Validate current step fields
-    bool isValid = true;
+    // Validate visible form fields (triggers red error text on invalid fields)
+    if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
+      return;
+    }
 
-    if (_currentStep == 0) {
-      if (_storeNameController.text.isEmpty) isValid = false;
-    } else if (_currentStep == 1) {
-      if (_cityController.text.isEmpty ||
-          _selectedState == null ||
-          _pincodeController.text.isEmpty)
+    // Additional manual validation for non-TextFormField inputs
+    bool isValid = true;
+    String errorMessage = 'Please fill all required fields';
+
+    if (_currentStep == 1) {
+      if (_cityController.text.isEmpty || _selectedState == null) {
         isValid = false;
+        errorMessage = 'Location details are incomplete';
+      }
     } else if (_currentStep == 3) {
-      if (_isGstEnabled) {
-        if (_gstController.text.isEmpty || _selectedGstState == null)
-          isValid = false;
+      if (_isGstEnabled &&
+          (_gstController.text.isEmpty || _selectedGstState == null)) {
+        isValid = false;
+        errorMessage = 'Please fill all GST details';
       }
     }
 
@@ -268,9 +273,10 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill all required fields'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(errorMessage),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -288,165 +294,321 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Define steps for the stepper
+    final steps = ['Basic Info', 'Location', 'Business', 'GST'];
+
     return Dialog(
-      insetPadding: EdgeInsets.zero, // Full screen or close to it like modal
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
+      alignment: Alignment.topCenter,
       child: Container(
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.height, // Full screen dialog
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Create New Store',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-
-            // Stepper Indicator
-            _buildStepper(),
-
-            const Divider(),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Form(key: _formKey, child: _buildStepContent()),
-              ),
-            ),
-
-            // Footer Buttons
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: _prevStep,
-                    child: Text(
-                      _currentStep == 0 ? 'Cancel' : 'Back',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _nextStep,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            _currentStep == 3 ? 'Create Store' : 'Next',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                  ),
-                ],
-              ),
+        constraints: const BoxConstraints(maxWidth: 550, maxHeight: 750),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 25,
+              offset: const Offset(0, 15),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStepper() {
-    final steps = [
-      'Basic Info',
-      'Location',
-      'Business Details',
-      'GST (Optional)',
-    ];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.grey[50], // Light background for stepper
-      child: Row(
-        children: List.generate(steps.length, (index) {
-          bool isActive = index == _currentStep;
-          bool isCompleted = index < _currentStep;
-
-          return Expanded(
-            child: Row(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with Integrated Action Button
+            Stack(
               children: [
-                // Circle with number/check
                 Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: isActive || isCompleted
-                        ? Colors.blue[700]
-                        : Colors.grey[400],
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: isCompleted
-                        ? const Icon(Icons.check, size: 14, color: Colors.white)
-                        : Text(
-                            '${index + 1}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Label (hidden on small screens if needed, but let's try to show)
-                Expanded(
-                  child: Text(
-                    steps[index],
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isActive ? Colors.black : Colors.grey[600],
-                      fontWeight: isActive
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                  height: 110,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
                   ),
                 ),
-                // Connector line (except for last item)
-                if (index < steps.length - 1)
-                  Container(width: 20, height: 1, color: Colors.grey[300]),
+                // Decorative Circle
+                Positioned(
+                  top: -30,
+                  right: -30,
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Add New Supplier',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                                height: 1.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Register a new store partner',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue[50],
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Action Button in Header (Creative Placement)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Back Button - Always present in layout to prevent title reflow
+                          // but hidden/disabled on first step
+                          AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: _currentStep > 0 ? 1.0 : 0.0,
+                            child: IgnorePointer(
+                              ignoring: _currentStep == 0,
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: SizedBox(
+                                  width: 32,
+                                  height: 32,
+                                  child: IconButton(
+                                    padding: EdgeInsets.zero,
+                                    onPressed: _prevStep,
+                                    icon: const Icon(
+                                      Icons.arrow_back_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.white.withOpacity(
+                                        0.2,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            onTap: _isLoading ? null : _nextStep,
+                            borderRadius: BorderRadius.circular(10),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFF2563EB),
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _currentStep == 3 ? 'Finish' : 'Next',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF2563EB),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          _currentStep == 3
+                                              ? Icons.check_circle_rounded
+                                              : Icons.arrow_forward_rounded,
+                                          color: const Color(0xFF2563EB),
+                                          size: 14,
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.black.withOpacity(0.1),
+                                shape: const CircleBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-          );
-        }),
+
+            // Sliding Stepper (Overlapping the header slightly for a layered look)
+            Transform.translate(
+              offset: const Offset(0, -24),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    AnimatedAlign(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      alignment: Alignment(
+                        -1.0 + (2.0 * _currentStep) / (steps.length - 1),
+                        0,
+                      ),
+                      child: FractionallySizedBox(
+                        widthFactor: 1 / steps.length,
+                        heightFactor: 1.0,
+                        child: Container(
+                          margin: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF3B82F6).withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: List.generate(steps.length, (index) {
+                        final isSelected = index == _currentStep;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              // Allow explicit navigation to any completed step or the immediate next one
+                              if (index <= _currentStep) {
+                                setState(() => _currentStep = index);
+                              }
+                            },
+                            behavior: HitTestBehavior.translucent,
+                            child: Center(
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 200),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF64748B),
+                                ),
+                                child: Text(
+                                  steps[index],
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Content
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                layoutBuilder:
+                    (Widget? currentChild, List<Widget> previousChildren) {
+                      return Stack(
+                        alignment: Alignment.topCenter,
+                        children: <Widget>[
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
+                    },
+                child: SingleChildScrollView(
+                  key: ValueKey<int>(_currentStep),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  physics: const BouncingScrollPhysics(),
+                  child: Form(key: _formKey, child: _buildStepContent()),
+                ),
+              ),
+            ),
+
+            // Bottom Spacer for rounded feel (No footer buttons here)
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -457,77 +619,95 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildTextField(
+            _buildModernField(
               controller: _storeNameController,
-              label: 'Store Name *',
-              hint: '',
+              label: 'Store Name',
+              hint: 'Enter store name',
               required: true,
               errorText: 'Store name is required',
+              icon: Icons.store_mall_directory_rounded,
             ),
-            const SizedBox(height: 8),
-            Text(
-              '* Required field. Enter the display name for this store.',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFDBEAFE)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    size: 16,
+                    color: Color(0xFF3B82F6),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'This name will be displayed to your customers and suppliers.',
+                      style: TextStyle(
+                        color: Colors.blueGrey[700],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         );
       case 1:
         return Column(
           children: [
-            _buildTextField(
-              controller: _pincodeController,
-              label: 'PIN Code',
-              hint: 'E.g., 400001',
-              keyboardType: TextInputType.number,
-              required: true,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _cityController,
-              label: 'City',
-              required: true,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _areaController,
-              label: 'Area/Locality',
-            ),
-            const SizedBox(height: 16),
-            // State Dropdown
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
               children: [
-                const Text(
-                  'State',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
+                Expanded(
+                  child: _buildModernField(
+                    controller: _pincodeController,
+                    label: 'PIN Code',
+                    hint: '123456',
+                    keyboardType: TextInputType.number,
+                    required: true,
+                    icon: Icons.pin_drop_rounded,
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: _selectedState,
-                      hint: const Text('Select State'),
-                      items: _indianStates.map((String state) {
-                        return DropdownMenuItem<String>(
-                          value: state,
-                          child: Text(state),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) {
-                        setState(() {
-                          _selectedState = newValue!;
-                        });
-                      },
+                ),
+                if (_isFetchingLocation) ...[
+                  const SizedBox(width: 16),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 24),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
-                ),
+                ],
               ],
+            ),
+            const SizedBox(height: 16),
+            _buildModernField(
+              controller: _cityController,
+              label: 'City',
+              hint: 'City name',
+              required: true,
+              icon: Icons.location_city_rounded,
+            ),
+            const SizedBox(height: 16),
+            _buildModernField(
+              controller: _areaController,
+              label: 'Area / Locality',
+              hint: 'Enter area',
+              icon: Icons.map_rounded,
+            ),
+            const SizedBox(height: 16),
+            _buildModernDropdown(
+              label: 'State',
+              value: _selectedState,
+              items: _indianStates,
+              hint: 'Select State',
+              icon: Icons.map_outlined,
+              onChanged: (v) => setState(() => _selectedState = v),
             ),
           ],
         );
@@ -535,74 +715,52 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Code + Phone Row
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 100,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Code',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Text('🇮🇳', style: TextStyle(fontSize: 16)),
-                            const SizedBox(width: 4),
-                            Expanded(child: Text(_phoneCode)),
-                            Icon(Icons.arrow_drop_down, size: 18),
-                          ],
-                        ),
-                      ),
-                    ],
+            _buildModernField(
+              controller: _phoneController,
+              label: 'Phone Number',
+              hint: '9876543210',
+              keyboardType: TextInputType.phone,
+              icon: Icons.phone_rounded,
+              prefix: SizedBox(
+                width: 40,
+                child: Center(
+                  child: Text(
+                    '+91',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF64748B),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildTextField(
-                    controller: _phoneController,
-                    label: 'Phone Number',
-                    hint: 'E.g., 9876543210',
-                    keyboardType: TextInputType.phone,
-                  ),
-                ),
-              ],
+              ),
+              validator: (value) {
+                if (value != null && value.isNotEmpty && value.length != 10) {
+                  return 'Enter valid 10-digit number';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildModernField(
               controller: _emailController,
-              label: 'Email',
-              hint: 'E.g., store@example.com',
+              label: 'Email Address',
+              hint: 'store@email.com',
               keyboardType: TextInputType.emailAddress,
+              icon: Icons.email_rounded,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildModernField(
               controller: _legalNameController,
               label: 'Legal Business Name',
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'As per legal documents',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              hint: 'Registered business name',
+              icon: Icons.gavel_rounded,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildModernField(
               controller: _websiteController,
-              label: 'Website URL',
-              hint: 'E.g., https://example.com',
+              label: 'Website',
+              hint: 'https://myshop.com',
+              icon: Icons.language_rounded,
             ),
           ],
         );
@@ -610,129 +768,97 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Checkbox
-            Row(
-              children: [
-                SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: Checkbox(
-                    value: _isGstEnabled,
-                    onChanged: (val) {
-                      setState(() {
-                        _isGstEnabled = val ?? false;
-                        // Auto-select state if not set
-                        if (_isGstEnabled &&
-                            _selectedGstState == null &&
-                            _selectedState != null) {
-                          _selectedGstState = _selectedState;
-                        }
-                      });
-                    },
-                    activeColor: Colors.blue[700],
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isGstEnabled = !_isGstEnabled;
+                  if (_isGstEnabled &&
+                      _selectedGstState == null &&
+                      _selectedState != null) {
+                    _selectedGstState = _selectedState;
+                  }
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _isGstEnabled
+                      ? const Color(0xFFEFF6FF)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _isGstEnabled
+                        ? const Color(0xFF3B82F6)
+                        : const Color(0xFFE2E8F0),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  'Enable GST',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[800]),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isGstEnabled
+                          ? Icons.check_circle_rounded
+                          : Icons.check_circle_outline_rounded,
+                      color: _isGstEnabled
+                          ? const Color(0xFF3B82F6)
+                          : const Color(0xFF94A3B8),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Yes, this business is GST registered',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: _isGstEnabled
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFF64748B),
+                            ),
+                          ),
+                          if (_isGstEnabled)
+                            Text(
+                              'Enter your GST details below',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blueGrey[500],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-
             if (_isGstEnabled) ...[
               const SizedBox(height: 24),
-
-              // GSTIN
-              TextFormField(
+              _buildModernField(
                 controller: _gstController,
-                decoration: InputDecoration(
-                  hintText: 'GSTIN *',
-                  hintStyle: TextStyle(color: Colors.grey[500]),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                ),
+                label: 'GSTIN',
+                hint: '22AAAAA0000A1Z5',
+                required: true,
+                icon: Icons.confirmation_number_rounded,
               ),
-              const SizedBox(height: 8),
-              Text(
-                'E.g., 22AAAAA0000A1Z5',
-                style: TextStyle(color: Colors.grey[500], fontSize: 12),
-              ),
-
               const SizedBox(height: 16),
-
-              // GST State
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: _selectedGstState,
-                    hint: Text(
-                      'GST Registered State *',
-                      style: TextStyle(color: Colors.grey[500]),
-                    ),
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
-                    items: _indianStates.map((String state) {
-                      return DropdownMenuItem<String>(
-                        value: state,
-                        child: Text(state),
-                      );
-                    }).toList(),
-                    onChanged: (newValue) {
-                      setState(() {
-                        _selectedGstState = newValue!;
-                      });
-                    },
-                  ),
-                ),
+              _buildModernDropdown(
+                label: 'Registered State',
+                value: _selectedGstState,
+                items: _indianStates,
+                hint: 'Select State',
+                icon: Icons.map_rounded,
+                onChanged: (v) => setState(() => _selectedGstState = v),
               ),
-
               const SizedBox(height: 16),
-
-              const Text(
-                'GST Registration Type',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: _selectedGstType,
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
-                    items: _gstTypes.map((String type) {
-                      return DropdownMenuItem<String>(
-                        value: type,
-                        child: Text(type),
-                      );
-                    }).toList(),
-                    onChanged: (newValue) {
-                      setState(() {
-                        _selectedGstType = newValue!;
-                      });
-                    },
-                  ),
-                ),
+              _buildModernDropdown(
+                label: 'Registration Type',
+                value: _selectedGstType,
+                items: _gstTypes,
+                hint: 'Select Type',
+                icon: Icons.category_rounded,
+                onChanged: (v) => setState(() => _selectedGstType = v!),
               ),
             ],
           ],
@@ -742,85 +868,189 @@ class _CreateStoreDialogState extends State<CreateStoreDialog> {
     }
   }
 
-  Widget _buildTextField({
+  // --- HELPER METHODS FOR UNIFIED DESIGN ---
+
+  Widget _buildModernField({
     required TextEditingController controller,
     required String label,
     String? hint,
     bool required = false,
     String? errorText,
     TextInputType? keyboardType,
+    IconData? icon,
+    Widget? prefix,
+    String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Make label part of border or outside? Image shows standard outline input with floating label or label inside border.
-        // Actually image shows customized input.
-        // Let's stick to standard InputDecoration for simplicity and robustness.
-        // Wait, image: blue border when active, gray when inactive. Label is floating title in blue.
-        Text(
-          label,
-          style: TextStyle(color: Colors.grey[600], fontSize: 13),
-        ), // Label above
-        const SizedBox(height: 6),
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: const Color(0xFF64748B)),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            if (required)
+              const Text(
+                ' *',
+                style: TextStyle(color: Colors.red, fontSize: 12),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
-          validator: (value) {
-            if (required && (value == null || value.isEmpty)) {
-              return errorText ?? 'This field is required';
-            }
-            return null;
-          },
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF0F172A),
+          ),
+          validator:
+              validator ??
+              (value) {
+                if (required && (value == null || value.isEmpty)) {
+                  return errorText ?? 'This field is required';
+                }
+                return null;
+              },
           onChanged: (val) {
-            // For generic validation updates
             if (required) setState(() {});
-            // Handle Pincode Change
+            // Handle Pincode Check
             if (controller == _pincodeController && val.length == 6) {
               _fetchLocationFromPincode(val);
             }
           },
           decoration: InputDecoration(
             hintText: hint,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
+            hintStyle: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: Colors.grey[400],
             ),
+            prefixIcon: prefix,
+            filled: true,
+            fillColor: Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.blue, width: 2),
+              borderSide: const BorderSide(
+                color: Color(0xFF3B82F6),
+                width: 1.5,
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red),
+              borderSide: const BorderSide(color: Colors.red, width: 1.0),
             ),
-            suffixIcon:
-                (controller == _pincodeController && _isFetchingLocation)
-                ? Transform.scale(
-                    scale: 0.5,
-                    child: const CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : null,
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
           ),
         ),
-        if (required &&
-            controller.text.isEmpty &&
-            _currentStep ==
-                0) // Just showing the error text below field style as per image
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              errorText ?? 'Required',
-              style: const TextStyle(color: Colors.red, fontSize: 12),
+      ],
+    );
+  }
+
+  Widget _buildModernDropdown({
+    required String label,
+    required String? value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+    String? hint,
+    IconData? icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: const Color(0xFF64748B)),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              hint: hint != null
+                  ? Text(
+                      hint,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[400],
+                        fontWeight: FontWeight.w400,
+                      ),
+                    )
+                  : null,
+              items: items.map((String item) {
+                return DropdownMenuItem<String>(
+                  value: item,
+                  child: Text(
+                    item,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: onChanged,
+              icon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Color(0xFF64748B),
+                size: 20,
+              ),
+              isExpanded: true,
+              menuMaxHeight: 300,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF0F172A),
+                fontWeight: FontWeight.w600,
+              ),
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
+        ),
       ],
     );
   }
