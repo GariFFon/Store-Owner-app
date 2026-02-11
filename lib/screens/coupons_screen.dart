@@ -681,6 +681,8 @@ class _CouponsScreenState extends State<CouponsScreen> {
                           color: Colors.white,
                         ),
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
 
@@ -773,7 +775,76 @@ class _CouponsScreenState extends State<CouponsScreen> {
                           'Expires',
                           DateFormat('dd MMM').format(expiryDate),
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Expires:',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[500],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('dd MMM yyyy').format(expiryDate),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isExpired
+                                    ? Colors.red
+                                    : const Color(0xFF1E293B),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Edit Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final result = await showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) =>
+                              EditCouponBottomSheet(coupon: coupon),
+                        );
+
+                        if (result == true) {
+                          _fetchCoupons();
+                        }
+                      },
+                      icon: const Icon(Icons.edit_rounded, size: 16),
+                      label: const Text(
+                        'Edit Coupon',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
                     const SizedBox(height: 8),
 

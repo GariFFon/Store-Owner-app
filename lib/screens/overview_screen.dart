@@ -180,6 +180,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
           month: _selectedFilter == 'Weekly'
               ? DateTime.now().month.toString()
               : null,
+          week: _selectedFilter == 'Weekly'
+              ? ((DateTime.now().day - 1) ~/ 7 + 1)
+              : null,
+          day: _selectedFilter == 'Weekly' ? DateTime.now().day : null,
         ),
         StoreAnalyticsService.getOrderMethodAnalytics(
           storeId: widget.storeId,
@@ -190,6 +194,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
           month: _selectedFilter == 'Weekly'
               ? DateTime.now().month.toString()
               : null,
+          week: _selectedFilter == 'Weekly'
+              ? ((DateTime.now().day - 1) ~/ 7 + 1)
+              : null,
+          day: _selectedFilter == 'Weekly' ? DateTime.now().day : null,
         ),
         StoreAnalyticsService.getSentimentAnalytics(
           storeId: widget.storeId,
@@ -211,6 +219,13 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   _selectedFilter == 'Weekly')
               ? _selectedFilter.toLowerCase()
               : 'custom',
+          year: yearStr,
+          month:
+              (_selectedFilter == 'Yearly' ||
+                  _selectedFilter == 'Monthly' ||
+                  _selectedFilter == 'Weekly')
+              ? DateFormat('MMMM').format(DateTime.now()).toLowerCase()
+              : null,
         ),
       ]);
 
