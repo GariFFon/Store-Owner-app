@@ -54,4 +54,33 @@ class PaymentService {
       throw Exception('Error fetching payment data: $e');
     }
   }
+
+  static Future<PaymentDetail> viewPayment({
+    required String voucherId,
+    required String storeId,
+  }) async {
+    try {
+      final Map<String, dynamic> body = {
+        "store_id": storeId,
+        "store_access": true,
+        "voucher_id": voucherId,
+      };
+
+      final response = await ApiService.post(
+        '/view-payment/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return PaymentDetail.fromJson(data['response']);
+        }
+      }
+      throw Exception('Failed to load payment details: ${response['message']}');
+    } catch (e) {
+      throw Exception('Error viewing payment: $e');
+    }
+  }
 }

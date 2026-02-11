@@ -404,17 +404,65 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
           if (data['phone_number'] != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                "${data['phone_number']}",
-                style: const TextStyle(fontWeight: FontWeight.w600),
+              child: Row(
+                children: [
+                  const Icon(Icons.phone, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    "${data['phone_number']}",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
             ),
-          if (data['city'] != null)
-            Text(
-              "${data['city']}",
-              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          if (data['email'] != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.email_outlined,
+                    size: 12,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      "${data['email']}",
+                      style: const TextStyle(fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          if (data['phone_number'] == null && data['city'] == null)
+          if (data['city'] != null || data['state'] != null)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 12,
+                  color: Colors.grey,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    [data['city'], data['state']]
+                        .where((e) => e != null && e.toString().isNotEmpty)
+                        .join(', '),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  ),
+                ),
+              ],
+            ),
+          if (data['phone_number'] == null &&
+              data['email'] == null &&
+              data['city'] == null &&
+              data['state'] == null)
             Text(
               "N/A",
               style: TextStyle(fontSize: 13, color: Colors.grey[400]),
@@ -459,13 +507,9 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
       children: [
         outstandingWidget,
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(child: contactWidget),
-            const SizedBox(width: 16),
-            Expanded(child: taxWidget),
-          ],
-        ),
+        SizedBox(width: double.infinity, child: contactWidget),
+        const SizedBox(height: 16),
+        SizedBox(width: double.infinity, child: taxWidget),
       ],
     );
   }
@@ -806,6 +850,19 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
                       fontSize: 16,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Balance",
+                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                  ),
+                  Text(
+                    _formatCurrency(txn['running_balance']),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -852,6 +909,12 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
     }
 
     final buckets = [
+      {
+        'key': 'total_outstanding',
+        'label': 'Total Outstanding',
+        'bg': Colors.blue[50]!,
+        'text': Colors.blue[900]!,
+      },
       {
         'key': '0_30',
         'label': '0-30 Days',
