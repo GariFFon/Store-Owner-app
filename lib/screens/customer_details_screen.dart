@@ -312,19 +312,18 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
         const SizedBox(width: 16),
         _buildFilterDropdown(
           value: _txnVoucherType,
-          items: [
-            "All Voucher Types",
-            "RECEIPT",
-            "SALES",
-            "CN",
-            "PAYMENT",
-          ],
+          items: ["All Voucher Types", "RECEIPT", "SALES", "CN", "PAYMENT"],
           onChanged: (v) => setState(() => _txnVoucherType = v!),
         ),
         const SizedBox(width: 16),
         _buildFilterDropdown(
           value: _txnSortOption,
-          items: ["Sort by Date", "Sort by Voucher", "Amount: High to Low", "Amount: Low to High"],
+          items: [
+            "Sort by Date",
+            "Sort by Voucher",
+            "Amount: High to Low",
+            "Amount: Low to High",
+          ],
           onChanged: (v) => setState(() => _txnSortOption = v!),
         ),
         const SizedBox(width: 16),
@@ -374,13 +373,12 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
             color: Colors.black87,
           ),
           items: items
-              .map((e) => DropdownMenuItem(
-                value: e, 
-                child: Text(
-                  e,
-                  overflow: TextOverflow.ellipsis,
+              .map(
+                (e) => DropdownMenuItem(
+                  value: e,
+                  child: Text(e, overflow: TextOverflow.ellipsis),
                 ),
-              ))
+              )
               .toList(),
           onChanged: onChanged,
         ),
@@ -493,29 +491,32 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
                   ? Center(child: Text(_errorMessage!))
-                  : CustomScrollView(
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              children: [
-                                _buildProfileSection(isDesktop),
-                                const SizedBox(height: 24),
-                                _buildTabSwitcher(),
-                              ],
+                  : RefreshIndicator(
+                      onRefresh: _fetchReport,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                children: [
+                                  _buildProfileSection(isDesktop),
+                                  const SizedBox(height: 24),
+                                  _buildTabSwitcher(),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        if (_tabController.index == 0)
-                          ..._buildLedgerSlivers(isDesktop)
-                        else
-                          ..._buildAgingSlivers(isDesktop),
+                          if (_tabController.index == 0)
+                            ..._buildLedgerSlivers(isDesktop)
+                          else
+                            ..._buildAgingSlivers(isDesktop),
 
-                        const SliverPadding(
-                          padding: EdgeInsets.only(bottom: 40),
-                        ),
-                      ],
+                          const SliverPadding(
+                            padding: EdgeInsets.only(bottom: 40),
+                          ),
+                        ],
+                      ),
                     ),
             ),
           ],
@@ -759,20 +760,26 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
-          if (data['city'] != null)
-            Text(
-              "${data['city']}",
-              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-            ),
           if (data['email'] != null)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(bottom: 4),
               child: Text(
                 "${data['email']}",
                 style: TextStyle(fontSize: 13, color: Colors.grey[600]),
               ),
             ),
-          if (data['phone_number'] == null && data['city'] == null && data['email'] == null)
+          if (data['city'] != null || data['state'] != null)
+            Text(
+              [
+                data['city'],
+                data['state'],
+              ].where((e) => e != null && e.toString().isNotEmpty).join(', '),
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+          if (data['phone_number'] == null &&
+              data['email'] == null &&
+              data['city'] == null &&
+              data['state'] == null)
             Text(
               "N/A",
               style: TextStyle(fontSize: 13, color: Colors.grey[400]),
@@ -1068,14 +1075,19 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                       children: [
                         Text(
                           "Debit",
-                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           debit != "0.00" ? _formatCurrency(debit) : "-",
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: debit != "0.00" ? Colors.red : Colors.grey[400],
+                            color: debit != "0.00"
+                                ? Colors.red
+                                : Colors.grey[400],
                             fontSize: 13,
                           ),
                         ),
@@ -1088,14 +1100,19 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                       children: [
                         Text(
                           "Credit",
-                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           credit != "0.00" ? _formatCurrency(credit) : "-",
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: credit != "0.00" ? Colors.green : Colors.grey[400],
+                            color: credit != "0.00"
+                                ? Colors.green
+                                : Colors.grey[400],
                             fontSize: 13,
                           ),
                         ),
@@ -1108,7 +1125,10 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                       children: [
                         Text(
                           "Balance",
-                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -1175,6 +1195,12 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
     }
 
     final buckets = [
+      {
+        'key': 'total_outstanding',
+        'label': 'Total Outstanding',
+        'bg': Colors.blue[50]!,
+        'text': Colors.blue[900]!,
+      },
       {
         'key': '0_30',
         'label': '0-30 Days',

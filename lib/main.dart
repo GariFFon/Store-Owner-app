@@ -346,11 +346,28 @@ void main() async {
       });
 
   // Wait for all non-critical services to complete (run in parallel to improve startup time)
+  // Use a timeout to prevent the app from hanging if any service fails to initialize
   developer.log(
     '🔄 Initializing non-critical services in parallel...',
     name: 'Main',
   );
-  await Future.wait([translationFuture, adsFuture, analyticsFuture]);
+  try {
+    await Future.wait([translationFuture, adsFuture, analyticsFuture]).timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        developer.log(
+          '⚠️ Non-critical services initialization timed out after 10s - proceeding with app launch',
+          name: 'Main',
+        );
+        return [];
+      },
+    );
+  } catch (e) {
+    developer.log(
+      '⚠️ Non-critical services initialization error: $e - proceeding with app launch',
+      name: 'Main',
+    );
+  }
 
   developer.log('🎯 main() completed - starting Flutter app', name: 'Main');
 

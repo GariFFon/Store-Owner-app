@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
+import 'package:exanor/services/api_service.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'dart:math' as math;
 
@@ -38,6 +39,12 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
   final Color _textMain = const Color(0xFF1E293B);
   final Color _textSub = const Color(0xFF64748B);
 
+  // Filters State
+  String _sortBy = '-purchase_timestamp';
+  bool _filter7d = false;
+  bool _filterAvailable = false;
+  bool _filterLowStock = false;
+
   @override
   void initState() {
     super.initState();
@@ -64,10 +71,51 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
         page: _currentPage,
       );
 
-      if (data.containsKey('response')) {
+      if (data.containsKey('response') && data['response'] is List) {
+        List<dynamic> products = List<dynamic>.from(data['response']);
+
+        // Client-side filtering
+        if (_filter7d) {
+          final sevenDaysAgo =
+              DateTime.now()
+                  .subtract(const Duration(days: 7))
+                  .millisecondsSinceEpoch ~/
+              1000;
+          products = products.where((item) {
+            final ts = item['purchase_timestamp'];
+            if (ts == null) return false;
+            final tsInt = ts is int ? ts : (int.tryParse(ts.toString()) ?? 0);
+            return tsInt >= sevenDaysAgo;
+          }).toList();
+        }
+
+        if (_filterAvailable) {
+          products = products.where((item) {
+            final stock =
+                double.tryParse(item['total_stocks_left']?.toString() ?? '0') ??
+                0;
+            return stock > 0;
+          }).toList();
+        }
+
+        if (_filterLowStock) {
+          products = products.where((item) {
+            final stock =
+                double.tryParse(item['total_stocks_left']?.toString() ?? '0') ??
+                0;
+            return stock > 0 && stock <= 10;
+          }).toList();
+        }
+
+        // Client-side sorting
+        products = _applySorting(products);
+
+        final pagination = data['pagination'];
         setState(() {
-          _products = data['response'];
-          _totalCount = data['pagination']['total_count'] ?? 0;
+          _products = products;
+          _totalCount = (pagination is Map)
+              ? (pagination['total_count'] ?? 0)
+              : products.length;
           _isLoading = false;
         });
       } else {
@@ -82,6 +130,33 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  List<dynamic> _applySorting(List<dynamic> products) {
+    final bool descending = _sortBy.startsWith('-');
+    final String field = descending ? _sortBy.substring(1) : _sortBy;
+
+    products.sort((a, b) {
+      dynamic valA;
+      dynamic valB;
+
+      if (field == 'purchase_timestamp') {
+        valA = a[field] is int
+            ? a[field]
+            : (int.tryParse(a[field]?.toString() ?? '0') ?? 0);
+        valB = b[field] is int
+            ? b[field]
+            : (int.tryParse(b[field]?.toString() ?? '0') ?? 0);
+      } else {
+        valA = double.tryParse(a[field]?.toString() ?? '0') ?? 0.0;
+        valB = double.tryParse(b[field]?.toString() ?? '0') ?? 0.0;
+      }
+
+      final cmp = Comparable.compare(valA as Comparable, valB as Comparable);
+      return descending ? -cmp : cmp;
+    });
+
+    return products;
   }
 
   String _formatCurrency(dynamic amount) {
@@ -158,14 +233,19 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                               ? _buildErrorState()
                               : _products.isEmpty
                               ? _buildEmptyState()
-                              : ListView.separated(
-                                  padding: const EdgeInsets.all(24),
-                                  itemCount: _products.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 16),
-                                  itemBuilder: (context, index) {
-                                    return _buildProductCard(_products[index]);
-                                  },
+                              : RefreshIndicator(
+                                  onRefresh: () async => await _fetchProducts(),
+                                  child: ListView.separated(
+                                    padding: const EdgeInsets.all(24),
+                                    itemCount: _products.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 16),
+                                    itemBuilder: (context, index) {
+                                      return _buildProductCard(
+                                        _products[index],
+                                      );
+                                    },
+                                  ),
                                 ),
                         ),
                       ],
@@ -362,9 +442,9 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildPremiumChip(Icons.sort_rounded, "Sort"),
+                        _buildSortButton(),
                         const SizedBox(width: 8),
-                        _buildPremiumChip(Icons.filter_list_rounded, "Filter"),
+                        _buildFilterButton(),
                         const SizedBox(width: 8),
                         Container(
                           height: 20,
@@ -373,11 +453,41 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                           margin: const EdgeInsets.symmetric(horizontal: 4),
                         ),
                         const SizedBox(width: 8),
-                        _buildFilterChoice("7d"),
+                        _buildFilterChoice(
+                          "7d",
+                          isActive: _filter7d,
+                          onTap: () {
+                            setState(() {
+                              _filter7d = !_filter7d;
+                              _currentPage = 1;
+                            });
+                            _fetchProducts();
+                          },
+                        ),
                         const SizedBox(width: 8),
-                        _buildFilterChoice("Available", isActive: true),
+                        _buildFilterChoice(
+                          "Available",
+                          isActive: _filterAvailable,
+                          onTap: () {
+                            setState(() {
+                              _filterAvailable = !_filterAvailable;
+                              _currentPage = 1;
+                            });
+                            _fetchProducts();
+                          },
+                        ),
                         const SizedBox(width: 8),
-                        _buildFilterChoice("Low Stock"),
+                        _buildFilterChoice(
+                          "Low Stock",
+                          isActive: _filterLowStock,
+                          onTap: () {
+                            setState(() {
+                              _filterLowStock = !_filterLowStock;
+                              _currentPage = 1;
+                            });
+                            _fetchProducts();
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -484,9 +594,9 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      _formatCurrency(item['selling_amount_excluding_tax']),
+                      "SP: ${_formatCurrency(item['selling_amount_excluding_tax'])}",
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w800,
                         color: _primary,
                       ),
@@ -498,7 +608,6 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                         color: _textSub,
-                        decoration: TextDecoration.lineThrough,
                       ),
                     ),
                   ],
@@ -518,17 +627,29 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                 children: [
                   _buildStatItem(
                     "Purchased",
-                    item['total_stocks_purchased']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_purchased']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                   Container(width: 1, height: 24, color: Colors.grey[200]),
                   _buildStatItem(
                     "Sold",
-                    item['total_stocks_sold']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_sold']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                   Container(width: 1, height: 24, color: Colors.grey[200]),
                   _buildStatItem(
                     "Returned",
-                    item['total_stocks_returned']?.toString() ?? '0',
+                    (double.tryParse(
+                              item['total_stocks_returned']?.toString() ?? '0',
+                            ) ??
+                            0)
+                        .toStringAsFixed(1),
                   ),
                 ],
               ),
@@ -581,9 +702,8 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
     );
   }
 
-  Widget _buildPremiumChip(IconData icon, String label) {
+  Widget _buildPremiumChip(IconData icon, String label, {VoidCallback? onTap}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(30),
@@ -596,39 +716,149 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: _textMain),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: _textMain,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(30),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: _textMain),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _textMain,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildFilterChoice(String label, {bool isActive = false}) {
+  Widget _buildSortButton() {
+    return _buildPremiumChip(
+      Icons.sort_rounded,
+      "Sort",
+      onTap: _showSortOptions,
+    );
+  }
+
+  Widget _buildFilterButton() {
+    return _buildPremiumChip(
+      Icons.filter_list_rounded,
+      "Filter",
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Advanced filters coming soon!")),
+        );
+      },
+    );
+  }
+
+  void _showSortOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: Text(
+                  "Sort By",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              _buildSortOption("Newest First", "-purchase_timestamp"),
+              _buildSortOption("Oldest First", "purchase_timestamp"),
+              _buildSortOption(
+                "Price: Low to High",
+                "selling_amount_excluding_tax",
+              ),
+              _buildSortOption(
+                "Price: High to Low",
+                "-selling_amount_excluding_tax",
+              ),
+              _buildSortOption("Stock: Low to High", "total_stocks_left"),
+              _buildSortOption("Stock: High to Low", "-total_stocks_left"),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSortOption(String label, String value) {
+    final isSelected = _sortBy == value;
+    return ListTile(
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? _primary : _textMain,
+        ),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check_circle_rounded, color: _primary)
+          : null,
+      onTap: () {
+        setState(() {
+          _sortBy = value;
+          _currentPage = 1;
+        });
+        Navigator.pop(context);
+        _fetchProducts();
+      },
+    );
+  }
+
+  Widget _buildFilterChoice(
+    String label, {
+    bool isActive = false,
+    VoidCallback? onTap,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: isActive ? _primary.withOpacity(0.1) : Colors.transparent,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(
-          color: isActive ? _primary.withOpacity(0.2) : Colors.transparent,
+          color: isActive
+              ? _primary.withOpacity(0.2)
+              : Colors.grey.withOpacity(0.3),
         ),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: isActive ? _primary : _textSub,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(30),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isActive ? _primary : _textSub,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -676,8 +906,59 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
 
   // --- EDIT SHEET (Revamped & Responsive) ---
 
+  Future<void> _updateProductAccess(
+    String productInventoryId,
+    bool isOnline,
+    bool isPos,
+  ) async {
+    try {
+      final response = await ApiService.put(
+        '/product-inventory/',
+        body: {
+          "product_inventory_id": productInventoryId,
+          "store_id": widget.storeId,
+          "store_access": true,
+          "data": {
+            "is_accessible_online": isOnline,
+            "is_accessible_pos": isPos,
+          },
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          // Success - refresh the product list
+          await _fetchProducts();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Access settings updated successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating access: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showEditProductSheet(Map<String, dynamic> item) {
     final productData = item['product_combination_data'] ?? {};
+
+    // Initialize access control state variables outside StatefulBuilder
+    bool isWebEnabled = item['is_accessible_online'] ?? false;
+    bool isPosEnabled = item['is_accessible_pos'] ?? false;
 
     showModalBottomSheet(
       context: context,
@@ -694,10 +975,6 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
             final expiryTimestamp = item['expiry_timestamp'];
             final createdTimestamp =
                 item['created_timestamp'] ?? purchaseTimestamp;
-
-            // Access Control
-            bool isWebEnabled = item['is_accessible_online'] ?? false;
-            bool isPosEnabled = item['is_accessible_pos'] ?? false;
 
             return DraggableScrollableSheet(
               initialChildSize: 0.9,
@@ -792,6 +1069,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                             _buildStockSection(item, stockLeft),
                                             const SizedBox(height: 20),
                                             _buildDateSection(
+                                              item['manufactured_on_timestamp'],
                                               purchaseTimestamp,
                                               expiryTimestamp,
                                               createdTimestamp,
@@ -817,6 +1095,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                   _buildPricingSection(item),
                                   const SizedBox(height: 20),
                                   _buildDateSection(
+                                    item['manufactured_on_timestamp'],
                                     purchaseTimestamp,
                                     expiryTimestamp,
                                     createdTimestamp,
@@ -830,10 +1109,12 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                 _buildAccessSection(
                                   isWebEnabled,
                                   isPosEnabled,
-                                  (val) =>
-                                      setSheetState(() => isWebEnabled = val),
-                                  (val) =>
-                                      setSheetState(() => isPosEnabled = val),
+                                  (val) {
+                                    setSheetState(() => isWebEnabled = val);
+                                  },
+                                  (val) {
+                                    setSheetState(() => isPosEnabled = val);
+                                  },
                                 ),
                               ],
                             ),
@@ -874,9 +1155,16 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () {
-                                      // TODO: Save Logic
-                                      Navigator.pop(context);
+                                    onPressed: () async {
+                                      // Save access control changes
+                                      await _updateProductAccess(
+                                        item['id'],
+                                        isWebEnabled,
+                                        isPosEnabled,
+                                      );
+                                      if (context.mounted) {
+                                        Navigator.pop(context);
+                                      }
                                     },
                                     style: ElevatedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(
@@ -971,12 +1259,32 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                   ),
                 ),
                 Text(
-                  "undefined",
+                  productData['brand_name']?.toString() ?? "undefined",
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF94A3B8),
                   ),
                 ),
+                const SizedBox(height: 4),
+                if (productData['product_type'] != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDBEAFE),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      productData['product_type'],
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E40AF),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -1007,7 +1315,7 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _formatCurrency(item['selling_amount_excluding_tax']),
+                  _formatCurrency(item['mrp']),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
@@ -1045,11 +1353,11 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
       _buildRow("MRP:", _formatCurrency(item['mrp'])),
       _buildRow(
         "Cost (Excl. Tax):",
-        _formatCurrency(item['purchase_amount_excluding_tax']),
+        _formatCurrency(item['cost_amount_excluding_tax']),
       ),
       _buildRow(
         "Cost (Incl. Tax):",
-        _formatCurrency(item['purchase_amount_including_tax']),
+        _formatCurrency(item['cost_amount_including_tax']),
       ),
       _buildRow(
         "Selling Price:",
@@ -1059,25 +1367,53 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
   }
 
   Widget _buildDateSection(
+    dynamic manufactured,
     dynamic purchased,
     dynamic expired,
     dynamic created,
   ) {
     return _buildInfoCard("Date Information", [
-      _buildRow("Manufactured:", "Jan 31, 2026"), // Mock data as per image
+      _buildRow("Manufactured:", _formatDate(manufactured)),
       _buildRow("Purchased:", _formatDate(purchased)),
       if (expired != null) _buildRow("Expires:", _formatDate(expired)),
       _buildRow("Created:", _formatDate(created)),
     ]);
   }
 
+  String _capitalizeFirstLetter(String? text) {
+    if (text == null || text.isEmpty) return '';
+    return text
+        .split(' ')
+        .map((word) {
+          if (word.isEmpty) return word;
+          return word[0].toUpperCase() + word.substring(1).toLowerCase();
+        })
+        .join(' ');
+  }
+
   Widget _buildAdditionalSection(Map<String, dynamic> item) {
+    final productData = item['product_combination_data'] ?? {};
+    final parentCategory = productData['parent_category'];
+    final childCategory = productData['child_category'];
+
+    String category = 'N/A';
+    if (parentCategory != null && childCategory != null) {
+      category =
+          '${_capitalizeFirstLetter(parentCategory)} / ${_capitalizeFirstLetter(childCategory)}';
+    } else if (parentCategory != null) {
+      category = _capitalizeFirstLetter(parentCategory);
+    } else if (childCategory != null) {
+      category = _capitalizeFirstLetter(childCategory);
+    }
+
     return _buildInfoCard("Additional Information", [
-      _buildRow("State Code:", item['state_code']?.toString() ?? "maharashtra"),
       _buildRow(
-        "Category:",
-        item['category_name'] ?? "women's health / feminine hygiene",
+        "State Code:",
+        _capitalizeFirstLetter(item['state_code_of_purchase']?.toString()) != ''
+            ? _capitalizeFirstLetter(item['state_code_of_purchase']?.toString())
+            : "N/A",
       ),
+      _buildRow("Category:", category),
     ]);
   }
 

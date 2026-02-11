@@ -1689,28 +1689,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),
-                                            const SizedBox(width: 8),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(
-                                                  0.2,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                '₹${_grandTotal.toStringAsFixed(0)}',
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
                                           ],
                                         ),
                                       ),
@@ -4545,13 +4523,19 @@ class _VariantsBottomSheetContentState
     }
   }
 
-  void _selectVariation(String variationValueId) {
+  void _selectVariation(
+    List<dynamic> variationValues,
+    String variationValueId,
+  ) {
     setState(() {
-      if (_selectedVariationIds.contains(variationValueId)) {
-        _selectedVariationIds.remove(variationValueId);
-      } else {
-        _selectedVariationIds.add(variationValueId);
-      }
+      // Create a list of all IDs in this variation group
+      final groupIds = variationValues.map((v) => v['id']?.toString()).toList();
+
+      // Remove any currently selected ID that belongs to this group (Mutual Exclusion)
+      _selectedVariationIds.removeWhere((id) => groupIds.contains(id));
+
+      // Add the new selection
+      _selectedVariationIds.add(variationValueId);
     });
     _validateAvailability();
   }
@@ -4668,7 +4652,7 @@ class _VariantsBottomSheetContentState
                       ),
                       // Variation values
                       ...variationValues.map((value) {
-                        final valueId = value['id'];
+                        final valueId = value['id']?.toString() ?? '';
                         final valueName = value['variation_value_name'] ?? '';
                         final isSelected = _selectedVariationIds.contains(
                           valueId,
@@ -4703,7 +4687,8 @@ class _VariantsBottomSheetContentState
                                     color: theme.primaryColor,
                                   )
                                 : null,
-                            onTap: () => _selectVariation(valueId),
+                            onTap: () =>
+                                _selectVariation(variationValues, valueId),
                           ),
                         );
                       }).toList(),

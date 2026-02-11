@@ -331,7 +331,12 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
               ),
 
             // 3. Orders List
-            Expanded(child: _buildBody(theme)),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async => await _fetchOrders(),
+                child: _buildBody(theme),
+              ),
+            ),
           ],
         ),
       ),
@@ -619,9 +624,28 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       );
     }
 
+    // Sort options to put 'order_placed' first, then 'order_completed', then others
+    final sortedOptions = List<dynamic>.from(_statusOptions);
+    sortedOptions.sort((a, b) {
+      final statusA = (a['status'] ?? '').toString().toLowerCase();
+      final statusB = (b['status'] ?? '').toString().toLowerCase();
+
+      int getPriority(String status) {
+        if (status == 'order_placed') return 0;
+        if (status == 'order_completed') return 1;
+        return 2;
+      }
+
+      final pA = getPriority(statusA);
+      final pB = getPriority(statusB);
+
+      if (pA != pB) return pA.compareTo(pB);
+      return 0; // Keep original order for same priority
+    });
+
     final List<Map<String, dynamic>> allOptions = [
       {'label': 'All', 'id': null},
-      ..._statusOptions.map(
+      ...sortedOptions.map(
         (opt) => {
           'label': opt['status_title_for_seller'] ?? opt['status'] ?? 'Unknown',
           'id': opt['status'],
@@ -820,25 +844,18 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
 
     // Items
     var items = [];
+    final totalItems = order['total_items'] ?? 0;
+
     if (order['product_names'] != null) {
       final names = order['product_names'].toString().split(',');
       items = names.where((n) => n.trim().isNotEmpty).map((name) {
         final trimmedName = name.trim();
-        // Parse quantity from format "ProductName - X pc" or "ProductName - X"
-        // Example: "Dolo-650 - 1 pc" -> product_name: "Dolo-650", quantity: 1
-        final regex = RegExp(
-          r'^(.+?)\s*-\s*(\d+)\s*(pc|pcs|pieces?)?$',
-          caseSensitive: false,
+        // Remove the quantity part from name if it exists (e.g., "- 1 pc")
+        final cleanName = trimmedName.replaceAll(
+          RegExp(r'\s*-\s*\d+\s*(pc|pcs|pieces?)?$', caseSensitive: false),
+          '',
         );
-        final match = regex.firstMatch(trimmedName);
-        if (match != null) {
-          return {
-            'product_name': match.group(1)?.trim() ?? trimmedName,
-            'quantity': int.tryParse(match.group(2) ?? '1') ?? 1,
-          };
-        }
-        // Fallback: if format doesn't match, use the whole name and quantity 1
-        return {'product_name': trimmedName, 'quantity': 1};
+        return {'product_name': cleanName.trim()};
       }).toList();
     } else if (order['products'] != null) {
       items = order['products'] as List;
@@ -1056,7 +1073,9 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: Text(
-                                              "${item['quantity'] ?? 1} x ${item['product_name'] ?? item['name'] ?? ''}",
+                                              item['product_name'] ??
+                                                  item['name'] ??
+                                                  '',
                                               style: TextStyle(
                                                 fontSize: 13,
                                                 color: Colors.black87
@@ -1118,7 +1137,9 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Text(
-                                        "${item['quantity'] ?? 1} x ${item['product_name'] ?? item['name'] ?? ''}",
+                                        item['product_name'] ??
+                                            item['name'] ??
+                                            '',
                                         style: TextStyle(
                                           fontSize: 14,
                                           color: Colors.black87.withOpacity(
@@ -1143,7 +1164,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                 child: Align(
                                   alignment: Alignment.centerLeft,
                                   child: Text(
-                                    "+ ${items.length - 3} more items",
+                                    "+ ${items.length - 3} more",
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
@@ -1196,44 +1217,74 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                           ],
                         ),
 
-                        // View Details Button (Small)
-                        SizedBox(
-                          height: 36,
-                          child: OutlinedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => OrderDetailsScreen(
-                                    orderId: order['id'],
-                                    storeId:
-                                        order['store_id'] ??
-                                        _effectiveStoreId ??
-                                        '',
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Total Items Badge
+                            if (totalItems > 0)
+                              Container(
+                                height: 36,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.blue.withOpacity(0.3),
                                   ),
                                 ),
-                              );
-                            },
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(
-                                color: Colors.grey.withOpacity(0.3),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '$totalItems items',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                            if (totalItems > 0) const SizedBox(width: 8),
+                            // View Details Button (Small)
+                            SizedBox(
+                              height: 36,
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => OrderDetailsScreen(
+                                        orderId: order['id'],
+                                        storeId:
+                                            order['store_id'] ??
+                                            _effectiveStoreId ??
+                                            '',
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: Colors.grey.withOpacity(0.3),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  "Details",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
                               ),
                             ),
-                            child: const Text(
-                              "Details",
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
+                          ],
                         ),
                       ],
                     ),

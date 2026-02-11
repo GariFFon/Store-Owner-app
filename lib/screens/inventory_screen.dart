@@ -83,7 +83,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
                   ? Center(child: Text(_errorMessage!))
-                  : _buildBody(),
+                  : RefreshIndicator(
+                      onRefresh: () async => await _fetchData(),
+                      child: _buildBody(),
+                    ),
             ),
           ],
         ),
@@ -433,7 +436,63 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          if (isPrimary)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDEF7EC),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFF22C55E,
+                                  ).withOpacity(0.3),
+                                ),
+                              ),
+                              child: const Text(
+                                'PRIMARY',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF16A34A),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          if (isPrimary && isActive) const SizedBox(width: 6),
+                          if (isActive)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDEEAFF),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFF2563EB,
+                                  ).withOpacity(0.3),
+                                ),
+                              ),
+                              child: const Text(
+                                'ACTIVE',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF2563EB),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       if (godown['address'] != null &&
                           godown['address'].toString().isNotEmpty)
                         Row(
