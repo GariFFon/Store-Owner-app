@@ -2264,12 +2264,28 @@ class _SettingsScreenState extends State<SettingsScreen>
     String? selectedSheetFinancialYearId;
 
     // Default values
-    String selectedAccountType = account != null
-        ? (account.accountTypeChoices.isNotEmpty
-              ? account.accountTypeChoices[0].toUpperCase() +
-                    account.accountTypeChoices.substring(1).toLowerCase()
-              : 'Savings')
-        : 'Savings';
+
+    String selectedAccountType = 'Savings Bank Account';
+    if (account != null) {
+      final type = account.accountTypeChoices.toLowerCase();
+      if (type.contains('savings')) {
+        selectedAccountType = 'Savings Bank Account';
+      } else if (type.contains('current')) {
+        selectedAccountType = 'Current Account';
+      } else if (type.contains('cash')) {
+        selectedAccountType = 'Cash Account';
+      } else {
+        selectedAccountType = _accountTypes.firstWhere(
+          (t) => t.toLowerCase() == type,
+          orElse: () => 'Savings Bank Account', // Default fallback
+        );
+      }
+    }
+
+    // Ensure selection is valid
+    if (!_accountTypes.contains(selectedAccountType)) {
+      selectedAccountType = 'Savings Bank Account';
+    }
 
     String selectedHolderType = account != null
         ? (account.accountHolderType.isNotEmpty
@@ -2281,11 +2297,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     bool isDefault = account?.isDefault ?? false;
     bool isActive = account?.isActive ?? true;
 
-    // Normalize selection against list
-    if (!_accountTypes.contains(selectedAccountType))
-      selectedAccountType = 'Savings';
-    if (!_holderTypes.contains(selectedHolderType))
+    if (!_holderTypes.contains(selectedHolderType)) {
       selectedHolderType = 'Individual';
+    }
 
     showModalBottomSheet(
       context: context,

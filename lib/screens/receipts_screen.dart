@@ -238,7 +238,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                 child: Icon(
                   Icons.receipt_long_outlined,
                   size: 180,
-                  color: watermarkColor.withOpacity(0.6),
+                  color: watermarkColor.withOpacity(0.15),
                 ),
               ),
             ),
@@ -536,18 +536,11 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                   vertical: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFFF1F5F9), // Painted title background
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(12),
                   ),
-                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.05),
-                      offset: const Offset(0, 2),
-                      blurRadius: 4,
-                    ),
-                  ],
+                  border: Border.all(color: Colors.grey[300]!),
                 ),
                 child: Row(
                   children: [
@@ -572,8 +565,11 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     itemCount: _receipts.length + (_isLoadingMore ? 1 : 0),
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1, thickness: 0.5),
+                    separatorBuilder: (context, index) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey[200],
+                    ),
                     itemBuilder: (context, index) {
                       if (index == _receipts.length) {
                         return const Center(
@@ -628,10 +624,10 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
   Widget _buildTableHeaderText(String text) {
     return Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 12,
-        fontWeight: FontWeight.bold,
-        color: Colors.grey[500],
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF64748B),
         letterSpacing: 0.5,
       ),
     );
@@ -669,9 +665,9 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           decoration: BoxDecoration(
             border: Border(
-              bottom: BorderSide(color: Colors.grey.withOpacity(0.1)),
-              left: BorderSide(color: Colors.grey.withOpacity(0.1)),
-              right: BorderSide(color: Colors.grey.withOpacity(0.1)),
+              bottom: BorderSide(color: Colors.grey[200]!),
+              left: BorderSide(color: Colors.grey[200]!),
+              right: BorderSide(color: Colors.grey[200]!),
             ),
           ),
           child: Row(
@@ -786,9 +782,14 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
         gradient: LinearGradient(
@@ -799,7 +800,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
             const Color(0xFFF0FDF4).withOpacity(0.5), // Very subtle green fade
           ],
         ),
-        border: Border.all(color: Colors.green.withOpacity(0.1), width: 1),
+        border: Border.all(color: Colors.green.withOpacity(0.4), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -864,7 +865,11 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Divider(height: 1, thickness: 0.5),
+                Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: Colors.grey.withOpacity(0.2),
+                ),
                 const SizedBox(height: 12),
 
                 // Body: Party Name and Amount (Symmetrical layout)

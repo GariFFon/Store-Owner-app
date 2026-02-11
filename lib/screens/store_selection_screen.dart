@@ -7,7 +7,7 @@ import 'package:exanor/screens/create_store_screen.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/services/notification_service.dart';
 import 'dart:ui';
-import 'dart:math' as math;
+
 import 'package:exanor/screens/auth/login_screen.dart';
 
 class StoreSelectionScreen extends StatefulWidget {
@@ -23,24 +23,6 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   final TextEditingController _searchController = TextEditingController();
-
-  double get _headerHeight => 200.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkExistingStoreSelection();
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-      ),
-    );
-    _searchController.addListener(_filterStores);
-
-    // Create notification token after authentication
-    NotificationService.createNotificationToken();
-  }
 
   @override
   void dispose() {
@@ -66,17 +48,6 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
         }).toList();
       }
     });
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good Morning,';
-    } else if (hour < 17) {
-      return 'Good Afternoon,';
-    } else {
-      return 'Good Evening,';
-    }
   }
 
   Future<void> _checkExistingStoreSelection() async {
@@ -227,298 +198,351 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
     );
   }
 
+  double get _headerHeight => 212.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingStoreSelection();
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
+    _searchController.addListener(_filterStores);
+
+    // Create notification token after authentication
+    NotificationService.createNotificationToken();
+  }
+
+  // ... (keeping other methods as is, but replacing _buildCreativeHeader fully)
+
+  // NOTE: I'm skipping intermediate methods in this view, so I will replace from _headerHeight down to end of _buildCreativeHeader.
+  // Wait, the tool requires exact match.
+  // I will replace `_headerHeight` line separately if I can, or include `initState` etc.
+  // But strictly, let's just target the `_buildCreativeHeader` method and the `_headerHeight` line using a StartLine/EndLine block that covers both if they are close?
+  // They are far apart (Line 27 vs 219).
+  // I will use replace_file_content for TWO chunks? The tool says "single contiguous block".
+  // I will make two tool calls? "Do NOT make multiple parallel calls to this tool".
+  // I will use `multi_replace_file_content`.
+
+  // Wait, I can't use multi_replace.
+  // I'll stick to replacing the big chunk `_buildCreativeHeader` first, then `_headerHeight` in a second call?
+  // No, I'll do `_buildCreativeHeader` fully now. The height change is minor (280 -> 260), I can do it in next turn or separate call.
+  // Actually, if I don't change height, it might still have whitespace.
+  // I'll start with `_buildCreativeHeader` proper rework.
+
+  // Let's replace from line 219 (`Widget _buildCreativeHeader() {`) down to line 500 (end of Search Bar logic).
+
   Widget _buildCreativeHeader() {
-    final lightBlueBg = const Color(0xFFEFF6FF);
-    final watermarkColor = const Color(0xFFDBEAFE);
+    // Current date for display
+    final now = DateTime.now();
+    final month = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ][now.month - 1];
+    final dateStr = "${now.day} $month, ${now.year}";
+
+    // Greeting logic
+    final hour = now.hour;
+    String greetingText = hour < 12
+        ? 'Good morning,'
+        : hour < 17
+        ? 'Good afternoon,'
+        : 'Good evening,';
 
     return Container(
       width: double.infinity,
+      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
-        color: lightBlueBg,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+        color: const Color(0xFFEFF6FF), // Matching Order Details Light Blue
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF94A3B8).withOpacity(0.2),
-            blurRadius: 12,
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-        child: Stack(
-          children: [
-            // Watermark
-            Positioned(
-              right: -30,
-              top: -10,
-              child: Transform.rotate(
-                angle: -math.pi / 6,
-                child: Icon(
-                  Icons.storefront_rounded,
-                  size: 180,
-                  color: watermarkColor.withOpacity(0.6),
-                ),
+      child: Stack(
+        children: [
+          // Background Watermark (Restored)
+          Positioned(
+            right: -30,
+            top: -20,
+            child: Transform.rotate(
+              angle: -0.5, // Approx -30 degrees
+              child: Icon(
+                Icons.store_mall_directory_rounded,
+                size: 200,
+                color: const Color(0xFFDBEAFE).withOpacity(0.6),
               ),
             ),
+          ),
 
-            // MAIN CONTENT
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // TEXT SECTION
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Greeting
-                            Row(
-                              children: [
-                                Container(
-                                  width: 3,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF2563EB),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _getGreeting(),
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.blueGrey[700],
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            // Select Store Text
-                            RichText(
-                              text: const TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: 'Select ',
-                                    style: TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w300,
-                                      color: Color(0xFF0F172A),
-                                      fontFamily: 'Roboto',
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: 'Store',
-                                    style: TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.black,
-                                      fontFamily: 'Roboto',
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Row 1: Greeting & Date
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Innovative Text Greeting
+                    Text(
+                      greetingText.toUpperCase(), // Includes comma now
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.0,
+                        color: Colors.blueGrey[500],
+                        fontFamily: 'Plus Jakarta Sans',
                       ),
-
-                      // BUTTONS SECTION
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          // LOGOUT BUTTON
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                "LOGOUT",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.grey[500],
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              InkWell(
-                                onTap: () async {
-                                  final prefs =
-                                      await SharedPreferences.getInstance();
-                                  await prefs.clear();
-                                  if (context.mounted) {
-                                    Navigator.pushAndRemoveUntil(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const LoginScreen(),
-                                      ),
-                                      (route) => false,
-                                    );
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(30),
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.red.withOpacity(0.1),
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.logout_rounded,
-                                    color: Colors.red[400],
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 16),
-                          // NEW STORE BUTTON
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                "NEW STORE",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.blue[300],
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              InkWell(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const CreateStoreScreen(),
-                                    ),
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(30),
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF2563EB),
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFF2563EB,
-                                        ).withOpacity(0.3),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.add_business_rounded,
-                                    color: Colors.white,
-                                    size: 22,
-                                  ),
-                                ),
-                              ),
-                            ],
+                    ),
+                    // Date Capsule
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2563EB).withOpacity(0.06),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 12,
+                            color: Colors.blue[600],
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            dateStr,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.blueGrey[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
 
-                  const SizedBox(height: 20),
+                const SizedBox(height: 6),
 
-                  // SEARCH BAR
-                  // SEARCH BAR
-                  Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(100),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF1F4C6B).withOpacity(0.08),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
+                // Row 2: Title & Actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Big Title
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Select',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.blueGrey[400],
+                            height: 1.0,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        Text(
+                          'Store Outlet',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                            height: 1.2,
+                            letterSpacing: -1.0,
+                          ),
                         ),
                       ],
                     ),
-                    child: TextField(
-                      controller: _searchController,
-                      textAlignVertical: TextAlignVertical.center,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1E293B),
+
+                    // Actions
+                    Row(
+                      children: [
+                        _buildActionButton(
+                          label: "LOGOUT",
+                          icon: Icons.logout_rounded,
+                          color: Colors.red[400]!,
+                          bgColor: Colors.white,
+                          onTap: () async {
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.clear();
+                            if (context.mounted) {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LoginScreen(),
+                                ),
+                                (route) => false,
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 16),
+                        _buildActionButton(
+                          label: "NEW STORE",
+                          icon: Icons.add_business_rounded,
+                          color: Colors.white,
+                          bgColor: const Color(0xFF2563EB),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CreateStoreScreen(),
+                              ),
+                            );
+                          },
+                          isPrimary: true,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Bottom: Search Bar
+                Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2563EB).withOpacity(0.05),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
                       ),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 20),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(100),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(100),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(100),
-                          borderSide: BorderSide.none,
-                        ),
-                        prefixIcon: const Icon(
-                          CupertinoIcons.search,
-                          color: Color(0xFF94A3B8),
-                          size: 22,
-                        ),
-                        hintText: 'Search for an outlet...',
-                        hintStyle: TextStyle(
-                          color: const Color(0xFF94A3B8).withOpacity(0.8),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        suffixIcon: Container(
-                          margin: const EdgeInsets.all(8),
-                          width: 34,
-                          height: 34,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors
-                                .transparent, // Changed from gray to transparent
-                          ),
-                          child: const Icon(
-                            Icons.mic_none_rounded,
-                            color: Color(0xFF64748B),
-                            size: 20,
-                          ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    textAlignVertical: TextAlignVertical.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                      hintText: 'Search for an outlet...',
+                      hintStyle: TextStyle(
+                        color: Colors.blueGrey[300],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: Colors.blueGrey[300],
+                        size: 22,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF2563EB),
+                          width: 1.5,
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required Color bgColor,
+    required VoidCallback onTap,
+    bool isPrimary = false,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Label ABOVE the button
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: isPrimary ? const Color(0xFF2563EB) : Colors.blueGrey[400],
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: bgColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: isPrimary
+                      ? const Color(0xFF2563EB).withOpacity(0.3)
+                      : Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+              border: isPrimary
+                  ? null
+                  : Border.all(color: Colors.blueGrey[50]!, width: 1),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+        ),
+      ],
     );
   }
 

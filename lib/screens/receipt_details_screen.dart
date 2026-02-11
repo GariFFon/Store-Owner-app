@@ -237,7 +237,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildDashedDivider(),
+                                  // Removed dashed divider
                                   Text(
                                     receipt['narration']!,
                                     style: theme.textTheme.bodyMedium,
@@ -290,7 +290,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildDashedDivider(),
+                          // Removed dashed divider
                           Text(
                             receipt['narration']!,
                             style: theme.textTheme.bodyMedium,
@@ -369,14 +369,17 @@ class ReceiptDetailsScreen extends StatelessWidget {
       title: 'Party Information',
       child: Column(
         children: [
-          _buildDashedDivider(),
           _buildInfoRow(
             theme,
             'Name',
             receipt['party_name'] ?? 'Unknown',
             Icons.person_outline_rounded,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Type',
@@ -394,14 +397,17 @@ class ReceiptDetailsScreen extends StatelessWidget {
       title: 'Receipt Summary',
       child: Column(
         children: [
-          _buildDashedDivider(),
           _buildInfoRow(
             theme,
             'Voucher Number',
             receipt['voucher_number'] ?? '',
             Icons.receipt_rounded,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Amount',
@@ -410,21 +416,33 @@ class ReceiptDetailsScreen extends StatelessWidget {
             valueColor: Colors.green,
             isBold: true,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Date',
             _formatDate(receipt['date']),
             Icons.calendar_today_rounded,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Financial Year',
             _getFinancialYear(receipt['date']),
             Icons.event_note_rounded,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Status',
@@ -532,7 +550,11 @@ class ReceiptDetailsScreen extends StatelessWidget {
               ),
             ),
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           // Row 2 (Customer - Credit)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -630,33 +652,6 @@ class ReceiptDetailsScreen extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildDashedDivider() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final boxWidth = constraints.constrainWidth();
-        const dashWidth = 4.0;
-        const dashHeight = 1.0;
-        final dashCount = (boxWidth / (2 * dashWidth)).floor();
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Flex(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            direction: Axis.horizontal,
-            children: List.generate(dashCount, (_) {
-              return SizedBox(
-                width: dashWidth,
-                height: dashHeight,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(color: Colors.grey[300]),
-                ),
-              );
-            }),
-          ),
-        );
-      },
     );
   }
 }

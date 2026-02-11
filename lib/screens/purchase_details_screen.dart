@@ -251,7 +251,7 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildDashedDivider(),
+                                  // Dashed divider removed
                                   Text(
                                     _purchaseData!['narration'],
                                     style: theme.textTheme.bodyMedium,
@@ -306,7 +306,7 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildDashedDivider(),
+                          // Dashed divider removed
                           Text(
                             _purchaseData!['narration'],
                             style: theme.textTheme.bodyMedium,
@@ -328,6 +328,7 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
   Widget _buildSectionCard(
     ThemeData theme, {
     String? title,
+    Widget? headerAction,
     required Widget child,
   }) {
     return Container(
@@ -369,6 +370,10 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
+                if (headerAction != null) ...[
+                  const SizedBox(width: 8),
+                  headerAction,
+                ],
               ],
             ),
             const SizedBox(height: 16),
@@ -409,29 +414,39 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
       title: 'Purchase Information',
       child: Column(
         children: [
-          // Added dashed divider above the first item (Voucher Number) as requested
-          _buildDashedDivider(),
           _buildInfoRow(
             theme,
             'Voucher Number',
             _purchaseData!['voucher_number'] ?? '-',
             Icons.receipt_rounded,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Supplier Invoice',
             _purchaseData!['supplier_invoice_number'] ?? '-',
             Icons.description_outlined,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Date',
             _purchaseData!['date'] ?? '-',
             Icons.calendar_today_rounded,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Voucher Status',
@@ -439,7 +454,11 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
             Icons.info_outline_rounded,
             valueColor: _getStatusColor(voucherStatus),
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Posted',
@@ -447,7 +466,11 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
             Icons.check_circle_outline_rounded,
             valueColor: isPosted ? Colors.green : Colors.grey,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Payment Status',
@@ -469,7 +492,6 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
       title: 'Payment Status',
       child: Column(
         children: [
-          _buildDashedDivider(),
           _buildInfoRow(
             theme,
             'Status',
@@ -477,7 +499,11 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
             Icons.payment_rounded,
             isBold: true,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Amount Paid',
@@ -485,7 +511,11 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
             Icons.add_circle_outline_rounded,
             valueColor: Colors.green,
           ),
-          _buildDashedDivider(),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Amount Due',
@@ -503,18 +533,27 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
 
     return _buildSectionCard(
       theme,
-      title: 'Items Purchased (${items.length})',
+      title: 'Items Purchased',
+      headerAction: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          '${items.length}',
+          style: TextStyle(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      ),
       child: items.isEmpty
           ? const Center(child: Text('No items'))
           : Column(
               children: items.map((item) {
-                return Column(
-                  children: [
-                    if (item == items.first) _buildDashedDivider(),
-                    _buildItemRow(theme, item),
-                    if (item != items.last) _buildDashedDivider(),
-                  ],
-                );
+                return Column(children: [_buildItemRow(theme, item)]);
               }).toList(),
             ),
     );
@@ -531,9 +570,16 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.15),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.colorScheme.outline.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -683,12 +729,7 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
               _formatCurrency(taxBreakdown['total_tax']),
             ),
             const SizedBox(height: 4),
-            _buildSummaryRow(
-              theme,
-              'Total CESS',
-              _formatCurrency(taxBreakdown['total_cess']),
-            ),
-            const SizedBox(height: 4),
+
             Row(
               children: [
                 Expanded(

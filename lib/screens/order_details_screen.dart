@@ -790,7 +790,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         ],
                       ),
                     ),
-                    const Divider(height: 1),
+                    Divider(height: 1, color: Colors.grey.withOpacity(0.2)),
 
                     if (_isUpdatingStatus)
                       Expanded(
@@ -1647,6 +1647,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             ],
           ),
 
+          const SizedBox(height: 16), // Added spacing
+
           if (_isLoadingProducts)
             const Center(child: CircularProgressIndicator())
           else if (_products.isEmpty)
@@ -1660,6 +1662,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             )
           else
             ListView.separated(
+              padding: EdgeInsets.zero,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _products.length,
@@ -1719,12 +1722,19 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         0.0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.15),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.colorScheme.outline.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15), // Matte shadow
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2234,10 +2244,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         baseColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
         highlightColor: theme.colorScheme.surface,
         child: Container(
-          height: 100,
+          height: 140,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
         ),
       );
@@ -2245,300 +2255,238 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
     if (_orderStatuses.isEmpty) return const SizedBox.shrink();
 
-    final latestStatus = _orderStatuses.last;
-    final pastStatuses = _orderStatuses.length > 1
-        ? _orderStatuses.sublist(0, _orderStatuses.length - 1).reversed.toList()
-        : [];
-
-    final bannerColor = _getStatusColorFromString(latestStatus['status']);
     final orderId =
         _orderData?['order_number'] ??
         _orderData?['order_id'] ??
         _orderData?['id'] ??
         widget.orderId;
-    final timestamp = latestStatus['timestamp'] ?? '';
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      // Matte Shadow decoration
       decoration: BoxDecoration(
-        color: bannerColor,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: bannerColor.withOpacity(0.3),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Main Status
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildAnimatedStatusIcon(theme, latestStatus['status']),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          // Header: Title + Order ID
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.timeline_rounded,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TranslatedText(
+                    'Order Timeline',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: orderId));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: TranslatedText('Order ID copied to clipboard'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       TranslatedText(
-                        latestStatus['status_title'] ?? 'Updating...',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                        '#$orderId',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      TranslatedText(
-                        latestStatus['status_subtitle'] ?? '',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withOpacity(0.8),
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          if (timestamp.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.access_time_rounded,
-                                    size: 14,
-                                    color: Colors.white.withOpacity(0.8),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  TranslatedText(
-                                    latestStatus['timestamp'] ?? '',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: Colors.white.withOpacity(0.8),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          GestureDetector(
-                            onTap: () {
-                              Clipboard.setData(ClipboardData(text: orderId));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: TranslatedText(
-                                    'Order ID copied to clipboard',
-                                  ),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.receipt_long_rounded,
-                                    size: 14,
-                                    color: Colors.white.withOpacity(0.8),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  TranslatedText(
-                                    'Order ID: ${orderId.toString().length > 12 ? "${orderId.toString().substring(0, 8)}..." : orderId}',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: Colors.white.withOpacity(0.8),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.copy_rounded,
-                                    size: 12,
-                                    color: Colors.white.withOpacity(0.6),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.copy_rounded,
+                        size: 12,
+                        color: theme.colorScheme.onSurface.withOpacity(0.5),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-
-          // Divider if there are past statuses
-          if (pastStatuses.isNotEmpty)
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
-
-          // Expandable Past Statuses
-          if (pastStatuses.isNotEmpty)
-            Theme(
-              data: theme.copyWith(
-                dividerColor: Colors.transparent,
-                expansionTileTheme: ExpansionTileThemeData(
-                  iconColor: Colors.white,
-                  collapsedIconColor: Colors.white,
-                  textColor: Colors.white,
-                  collapsedTextColor: Colors.white,
-                ),
               ),
-              child: ExpansionTile(
-                title: TranslatedText(
-                  'Past Updates',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.history_rounded,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                ),
-                childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                children: [
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: pastStatuses.length,
-                    itemBuilder: (context, index) {
-                      final status = pastStatuses[index];
-                      final isLast = index == pastStatuses.length - 1;
-                      return _buildTimelineItem(
-                        theme,
-                        status,
-                        isLast: isLast,
-                        isDarkBg: true,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnimatedStatusIcon(ThemeData theme, String? status) {
-    IconData iconData = _getStatusIcon(status);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.4), width: 2),
-      ),
-      child: Icon(iconData, color: Colors.white, size: 24),
-    );
-  }
-
-  Widget _buildTimelineItem(
-    ThemeData theme,
-    dynamic status, {
-    bool isLast = false,
-    bool isDarkBg = false,
-  }) {
-    Color statusColor = _getStatusColorFromString(
-      status['status']?.toString().toLowerCase(),
-    );
-
-    // If on dark background, use white for text and lighter status color
-    final titleColor = isDarkBg
-        ? Colors.white
-        : theme.textTheme.bodyMedium?.color;
-    final subtitleColor = isDarkBg
-        ? Colors.white.withOpacity(0.8)
-        : theme.colorScheme.onSurface.withOpacity(0.6);
-    final timestampColor = isDarkBg
-        ? Colors.white.withOpacity(0.6)
-        : theme.colorScheme.onSurface.withOpacity(0.4);
-    final dotColor = isDarkBg ? Colors.white : statusColor;
-    final lineColor = isDarkBg
-        ? Colors.white.withOpacity(0.2)
-        : theme.dividerColor.withOpacity(0.1);
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: dotColor.withOpacity(0.8),
-                  shape: BoxShape.circle,
-                  border: isDarkBg
-                      ? Border.all(color: Colors.white, width: 1.5)
-                      : null,
-                ),
-              ),
-              if (!isLast)
-                Expanded(child: Container(width: 2, color: lineColor)),
             ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TranslatedText(
-                    status['status_title'] ?? '',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: titleColor,
-                      fontSize: 14,
-                    ),
+          const SizedBox(height: 24),
+
+          // Horizontal Timeline
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(_orderStatuses.length, (index) {
+                final status = _orderStatuses[index];
+                final isLast = index == _orderStatuses.length - 1;
+                final isFirst = index == 0;
+
+                // Color based on status
+                final statusColor = _getStatusColorFromString(status['status']);
+
+                return IntrinsicWidth(
+                  child: Column(
+                    children: [
+                      // Top Row: Line + Icon + Line
+                      SizedBox(
+                        height: 40,
+                        child: Row(
+                          children: [
+                            // Left Line
+                            Expanded(
+                              child: Container(
+                                height: 2,
+                                color: isFirst
+                                    ? Colors.transparent
+                                    : statusColor.withOpacity(0.2),
+                              ),
+                            ),
+                            // Icon
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isLast ? statusColor : Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: statusColor,
+                                  width: 2,
+                                ),
+                                boxShadow: isLast
+                                    ? [
+                                        BoxShadow(
+                                          color: statusColor.withOpacity(0.4),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ]
+                                    : [],
+                              ),
+                              child: Icon(
+                                _getStatusIcon(status['status']),
+                                size: 18,
+                                color: isLast ? Colors.white : statusColor,
+                              ),
+                            ),
+                            // Right Line
+                            Expanded(
+                              child: Container(
+                                height: 2,
+                                color: isLast
+                                    ? Colors.transparent
+                                    : _getStatusColorFromString(
+                                        _orderStatuses[index + 1]['status'],
+                                      ).withOpacity(0.2),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Content: Title + Subtitle + Time
+                      Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 100,
+                          maxWidth: 140,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Column(
+                          children: [
+                            TranslatedText(
+                              status['status_title'] ?? status['status'],
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.onSurface,
+                                fontSize: 12,
+                              ),
+                            ),
+                            if (status['status_subtitle'] != null) ...[
+                              const SizedBox(height: 2),
+                              TranslatedText(
+                                status['status_subtitle'],
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: 10,
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.5),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: TranslatedText(
+                                status['timestamp'] ?? '',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.4),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  TranslatedText(
-                    status['status_subtitle'] ?? '',
-                    style: TextStyle(color: subtitleColor, fontSize: 12),
-                  ),
-                  const SizedBox(height: 4),
-                  TranslatedText(
-                    status['timestamp'] ?? '',
-                    style: TextStyle(color: timestampColor, fontSize: 10),
-                  ),
-                ],
-              ),
+                );
+              }),
             ),
           ),
         ],

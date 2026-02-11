@@ -480,7 +480,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       ),
       textStyle: const TextStyle(color: Colors.white, fontSize: 12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
@@ -500,7 +500,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 2), // Reduced gap
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
@@ -531,7 +531,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Row(
         mainAxisAlignment: isMobile
             ? MainAxisAlignment.spaceBetween
@@ -542,7 +542,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             _count.toString(),
             Colors.blue,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           responsiveCard(
             'Paid',
             _vouchers
@@ -557,7 +557,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                 .toString(),
             Colors.green,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           responsiveCard(
             'Partial',
             _vouchers
@@ -572,7 +572,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                 .toString(),
             Colors.orange,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           responsiveCard(
             'Credit',
             _vouchers
@@ -1022,18 +1022,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                   vertical: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFFF1F5F9), // Painted title background
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(12),
                   ),
-                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.05),
-                      offset: const Offset(0, 2),
-                      blurRadius: 4,
-                    ),
-                  ],
+                  border: Border.all(color: Colors.grey[300]!),
                 ),
                 child: Row(
                   children: [
@@ -1058,8 +1051,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     itemCount: filtered.length + (_isLoadingMore ? 1 : 0),
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1, thickness: 0.5),
+                    separatorBuilder: (context, index) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey[200],
+                    ),
                     itemBuilder: (context, index) {
                       if (index == filtered.length) {
                         return const Center(
@@ -1123,10 +1119,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   Widget _buildTableHeaderText(String text) {
     return Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 12,
-        fontWeight: FontWeight.bold,
-        color: Colors.grey[500],
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF64748B),
         letterSpacing: 0.5,
       ),
     );
@@ -1189,9 +1185,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           decoration: BoxDecoration(
             border: Border(
-              bottom: BorderSide(color: Colors.grey.withOpacity(0.1)),
-              left: BorderSide(color: Colors.grey.withOpacity(0.1)),
-              right: BorderSide(color: Colors.grey.withOpacity(0.1)),
+              bottom: BorderSide(color: Colors.grey[200]!),
+              left: BorderSide(color: Colors.grey[200]!),
+              right: BorderSide(color: Colors.grey[200]!),
             ),
           ),
           child: Row(

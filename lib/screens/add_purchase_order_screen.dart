@@ -350,12 +350,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     return total;
   }
 
-  double _calculateDueAmount() {
-    final total = _calculateTotalAmount();
-    final paid = double.tryParse(_amountPaidController.text) ?? 0.0;
-    return (total - paid).clamp(0.0, double.infinity);
-  }
-
   Future<void> _submitPurchaseOrder() async {
     if (_selectedSupplierStoreId == null) {
       _showSnack('Supplier not selected.', Colors.red);
@@ -428,17 +422,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
-  }
-
-  String _getGstPercent(Map<String, dynamic> item) {
-    final gstData = item['gst_data'];
-    if (gstData != null && gstData is Map) {
-      return (double.tryParse(gstData['igst_percent']?.toString() ?? '0') ??
-              0.0)
-          .toString();
-    }
-    return (double.tryParse(item['gst_rate']?.toString() ?? '0') ?? 0.0)
-        .toString();
   }
 
   bool _validateCurrentStep() {
@@ -554,30 +537,27 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
             ? const Center(
                 child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
               )
-            : SafeArea(
-                child: Column(
-                  children: [
-                    _buildHeader(theme),
-                    _buildSegmentedControl(),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: horizontalPad,
-                          vertical: 16,
-                        ),
-                        child: Center(child: _buildContentCard()),
+            : Column(
+                children: [
+                  _buildHeader(theme, screenWidth),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPad,
+                        vertical: 16,
                       ),
+                      child: Center(child: _buildContentCard()),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
         bottomNavigationBar: _buildBottomValues(),
       ),
     );
   }
 
-  Widget _buildHeader(ThemeData theme) {
+  Widget _buildHeader(ThemeData theme, double width) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -585,14 +565,13 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF94A3B8).withOpacity(0.15),
-            blurRadius: 8,
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Stack(
         children: [
-          // Watermark
           Positioned(
             right: -20,
             top: -10,
@@ -605,163 +584,192 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                // Back Button
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: MediaQuery.of(context).padding.top + 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 20,
-                      color: Color(0xFF3B82F6),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Title
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'New Purchase',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E293B),
-                          letterSpacing: -0.5,
-                          height: 1.0,
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 20,
+                          color: Color(0xFF3B82F6),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Create and manage purchase entry',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.blueGrey[600],
-                        ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'New Purchase',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E293B),
+                              letterSpacing: -0.5,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Create and manage purchase entry',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.blueGrey[600],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 20),
+                child: _buildSlidingStepper(),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSegmentedControl() {
+  Widget _buildSlidingStepper() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Container(
-        width: double.infinity,
-        height: 44,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE2E8F0),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.all(3),
-        child: Row(
-          children: List.generate(_steps.length, (index) {
-            final isSelected = index == _currentStep;
-            final isCompleted = index < _currentStep;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  // Allow backward navigation always
-                  if (index <= _currentStep) {
-                    setState(() => _currentStep = index);
-                    return;
-                  }
-                  // Validate each step between current and target before allowing forward jumps
-                  for (int s = _currentStep; s < index; s++) {
-                    final savedStep = _currentStep;
-                    _currentStep = s;
-                    if (!_validateCurrentStep()) {
-                      _currentStep = savedStep;
-                      return;
-                    }
-                    _currentStep = savedStep;
-                  }
-                  setState(() => _currentStep = index);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOut,
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.white : Colors.transparent,
-                    borderRadius: BorderRadius.circular(9),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.06),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ]
-                        : [],
-                  ),
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isCompleted
-                            ? Icons.check_circle_rounded
-                            : _stepIcons[index],
-                        size: 14,
-                        color: isSelected
-                            ? const Color(0xFF0F172A)
-                            : isCompleted
-                            ? const Color(0xFF22C55E)
-                            : const Color(0xFF94A3B8),
-                      ),
-                      if (isSelected) ...[
-                        const SizedBox(width: 5),
-                        Text(
-                          _steps[index],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+      height: 56, // Increased height for better pill spacing
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: Alignment(
+              -1.0 + (2.0 * _currentStep) / (_steps.length - 1),
+              0,
+            ),
+            child: FractionallySizedBox(
+              widthFactor: 1 / _steps.length,
+              heightFactor: 1.0,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF3B82F6).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
               ),
-            );
-          }),
-        ),
+            ),
+          ),
+          Row(
+            children: List.generate(_steps.length, (index) {
+              final isSelected = index == _currentStep;
+              final isCompleted = index < _currentStep;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    if (index <= _currentStep) {
+                      setState(() => _currentStep = index);
+                      return;
+                    }
+                    for (int s = _currentStep; s < index; s++) {
+                      final savedStep = _currentStep;
+                      _currentStep = s;
+                      if (!_validateCurrentStep()) {
+                        _currentStep = savedStep;
+                        return;
+                      }
+                      _currentStep = savedStep;
+                    }
+                    setState(() => _currentStep = index);
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (!isSelected && isCompleted)
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            size: 14,
+                            color: Color(0xFF16A34A),
+                          )
+                        else
+                          Icon(
+                            _stepIcons[index],
+                            size: 14,
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF64748B),
+                          ),
+                        if (isSelected) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            _steps[index],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
 
+  // Removed unused Segmented Control logic
+
   Widget _buildContentCard() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
+      layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+        return Stack(
+          alignment: Alignment.topCenter,
+          children: <Widget>[
+            ...previousChildren,
+            if (currentChild != null) currentChild,
+          ],
+        );
+      },
       child: Container(
         key: ValueKey<int>(_currentStep),
         width: double.infinity,
@@ -838,7 +846,12 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                       fontWeight: FontWeight.w400,
                       color: Colors.grey[400],
                     ),
-                    border: InputBorder.none,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 13,
@@ -1272,17 +1285,17 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   Widget _buildProductsStep() {
     return Column(
       children: [
-        // Search Product Bar
+        // Innovative Search Bar
         Container(
+          margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: Colors.blue.withOpacity(0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -1290,36 +1303,57 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
             controller: _productSearchController,
             onChanged: _searchProducts,
             style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
               color: Color(0xFF0F172A),
             ),
             decoration: InputDecoration(
               hintText: 'Search products to add...',
               hintStyle: TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w500,
                 color: Colors.grey[400],
               ),
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-                size: 18,
-                color: Color(0xFF94A3B8),
+              filled: true,
+              fillColor: Colors.white,
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF), // Light blue tint
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.search_rounded,
+                  size: 20,
+                  color: Color(0xFF3B82F6),
+                ),
               ),
-              border: InputBorder.none,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide.none,
+              ),
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 13,
+                horizontal: 16,
+                vertical: 16,
               ),
               suffixIcon: _isSearchingProduct
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
+                  ? Padding(
+                      padding: const EdgeInsets.all(14),
                       child: SizedBox(
-                        width: 18,
-                        height: 18,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Color(0xFF3B82F6),
+                          color: Colors.blue[300],
                         ),
                       ),
                     )
@@ -1328,405 +1362,477 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           ),
         ),
 
-        // Search Results
-        if (_productSearchResults.isNotEmpty)
+        // Results Detached
+        if (_productSearchResults.isNotEmpty) ...[
+          const SizedBox(height: 12),
           Container(
-            margin: const EdgeInsets.only(top: 8),
+            constraints: const BoxConstraints(maxHeight: 320),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
               ],
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _productSearchResults.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final prod = _productSearchResults[index];
-                return ListTile(
-                  title: Text(
-                    prod['product_combination_template_name'] ??
-                        prod['product_name'] ??
-                        prod['name'] ??
-                        'Unknown Item',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(prod['barcode'] ?? 'No Barcode'),
-                  trailing: const Icon(Icons.add_circle, color: Colors.blue),
-                  onTap: () => _addProduct(prod),
-                );
-              },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: _productSearchResults.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                itemBuilder: (context, index) {
+                  final prod = _productSearchResults[index];
+                  // Display logic
+                  final pName =
+                      prod['product_combination_template_name'] ??
+                      prod['product_name'] ??
+                      prod['name'] ??
+                      prod['title'] ??
+                      'Unknown Item';
+                  final pCode = prod['barcode'] ?? 'No Code';
+
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    leading: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        (pName.isNotEmpty ? pName[0] : 'P').toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF64748B),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      pName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    subtitle: Text(
+                      pCode,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                    trailing: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.add_rounded,
+                        size: 20,
+                        color: Color(0xFF3B82F6),
+                      ),
+                    ),
+                    onTap: () => _addProduct(prod),
+                  );
+                },
+              ),
             ),
           ),
+        ],
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
-        // Added Products List
+        // Added Products List - Redesigned
         if (_selectedProducts.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
             child: Column(
               children: [
                 Icon(
-                  Icons.shopping_cart_outlined,
+                  Icons.shopping_bag_outlined,
                   size: 64,
-                  color: Colors.grey[300],
+                  color: Colors.grey[200],
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No products added yet',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                  'No items added',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
           )
         else
-          ...List.generate(_selectedProducts.length, (index) {
-            final item = _selectedProducts[index];
+          ..._selectedProducts.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
             final isOpen = item['is_expanded'] ?? false;
-            return Container(
+
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isOpen
+                      ? const Color(0xFF3B82F6).withOpacity(0.3)
+                      : Colors.transparent,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 8,
+                    color: Colors.blue.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
-                border: Border.all(color: Colors.grey[200]!),
               ),
               child: Column(
                 children: [
-                  // Card Header
+                  // Header
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 4,
                     ),
-                    leading: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: item['image'] != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(7),
-                              child: Image.network(
-                                item['image'],
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.image,
-                                  color: Color(0xFF94A3B8),
-                                ),
-                              ),
-                            )
-                          : const Icon(
-                              Icons.inventory_2_outlined,
-                              color: Color(0xFF94A3B8),
-                              size: 20,
-                            ),
-                    ),
                     title: Text(
-                      item['product_name'] ?? 'Product',
+                      item['product_name'] ?? 'Product Item',
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                        fontSize: 14,
                         color: Color(0xFF0F172A),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    subtitle: Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        if (item['category_name'] != null)
-                          Text(
-                            item['category_name'],
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF64748B),
+                    subtitle: isOpen
+                        ? null
+                        : Text(
+                            'Tap to edit details',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
                             ),
                           ),
-                        if ((double.tryParse(item['mrp']?.toString() ?? '0') ??
-                                0) >
-                            0)
-                          Text(
-                            'MRP: ₹${item['mrp']}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF94A3B8),
-                            ),
-                          ),
-                        if (item['gst_rate'] != null ||
-                            item['gst_data'] != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF0FDF4),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: const Color(0xFFBBF7D0),
-                              ),
-                            ),
-                            child: Text(
-                              'GST: ${_getGstPercent(item)}%',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF16A34A),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        GestureDetector(
-                          onTap: () => _removeProduct(index),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF2F2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Icon(
-                              Icons.close_rounded,
-                              size: 14,
-                              color: Color(0xFFEF4444),
-                            ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Color(0xFFEF4444),
+                            size: 20,
                           ),
+                          onPressed: () => _removeProduct(index),
                         ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () =>
-                              setState(() => item['is_expanded'] = !isOpen),
-                          child: Icon(
-                            isOpen
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.keyboard_arrow_down_rounded,
-                            color: const Color(0xFF64748B),
-                            size: 22,
-                          ),
+                        Icon(
+                          isOpen
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          color: const Color(0xFF64748B),
                         ),
                       ],
                     ),
+                    onTap: () => setState(() => item['is_expanded'] = !isOpen),
                   ),
 
                   // Expanded Details
-                  if (isOpen)
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+                  if (isOpen) ...[
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Divider(color: Color(0xFFF1F5F9)),
-                          const SizedBox(height: 10),
-                          // --- Quantity Section ---
-                          _buildInfoCard(
-                            title: 'Quantity',
+                          // Quantity Row
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.format_list_numbered_rounded,
+                                size: 16,
+                                color: Color(0xFF3B82F6),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'QUANTITY & UNIT',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: _buildModernField(
+                                  'Quantity',
+                                  initialValue:
+                                      (item['quantity'] == 0 ||
+                                          item['quantity'] == 0.0)
+                                      ? ''
+                                      : item['quantity'].toString(),
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (v) {
+                                    setState(
+                                      () => item['quantity'] =
+                                          double.tryParse(v) ?? 0,
+                                    );
+                                  },
+                                  hint: '0',
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: _buildModernDropdown(
+                                  label: 'Unit',
+                                  value: item['unit_id']?.toString(),
+                                  items: _units.map<DropdownMenuItem<String>>((
+                                    u,
+                                  ) {
+                                    return DropdownMenuItem(
+                                      value: u['id'].toString(),
+                                      child: Text(u['name'] ?? 'Unit'),
+                                    );
+                                  }).toList(),
+                                  onChanged: (v) =>
+                                      setState(() => item['unit_id'] = v),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Pricing Row
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.currency_rupee,
+                                size: 16,
+                                color: Color(0xFF3B82F6),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'PRICING DETAILS',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildModernField(
+                                  'MRP',
+                                  initialValue:
+                                      (item['mrp'] == 0 || item['mrp'] == 0.0)
+                                      ? ''
+                                      : item['mrp'].toString(),
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (v) {
+                                    setState(
+                                      () =>
+                                          item['mrp'] = double.tryParse(v) ?? 0,
+                                    );
+                                  },
+                                  hint: '0',
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildModernField(
+                                  'Cost',
+                                  initialValue:
+                                      (item['cost_price'] == 0 ||
+                                          item['cost_price'] == 0.0)
+                                      ? ''
+                                      : item['cost_price'].toString(),
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (v) {
+                                    setState(
+                                      () => item['cost_price'] =
+                                          double.tryParse(v) ?? 0,
+                                    );
+                                  },
+                                  hint: '0',
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildModernField(
+                                  'Selling',
+                                  initialValue:
+                                      (item['selling_price'] == 0 ||
+                                          item['selling_price'] == 0.0)
+                                      ? ''
+                                      : item['selling_price'].toString(),
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (v) {
+                                    setState(
+                                      () => item['selling_price'] =
+                                          double.tryParse(v) ?? 0,
+                                    );
+                                  },
+                                  hint: '0',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          GestureDetector(
+                            onTap: () => setState(
+                              () => item['tax_inclusive'] =
+                                  !(item['tax_inclusive'] ?? false),
+                            ),
                             child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: _buildModernField(
-                                    'Quantity',
-                                    initialValue:
-                                        (item['quantity'] == 0 ||
-                                            item['quantity'] == 0.0)
-                                        ? ''
-                                        : item['quantity'].toString(),
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (v) {
-                                      setState(
-                                        () => item['quantity'] =
-                                            double.tryParse(v) ?? 0,
+                                Icon(
+                                  (item['tax_inclusive'] ?? false)
+                                      ? Icons.check_box_rounded
+                                      : Icons.check_box_outline_blank_rounded,
+                                  color: const Color(0xFF3B82F6),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Price includes tax',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.blueGrey[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                          const SizedBox(height: 24),
+
+                          // Storage & Extras
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.inventory_2_rounded,
+                                size: 16,
+                                color: Color(0xFF3B82F6),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'STORAGE & OTHER',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildModernDropdown(
+                                  label: 'Godown',
+                                  value: item['godown_id']?.toString(),
+                                  items: _godowns.map<DropdownMenuItem<String>>(
+                                    (g) {
+                                      return DropdownMenuItem(
+                                        value: g['id'].toString(),
+                                        child: Text(g['name']),
                                       );
                                     },
-                                    hint: '0',
-                                  ),
+                                  ).toList(),
+                                  onChanged: (v) =>
+                                      setState(() => item['godown_id'] = v),
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  flex: 2,
-                                  child: _buildModernDropdown(
-                                    label: 'Unit',
-                                    value: item['unit_id']?.toString(),
-                                    items: _units.map<DropdownMenuItem<String>>(
-                                      (u) {
-                                        return DropdownMenuItem(
-                                          value: u['id'].toString(),
-                                          child: Text(u['name'] ?? 'Unknown'),
-                                        );
-                                      },
-                                    ).toList(),
-                                    onChanged: (v) =>
-                                        setState(() => item['unit_id'] = v),
-                                  ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildModernDropdown(
+                                  label: 'Rack',
+                                  value: item['rack_id']?.toString(),
+                                  items: _racks.map<DropdownMenuItem<String>>((
+                                    r,
+                                  ) {
+                                    return DropdownMenuItem(
+                                      value: r['id'].toString(),
+                                      child: Text(r['name']),
+                                    );
+                                  }).toList(),
+                                  onChanged: (v) =>
+                                      setState(() => item['rack_id'] = v),
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          // Dates & Barcode (in Grid or Column)
+                          _buildModernField(
+                            'Barcode (Auto-generated if empty)',
+                            controller: _barcodeControllers[index],
+                            onChanged: (v) => item['barcode'] = v,
+                            suffix: GestureDetector(
+                              onTap: () {
+                                final newBarcode =
+                                    'AG-${const Uuid().v4().substring(0, 8).toUpperCase()}';
+                                setState(() {
+                                  item['barcode'] = newBarcode;
+                                  _barcodeControllers[index].text = newBarcode;
+                                });
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Icon(
+                                  Icons.autorenew_rounded,
+                                  size: 16,
+                                  color: Color(0xFF3B82F6),
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          // --- Pricing Section ---
-                          _buildInfoCard(
-                            title: 'Pricing',
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildModernField(
-                                        'MRP (₹)',
-                                        initialValue:
-                                            (item['mrp'] == 0 ||
-                                                item['mrp'] == 0.0)
-                                            ? ''
-                                            : item['mrp'].toString(),
-                                        keyboardType: TextInputType.number,
-                                        onChanged: (v) {
-                                          setState(
-                                            () => item['mrp'] =
-                                                double.tryParse(v) ?? 0,
-                                          );
-                                        },
-                                        hint: '0',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildModernField(
-                                        'Cost (₹)',
-                                        initialValue:
-                                            (item['cost_price'] == 0 ||
-                                                item['cost_price'] == 0.0)
-                                            ? ''
-                                            : item['cost_price'].toString(),
-                                        keyboardType: TextInputType.number,
-                                        onChanged: (v) {
-                                          setState(
-                                            () => item['cost_price'] =
-                                                double.tryParse(v) ?? 0,
-                                          );
-                                        },
-                                        hint: '0',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildModernField(
-                                        'Selling (₹)',
-                                        initialValue:
-                                            (item['selling_price'] == 0 ||
-                                                item['selling_price'] == 0.0)
-                                            ? ''
-                                            : item['selling_price'].toString(),
-                                        keyboardType: TextInputType.number,
-                                        onChanged: (v) {
-                                          setState(
-                                            () => item['selling_price'] =
-                                                double.tryParse(v) ?? 0,
-                                          );
-                                        },
-                                        hint: '0',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    GestureDetector(
-                                      onTap: () => setState(
-                                        () => item['tax_inclusive'] =
-                                            !(item['tax_inclusive'] ?? false),
-                                      ),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              (item['tax_inclusive'] ?? false)
-                                              ? const Color(0xFFEFF6FF)
-                                              : const Color(0xFFF8FAFC),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color:
-                                                (item['tax_inclusive'] ?? false)
-                                                ? const Color(0xFF3B82F6)
-                                                : const Color(0xFFE2E8F0),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              (item['tax_inclusive'] ?? false)
-                                                  ? Icons.toggle_on_rounded
-                                                  : Icons.toggle_off_rounded,
-                                              size: 18,
-                                              color:
-                                                  (item['tax_inclusive'] ??
-                                                      false)
-                                                  ? const Color(0xFF3B82F6)
-                                                  : const Color(0xFF94A3B8),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              'Amount excludes tax',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w500,
-                                                color:
-                                                    (item['tax_inclusive'] ??
-                                                        false)
-                                                    ? const Color(0xFF3B82F6)
-                                                    : const Color(0xFF64748B),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    if (item['tax_inclusive'] == true) ...[
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        'Price including tax',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Color(0xFF94A3B8),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // --- Dates Section ---
-                          _buildInfoCard(
-                            title: 'Dates',
-                            child: Column(
-                              children: [
-                                _buildModernField(
-                                  'Manufacturing Date',
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildModernField(
+                                  'Mfg Date',
                                   controller: TextEditingController(
                                     text: item['mfg_date'] is DateTime
                                         ? DateFormat(
@@ -1735,24 +1841,23 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                         : (item['mfg_date']?.toString() ?? ''),
                                   ),
                                   readOnly: true,
-                                  icon: Icons.calendar_today_rounded,
                                   onTap: () async {
                                     final picked = await showDatePicker(
                                       context: context,
-                                      initialDate: item['mfg_date'] is DateTime
-                                          ? item['mfg_date']
-                                          : DateTime.now(),
+                                      initialDate: DateTime.now(),
                                       firstDate: DateTime(2000),
-                                      lastDate: DateTime(2100),
+                                      lastDate: DateTime.now(),
                                     );
                                     if (picked != null)
                                       setState(() => item['mfg_date'] = picked);
                                   },
-                                  hint: 'Select Date',
+                                  hint: 'Select',
                                 ),
-                                const SizedBox(height: 12),
-                                _buildModernField(
-                                  'Expiry Date',
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildModernField(
+                                  'Exp Date',
                                   controller: TextEditingController(
                                     text: item['expiry_date'] is DateTime
                                         ? DateFormat(
@@ -1762,110 +1867,29 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                               ''),
                                   ),
                                   readOnly: true,
-                                  icon: Icons.event_rounded,
                                   onTap: () async {
                                     final picked = await showDatePicker(
                                       context: context,
-                                      initialDate:
-                                          item['expiry_date'] is DateTime
-                                          ? item['expiry_date']
-                                          : DateTime.now().add(
-                                              const Duration(days: 365),
-                                            ),
+                                      initialDate: DateTime.now().add(
+                                        const Duration(days: 365),
+                                      ),
                                       firstDate: DateTime.now(),
-                                      lastDate: DateTime(2100),
+                                      lastDate: DateTime(2050),
                                     );
                                     if (picked != null)
                                       setState(
                                         () => item['expiry_date'] = picked,
                                       );
                                   },
-                                  hint: 'Select Date',
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // --- Storage Location Section ---
-                          _buildInfoCard(
-                            title: 'Storage Location',
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _buildModernDropdown(
-                                    label: 'Godown',
-                                    value: item['godown_id']?.toString(),
-                                    items: _godowns
-                                        .map<DropdownMenuItem<String>>((g) {
-                                          return DropdownMenuItem(
-                                            value: g['id'].toString(),
-                                            child: Text(g['name']),
-                                          );
-                                        })
-                                        .toList(),
-                                    onChanged: (v) =>
-                                        setState(() => item['godown_id'] = v),
-                                    icon: Icons.warehouse_rounded,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _buildModernDropdown(
-                                    label: 'Rack',
-                                    value: item['rack_id']?.toString(),
-                                    items: _racks.map<DropdownMenuItem<String>>(
-                                      (r) {
-                                        return DropdownMenuItem(
-                                          value: r['id'].toString(),
-                                          child: Text(r['name']),
-                                        );
-                                      },
-                                    ).toList(),
-                                    onChanged: (v) =>
-                                        setState(() => item['rack_id'] = v),
-                                    icon: Icons.shelves,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // --- Barcode Section ---
-                          _buildInfoCard(
-                            title: 'Barcode',
-                            child: _buildModernField(
-                              'Barcode',
-                              controller: _barcodeControllers[index],
-                              onChanged: (v) => item['barcode'] = v,
-                              suffix: GestureDetector(
-                                onTap: () {
-                                  final newBarcode =
-                                      'AG-${const Uuid().v4().substring(0, 8).toUpperCase()}';
-                                  setState(() {
-                                    item['barcode'] = newBarcode;
-                                    _barcodeControllers[index].text =
-                                        newBarcode;
-                                  });
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.all(8),
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEFF6FF),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: const Icon(
-                                    Icons.autorenew_rounded,
-                                    size: 16,
-                                    color: Color(0xFF3B82F6),
-                                  ),
+                                  hint: 'Select',
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
                     ),
+                  ],
                 ],
               ),
             );
@@ -1877,6 +1901,9 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
   // ==================== STEP 2: PAYMENT ====================
   Widget _buildPaymentStep() {
     final total = _calculateTotalAmount();
+    final paid = double.tryParse(_amountPaidController.text) ?? 0;
+    final due = total - paid;
+
     return Column(
       children: [
         Container(
@@ -1942,21 +1969,22 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
               ),
               const SizedBox(height: 20),
               if (_paymentStatus != 'Credit')
-                TextField(
+                _buildModernField(
+                  'Amount Paid (₹)',
                   controller: _amountPaidController,
                   keyboardType: TextInputType.number,
                   onChanged: (v) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Amount Paid',
-                    prefixIcon: const Icon(Icons.currency_rupee),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                  icon: Icons.currency_rupee,
+                  hint: 'Enter amount...',
                 ),
               if (_paymentStatus != 'Paid') ...[
                 const SizedBox(height: 16),
-                InkWell(
+                _buildModernField(
+                  'Payment Due Date',
+                  controller: _paymentDueDateController,
+                  readOnly: true,
+                  icon: Icons.calendar_month_outlined,
+                  hint: 'Select Date',
                   onTap: () async {
                     final picked = await showDatePicker(
                       context: context,
@@ -1973,15 +2001,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                       });
                     }
                   },
-                  child: IgnorePointer(
-                    child: TextField(
-                      controller: _paymentDueDateController,
-                      decoration: _inputDeco(
-                        'Payment Due Date',
-                        icon: Icons.calendar_month_outlined,
-                      ),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 16),
                 Container(
@@ -1999,7 +2018,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Remaining Due: ₹${_calculateDueAmount().toStringAsFixed(2)}',
+                        'Remaining Due: ₹${due.toStringAsFixed(2)}',
                         style: TextStyle(
                           color: Colors.orange[800],
                           fontWeight: FontWeight.bold,
@@ -2017,33 +2036,28 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           title: 'Payment Details',
           child: Column(
             children: [
-              DropdownButtonFormField<String>(
-                decoration: _inputDeco(
-                  'Payment Method',
-                  icon: Icons.account_balance,
-                ),
+              _buildModernDropdown(
+                label: 'Payment Method',
                 value: _paymentMethodStoreBankId,
-                items: _storeBankAccounts
-                    .map(
-                      (b) => DropdownMenuItem(
-                        value: b['id'].toString(),
-                        child: Text(
-                          b['account_number_or_upi_id'] == 'CASH-IN-HAND'
-                              ? 'Cash'
-                              : '${b['bank_name']} - ${b['account_number']}',
-                        ),
-                      ),
-                    )
-                    .toList(),
+                items: _storeBankAccounts.map<DropdownMenuItem<String>>((b) {
+                  return DropdownMenuItem(
+                    value: b['id'].toString(),
+                    child: Text(
+                      b['account_number_or_upi_id'] == 'CASH-IN-HAND'
+                          ? 'Cash'
+                          : '${b['bank_name']} - ${b['account_number']}',
+                    ),
+                  );
+                }).toList(),
                 onChanged: (v) => setState(() => _paymentMethodStoreBankId = v),
+                icon: Icons.account_balance,
               ),
               const SizedBox(height: 16),
-              TextField(
+              _buildModernField(
+                'Transaction ID (Optional)',
                 controller: _transactionIdController,
-                decoration: _inputDeco(
-                  'Transaction ID (Optional)',
-                  icon: Icons.receipt,
-                ),
+                icon: Icons.receipt,
+                hint: 'Enter transaction ID...',
               ),
             ],
           ),
@@ -2264,7 +2278,13 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                         _submitPurchaseOrder();
                       } else {
                         if (!_validateCurrentStep()) return;
-                        setState(() => _currentStep++);
+                        setState(() {
+                          _currentStep++;
+                          if (_currentStep == 2 && _paymentStatus == 'Paid') {
+                            _amountPaidController.text = _calculateTotalAmount()
+                                .toStringAsFixed(2);
+                          }
+                        });
                       }
                     },
               child: AnimatedContainer(
@@ -2764,18 +2784,6 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w700,
-        color: Color(0xFF0F172A),
-        letterSpacing: -0.2,
-      ),
-    );
-  }
-
   Widget _buildModernField(
     String label, {
     String? initialValue,
@@ -2837,7 +2845,12 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                     fontWeight: FontWeight.w400,
                     color: Colors.grey[400],
                   ),
-                  border: InputBorder.none,
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,
