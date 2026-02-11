@@ -485,14 +485,34 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
       );
     }
 
+    // Stats Widget
+    final statsSection = _buildStatsSection();
+
     if (_receipts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      // Even if empty, we might want to show stats (e.g. 0 receipts)
+      // But usually user wants to see "No receipts" message.
+      // If we confirm totalItems is 0, we can show stats 0 and then "No receipts".
+      return RefreshIndicator(
+        onRefresh: () => _fetchReceipts(),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            Icon(Icons.receipt_outlined, size: 64, color: theme.disabledColor),
-            const SizedBox(height: 16),
-            const TranslatedText('No receipts found'),
+            statsSection,
+            SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.receipt_outlined,
+                    size: 64,
+                    color: theme.disabledColor,
+                  ),
+                  const SizedBox(height: 16),
+                  const TranslatedText('No receipts found'),
+                ],
+              ),
+            ),
           ],
         ),
       );
@@ -504,6 +524,10 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
           // Table Layout for larger screens
           return Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: statsSection,
+              ),
               // Table Header
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -578,16 +602,20 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
             child: ListView.separated(
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
-              itemCount: _receipts.length + (_isLoadingMore ? 1 : 0),
+              itemCount: _receipts.length + (_isLoadingMore ? 1 : 0) + 1,
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                if (index == _receipts.length) {
+                if (index == 0) return statsSection;
+
+                final receiptIndex = index - 1;
+
+                if (receiptIndex == _receipts.length) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-                final receipt = _receipts[index];
+                final receipt = _receipts[receiptIndex];
                 return _buildReceiptRow(theme, receipt);
               },
             ),
@@ -749,6 +777,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
   }
 
   Widget _buildReceiptRow(ThemeData theme, dynamic receipt) {
+    // ... existing implementation ...
     // Premium Card Style
     final isPosted = receipt['is_posted'] == true;
     final statusColor = isPosted ? Colors.green : Colors.orange;
@@ -971,6 +1000,92 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatsSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: _buildStatBox(
+        "Total Receipts",
+        _totalItems.toString(),
+        Icons.receipt_long,
+        const Color(0xFF2563EB), // Blue
+        isHero: true,
+      ),
+    );
+  }
+
+  Widget _buildStatBox(
+    String title,
+    String value,
+    IconData icon,
+    Color color, {
+    bool isHero = false,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: isHero ? 20 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isHero ? color.withOpacity(0.2) : Colors.grey[100]!,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 14, color: color),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[500],
+                    letterSpacing: 0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1E293B),
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
