@@ -549,26 +549,31 @@ class _SettingsScreenState extends State<SettingsScreen>
 
             // 2. Content Body
             Expanded(
-              child: CustomScrollView(
-                slivers: [
-                  // Tab Peel
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-                      child: _buildFilterSegments(primaryColor),
+              child: RefreshIndicator(
+                onRefresh: () async => _onTabChanged(_activeTab),
+                child: CustomScrollView(
+                  slivers: [
+                    // Tab Peel
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                        child: _buildFilterSegments(primaryColor),
+                      ),
                     ),
-                  ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                  // Content
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    sliver: SliverToBoxAdapter(child: _buildActiveTabContent()),
-                  ),
+                    // Content
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildActiveTabContent(),
+                      ),
+                    ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
-                ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                  ],
+                ),
               ),
             ),
           ],

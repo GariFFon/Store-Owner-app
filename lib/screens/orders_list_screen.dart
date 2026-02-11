@@ -331,7 +331,12 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
               ),
 
             // 3. Orders List
-            Expanded(child: _buildBody(theme)),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async => await _fetchOrders(),
+                child: _buildBody(theme),
+              ),
+            ),
           ],
         ),
       ),
@@ -619,9 +624,28 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       );
     }
 
+    // Sort options to put 'order_placed' first, then 'order_completed', then others
+    final sortedOptions = List<dynamic>.from(_statusOptions);
+    sortedOptions.sort((a, b) {
+      final statusA = (a['status'] ?? '').toString().toLowerCase();
+      final statusB = (b['status'] ?? '').toString().toLowerCase();
+
+      int getPriority(String status) {
+        if (status == 'order_placed') return 0;
+        if (status == 'order_completed') return 1;
+        return 2;
+      }
+
+      final pA = getPriority(statusA);
+      final pB = getPriority(statusB);
+
+      if (pA != pB) return pA.compareTo(pB);
+      return 0; // Keep original order for same priority
+    });
+
     final List<Map<String, dynamic>> allOptions = [
       {'label': 'All', 'id': null},
-      ..._statusOptions.map(
+      ...sortedOptions.map(
         (opt) => {
           'label': opt['status_title_for_seller'] ?? opt['status'] ?? 'Unknown',
           'id': opt['status'],

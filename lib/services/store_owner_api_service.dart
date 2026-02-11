@@ -381,6 +381,8 @@ class StoreOwnerApiService {
     String rackId,
     String godownId, {
     int page = 1,
+    Map<String, dynamic>? filters,
+    String? orderBy,
   }) async {
     try {
       final response = await ApiService.post(
@@ -389,8 +391,8 @@ class StoreOwnerApiService {
           'store_id': storeId,
           'store_access': true,
           'query': {'rack_id': rackId, 'godown_id': godownId},
-          'filters': {},
-          'order_by': '-purchase_timestamp',
+          'filters': filters ?? {},
+          'order_by': orderBy ?? '-purchase_timestamp',
           'page': page,
           'limit': 25,
         },

@@ -50,7 +50,12 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
       body: Column(
         children: [
           _buildTopBanner(theme),
-          Expanded(child: _buildBody(theme)),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _fetchPurchaseDetails,
+              child: _buildBody(theme),
+            ),
+          ),
         ],
       ),
     );

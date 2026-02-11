@@ -39,6 +39,12 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
   final Color _textMain = const Color(0xFF1E293B);
   final Color _textSub = const Color(0xFF64748B);
 
+  // Filters State
+  String _sortBy = '-purchase_timestamp';
+  bool _filter7d = false;
+  bool _filterAvailable = false;
+  bool _filterLowStock = false;
+
   @override
   void initState() {
     super.initState();
@@ -65,10 +71,51 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
         page: _currentPage,
       );
 
-      if (data.containsKey('response')) {
+      if (data.containsKey('response') && data['response'] is List) {
+        List<dynamic> products = List<dynamic>.from(data['response']);
+
+        // Client-side filtering
+        if (_filter7d) {
+          final sevenDaysAgo =
+              DateTime.now()
+                  .subtract(const Duration(days: 7))
+                  .millisecondsSinceEpoch ~/
+              1000;
+          products = products.where((item) {
+            final ts = item['purchase_timestamp'];
+            if (ts == null) return false;
+            final tsInt = ts is int ? ts : (int.tryParse(ts.toString()) ?? 0);
+            return tsInt >= sevenDaysAgo;
+          }).toList();
+        }
+
+        if (_filterAvailable) {
+          products = products.where((item) {
+            final stock =
+                double.tryParse(item['total_stocks_left']?.toString() ?? '0') ??
+                0;
+            return stock > 0;
+          }).toList();
+        }
+
+        if (_filterLowStock) {
+          products = products.where((item) {
+            final stock =
+                double.tryParse(item['total_stocks_left']?.toString() ?? '0') ??
+                0;
+            return stock > 0 && stock <= 10;
+          }).toList();
+        }
+
+        // Client-side sorting
+        products = _applySorting(products);
+
+        final pagination = data['pagination'];
         setState(() {
-          _products = data['response'];
-          _totalCount = data['pagination']['total_count'] ?? 0;
+          _products = products;
+          _totalCount = (pagination is Map)
+              ? (pagination['total_count'] ?? 0)
+              : products.length;
           _isLoading = false;
         });
       } else {
@@ -83,6 +130,33 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  List<dynamic> _applySorting(List<dynamic> products) {
+    final bool descending = _sortBy.startsWith('-');
+    final String field = descending ? _sortBy.substring(1) : _sortBy;
+
+    products.sort((a, b) {
+      dynamic valA;
+      dynamic valB;
+
+      if (field == 'purchase_timestamp') {
+        valA = a[field] is int
+            ? a[field]
+            : (int.tryParse(a[field]?.toString() ?? '0') ?? 0);
+        valB = b[field] is int
+            ? b[field]
+            : (int.tryParse(b[field]?.toString() ?? '0') ?? 0);
+      } else {
+        valA = double.tryParse(a[field]?.toString() ?? '0') ?? 0.0;
+        valB = double.tryParse(b[field]?.toString() ?? '0') ?? 0.0;
+      }
+
+      final cmp = Comparable.compare(valA as Comparable, valB as Comparable);
+      return descending ? -cmp : cmp;
+    });
+
+    return products;
   }
 
   String _formatCurrency(dynamic amount) {
@@ -159,14 +233,19 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                               ? _buildErrorState()
                               : _products.isEmpty
                               ? _buildEmptyState()
-                              : ListView.separated(
-                                  padding: const EdgeInsets.all(24),
-                                  itemCount: _products.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 16),
-                                  itemBuilder: (context, index) {
-                                    return _buildProductCard(_products[index]);
-                                  },
+                              : RefreshIndicator(
+                                  onRefresh: () async => await _fetchProducts(),
+                                  child: ListView.separated(
+                                    padding: const EdgeInsets.all(24),
+                                    itemCount: _products.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 16),
+                                    itemBuilder: (context, index) {
+                                      return _buildProductCard(
+                                        _products[index],
+                                      );
+                                    },
+                                  ),
                                 ),
                         ),
                       ],
@@ -363,9 +442,9 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildPremiumChip(Icons.sort_rounded, "Sort"),
+                        _buildSortButton(),
                         const SizedBox(width: 8),
-                        _buildPremiumChip(Icons.filter_list_rounded, "Filter"),
+                        _buildFilterButton(),
                         const SizedBox(width: 8),
                         Container(
                           height: 20,
@@ -374,11 +453,41 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
                           margin: const EdgeInsets.symmetric(horizontal: 4),
                         ),
                         const SizedBox(width: 8),
-                        _buildFilterChoice("7d"),
+                        _buildFilterChoice(
+                          "7d",
+                          isActive: _filter7d,
+                          onTap: () {
+                            setState(() {
+                              _filter7d = !_filter7d;
+                              _currentPage = 1;
+                            });
+                            _fetchProducts();
+                          },
+                        ),
                         const SizedBox(width: 8),
-                        _buildFilterChoice("Available", isActive: true),
+                        _buildFilterChoice(
+                          "Available",
+                          isActive: _filterAvailable,
+                          onTap: () {
+                            setState(() {
+                              _filterAvailable = !_filterAvailable;
+                              _currentPage = 1;
+                            });
+                            _fetchProducts();
+                          },
+                        ),
                         const SizedBox(width: 8),
-                        _buildFilterChoice("Low Stock"),
+                        _buildFilterChoice(
+                          "Low Stock",
+                          isActive: _filterLowStock,
+                          onTap: () {
+                            setState(() {
+                              _filterLowStock = !_filterLowStock;
+                              _currentPage = 1;
+                            });
+                            _fetchProducts();
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -593,9 +702,8 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
     );
   }
 
-  Widget _buildPremiumChip(IconData icon, String label) {
+  Widget _buildPremiumChip(IconData icon, String label, {VoidCallback? onTap}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(30),
@@ -608,39 +716,149 @@ class _RackDetailsScreenState extends State<RackDetailsScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: _textMain),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: _textMain,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(30),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: _textMain),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _textMain,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildFilterChoice(String label, {bool isActive = false}) {
+  Widget _buildSortButton() {
+    return _buildPremiumChip(
+      Icons.sort_rounded,
+      "Sort",
+      onTap: _showSortOptions,
+    );
+  }
+
+  Widget _buildFilterButton() {
+    return _buildPremiumChip(
+      Icons.filter_list_rounded,
+      "Filter",
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Advanced filters coming soon!")),
+        );
+      },
+    );
+  }
+
+  void _showSortOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: Text(
+                  "Sort By",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              _buildSortOption("Newest First", "-purchase_timestamp"),
+              _buildSortOption("Oldest First", "purchase_timestamp"),
+              _buildSortOption(
+                "Price: Low to High",
+                "selling_amount_excluding_tax",
+              ),
+              _buildSortOption(
+                "Price: High to Low",
+                "-selling_amount_excluding_tax",
+              ),
+              _buildSortOption("Stock: Low to High", "total_stocks_left"),
+              _buildSortOption("Stock: High to Low", "-total_stocks_left"),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSortOption(String label, String value) {
+    final isSelected = _sortBy == value;
+    return ListTile(
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? _primary : _textMain,
+        ),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check_circle_rounded, color: _primary)
+          : null,
+      onTap: () {
+        setState(() {
+          _sortBy = value;
+          _currentPage = 1;
+        });
+        Navigator.pop(context);
+        _fetchProducts();
+      },
+    );
+  }
+
+  Widget _buildFilterChoice(
+    String label, {
+    bool isActive = false,
+    VoidCallback? onTap,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: isActive ? _primary.withOpacity(0.1) : Colors.transparent,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(
-          color: isActive ? _primary.withOpacity(0.2) : Colors.transparent,
+          color: isActive
+              ? _primary.withOpacity(0.2)
+              : Colors.grey.withOpacity(0.3),
         ),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: isActive ? _primary : _textSub,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(30),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isActive ? _primary : _textSub,
+              ),
+            ),
+          ),
         ),
       ),
     );

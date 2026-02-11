@@ -1568,21 +1568,33 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 'Guest Customer',
             Icons.person_rounded,
           ),
-          _buildDashedDivider(theme),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Store',
             _orderData!['store_name'] ?? 'N/A',
             Icons.store_rounded,
           ),
-          _buildDashedDivider(theme),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Order Method',
             _orderData!['order_method_name'] ?? 'N/A',
             Icons.delivery_dining_rounded,
           ),
-          _buildDashedDivider(theme),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Total Items',
@@ -2029,7 +2041,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             payment['payment_method_name'] ?? 'N/A',
             Icons.payment_rounded,
           ),
-          _buildDashedDivider(theme),
+          Divider(
+            color: theme.colorScheme.outline.withOpacity(0.08),
+            height: 24,
+            thickness: 1,
+          ),
           _buildInfoRow(
             theme,
             'Status',
@@ -2085,7 +2101,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          _buildDashedDivider(theme),
 
           // Cart Total Items
           ...cartTotal.map(
@@ -2111,7 +2127,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
           // Platform Fees
           if (platformFees.isNotEmpty) ...[
-            const SizedBox(height: 8), // Replaced Divider with minimal spacing
+            const SizedBox(height: 8),
             ...platformFees.map((item) {
               // Only show numeric platform fees
               if (item['value'] is num ||

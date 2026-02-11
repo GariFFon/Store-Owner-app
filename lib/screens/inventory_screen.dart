@@ -83,7 +83,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
                   ? Center(child: Text(_errorMessage!))
-                  : _buildBody(),
+                  : RefreshIndicator(
+                      onRefresh: () async => await _fetchData(),
+                      child: _buildBody(),
+                    ),
             ),
           ],
         ),

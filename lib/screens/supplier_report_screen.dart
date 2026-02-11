@@ -143,29 +143,32 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
                   ? Center(child: Text(_errorMessage!))
-                  : CustomScrollView(
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              children: [
-                                _buildProfileSection(isDesktop),
-                                const SizedBox(height: 24),
-                                _buildTabSwitcher(),
-                              ],
+                  : RefreshIndicator(
+                      onRefresh: _fetchReport,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                children: [
+                                  _buildProfileSection(isDesktop),
+                                  const SizedBox(height: 24),
+                                  _buildTabSwitcher(),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        if (_tabController.index == 0)
-                          ..._buildLedgerSlivers(isDesktop)
-                        else
-                          ..._buildAgingSlivers(isDesktop),
+                          if (_tabController.index == 0)
+                            ..._buildLedgerSlivers(isDesktop)
+                          else
+                            ..._buildAgingSlivers(isDesktop),
 
-                        const SliverPadding(
-                          padding: EdgeInsets.only(bottom: 40),
-                        ),
-                      ],
+                          const SliverPadding(
+                            padding: EdgeInsets.only(bottom: 40),
+                          ),
+                        ],
+                      ),
                     ),
             ),
           ],

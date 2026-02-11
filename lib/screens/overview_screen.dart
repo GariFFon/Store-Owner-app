@@ -323,29 +323,33 @@ class _OverviewScreenState extends State<OverviewScreen> {
           children: [
             _buildTopBanner(context),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_selectedFilter == 'Custom') ...[
-                      _buildCustomDateSelector(),
+              child: RefreshIndicator(
+                onRefresh: () async => await _fetchAllData(),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_selectedFilter == 'Custom') ...[
+                        _buildCustomDateSelector(),
+                        const SizedBox(height: 24),
+                      ],
+                      _buildSummaryCards(),
                       const SizedBox(height: 24),
+                      _buildMiddleSection(),
+                      const SizedBox(height: 24),
+                      _buildBottomSection(),
+                      const SizedBox(height: 24),
+                      _buildChartCard(
+                        title: "Order Volume",
+                        subtitle:
+                            "Monitor order frequency over time. High volume indicates strong engagement.",
+                        child: _buildOrderVolumeChartBody(),
+                      ),
+                      const SizedBox(height: 48),
                     ],
-                    _buildSummaryCards(),
-                    const SizedBox(height: 24),
-                    _buildMiddleSection(),
-                    const SizedBox(height: 24),
-                    _buildBottomSection(),
-                    const SizedBox(height: 24),
-                    _buildChartCard(
-                      title: "Order Volume",
-                      subtitle:
-                          "Monitor order frequency over time. High volume indicates strong engagement.",
-                      child: _buildOrderVolumeChartBody(),
-                    ),
-                    const SizedBox(height: 48),
-                  ],
+                  ),
                 ),
               ),
             ),

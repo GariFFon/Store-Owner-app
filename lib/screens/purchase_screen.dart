@@ -40,6 +40,18 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
   DateTimeRange? _selectedDateRange;
   String? _errorMessage;
+  String? _selectedPaymentFilter; // null = All
+
+  // Local filtering
+  List<dynamic> get _filteredVouchers {
+    if (_selectedPaymentFilter == null) return _vouchers;
+    return _vouchers.where((v) {
+      final status = (v['payment_info']?['payment_status'] ?? '')
+          .toString()
+          .toUpperCase();
+      return status == _selectedPaymentFilter;
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -431,33 +443,149 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildExpandedBanner(theme),
-            Expanded(child: _buildBody(theme)),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _fetchPurchases,
+                child: _buildBody(theme),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLegendItem(String label, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  Widget _buildSummaryCard(String title, String rawValue, Color color) {
+    // Parse and format large numbers
+    final double? numValue = double.tryParse(rawValue);
+    String displayValue = rawValue;
+
+    if (numValue != null && numValue > 999) {
+      if (numValue >= 10000000) {
+        displayValue = '${(numValue / 1000000).toStringAsFixed(0)}M';
+      } else if (numValue >= 1000000) {
+        displayValue = '${(numValue / 1000000).toStringAsFixed(1)}M';
+      } else if (numValue >= 10000) {
+        displayValue = '${(numValue / 1000).toStringAsFixed(0)}k';
+      } else if (numValue >= 1000) {
+        displayValue = '${(numValue / 1000).toStringAsFixed(1)}k';
+      }
+    }
+
+    return Tooltip(
+      message: '$title: $rawValue',
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 6),
-          TranslatedText(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: color,
-              letterSpacing: 0.3,
+      textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.2), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[700],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                displayValue,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: color,
+                  height: 1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsSection(bool isMobile) {
+    final cardWidth = isMobile ? null : 140.0;
+
+    // Helper for responsive card
+    Widget responsiveCard(String t, String v, Color c) {
+      final card = _buildSummaryCard(t, v, c);
+      if (isMobile) return Expanded(child: card);
+      return SizedBox(width: cardWidth, child: card);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      child: Row(
+        mainAxisAlignment: isMobile
+            ? MainAxisAlignment.spaceBetween
+            : MainAxisAlignment.center,
+        children: [
+          responsiveCard(
+            isMobile ? 'Total' : 'Total Purchases',
+            _count.toString(),
+            Colors.blue,
+          ),
+          const SizedBox(width: 8),
+          responsiveCard(
+            'Paid',
+            _vouchers
+                .where(
+                  (v) =>
+                      (v['payment_info']?['payment_status'] ?? '')
+                          .toString()
+                          .toUpperCase() ==
+                      'PAID',
+                )
+                .length
+                .toString(),
+            Colors.green,
+          ),
+          const SizedBox(width: 8),
+          responsiveCard(
+            'Partial',
+            _vouchers
+                .where(
+                  (v) =>
+                      (v['payment_info']?['payment_status'] ?? '')
+                          .toString()
+                          .toUpperCase() ==
+                      'PARTIAL',
+                )
+                .length
+                .toString(),
+            Colors.orange,
+          ),
+          const SizedBox(width: 8),
+          responsiveCard(
+            'Credit',
+            _vouchers
+                .where(
+                  (v) =>
+                      (v['payment_info']?['payment_status'] ?? '')
+                          .toString()
+                          .toUpperCase() ==
+                      'CREDIT',
+                )
+                .length
+                .toString(),
+            Colors.red,
           ),
         ],
       ),
@@ -710,43 +838,105 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildLegendItem(
-                          'Paid',
-                          Colors.green,
-                          Icons.check_circle_outline,
-                        ),
-                        const SizedBox(width: 12),
-                        _buildLegendItem(
-                          'Partial',
-                          Colors.blue,
-                          Icons.timelapse_rounded,
-                        ),
-                        const SizedBox(width: 12),
-                        _buildLegendItem(
-                          'Credit',
-                          Colors.red,
-                          Icons.warning_amber_rounded,
-                        ),
-                        const SizedBox(width: 12),
-                        _buildLegendItem(
-                          'Pending',
-                          Colors.orange,
-                          Icons.hourglass_empty_rounded,
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 12),
+
+                  // Payment Status Filter Bar
+                  _buildPaymentFilterBar(),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentFilterBar() {
+    final List<Map<String, dynamic>> filterOptions = [
+      {
+        'label': 'All',
+        'id': null,
+        'icon': Icons.grid_view_rounded,
+        'color': Colors.blue,
+      },
+      {
+        'label': 'Paid',
+        'id': 'PAID',
+        'icon': Icons.check_circle_outline,
+        'color': Colors.green,
+      },
+      {
+        'label': 'Partial',
+        'id': 'PARTIAL',
+        'icon': Icons.timelapse_rounded,
+        'color': Colors.orange,
+      },
+      {
+        'label': 'Credit',
+        'id': 'CREDIT',
+        'icon': Icons.money_off_rounded,
+        'color': Colors.red,
+      },
+      {
+        'label': 'Pending',
+        'id': 'PENDING',
+        'icon': Icons.hourglass_empty_rounded,
+        'color': Colors.amber,
+      },
+    ];
+
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        itemCount: filterOptions.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final opt = filterOptions[index];
+          final isSelected = _selectedPaymentFilter == opt['id'];
+          return Center(
+            child: InkWell(
+              onTap: () {
+                if (!isSelected) {
+                  setState(() {
+                    _selectedPaymentFilter = opt['id'];
+                  });
+                }
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.blue[700] : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: isSelected ? Colors.blue[800]! : Colors.transparent,
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  opt['label'] ?? '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected ? Colors.white : Colors.blueGrey[700],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -781,7 +971,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       );
     }
 
-    if (_vouchers.isEmpty) {
+    if (_filteredVouchers.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -815,12 +1005,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       );
     }
 
+    final filtered = _filteredVouchers;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth > 600) {
           // Table Layout for larger screens
           return Column(
             children: [
+              _buildStatsSection(false),
               // Table Header
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -864,11 +1057,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                   child: ListView.separated(
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    itemCount: _vouchers.length + (_isLoadingMore ? 1 : 0),
+                    itemCount: filtered.length + (_isLoadingMore ? 1 : 0),
                     separatorBuilder: (context, index) =>
                         const Divider(height: 1, thickness: 0.5),
                     itemBuilder: (context, index) {
-                      if (index == _vouchers.length) {
+                      if (index == filtered.length) {
                         return const Center(
                           child: Padding(
                             padding: EdgeInsets.all(16.0),
@@ -876,11 +1069,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           ),
                         );
                       }
-                      final voucher = _vouchers[index];
+                      final voucher = filtered[index];
                       return _buildTabletPurchaseRow(
                         theme,
                         voucher,
-                        index == _vouchers.length - 1,
+                        index == filtered.length - 1,
                       );
                     },
                   ),
@@ -899,16 +1092,27 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               right: 16,
               top: 16,
             ),
-            itemCount: _vouchers.length + (_isLoadingMore ? 1 : 0),
+            // +1 for Stats section, +1 for loading indicator if needed
+            itemCount: filtered.length + 1 + (_isLoadingMore ? 1 : 0),
             separatorBuilder: (context, index) => const SizedBox(height: 16),
             itemBuilder: (context, index) {
-              if (index == _vouchers.length) {
+              // Item 0 is the Stats Section
+              if (index == 0) {
+                return _buildStatsSection(true);
+              }
+
+              // Adjust index for vouchers
+              final voucherIndex = index - 1;
+
+              // Last item loading indicator
+              if (voucherIndex == filtered.length) {
                 return const Padding(
                   padding: EdgeInsets.all(16),
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-              return _buildPremiumPurchaseCard(theme, _vouchers[index]);
+
+              return _buildPremiumPurchaseCard(theme, filtered[voucherIndex]);
             },
           );
         }
@@ -1154,185 +1358,173 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.black.withOpacity(0.1), width: 1),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 10,
-            offset: const Offset(4, 4),
-            spreadRadius: 0,
+            color: Colors.grey.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+            spreadRadius: 2,
           ),
         ],
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Material(
-          color: Colors.white,
-          child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PurchaseDetailsScreen(
-                    storeId: widget.storeId,
-                    purchaseData: voucher as Map<String, dynamic>,
-                  ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PurchaseDetailsScreen(
+                  storeId: widget.storeId,
+                  purchaseData: voucher as Map<String, dynamic>,
                 ),
-              );
-            },
-            child: Stack(
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Subtle Top Color Strip (Professional Status Indicator)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 4,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.8),
+                // Header: Date & Voucher
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '#$voucherNumber',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
                     ),
-                  ),
+                    Text(
+                      dateStr,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Supplier Name
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF), // Light blue
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Center(
+                        child: Text(
+                          supplierName.isNotEmpty
+                              ? supplierName[0].toUpperCase()
+                              : 'S',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        supplierName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
 
-                // 3. Main Content
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Header: Supplier Name & Price
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Supplier Icon/Avatar placeholder
+                const SizedBox(height: 16),
+                Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: Colors.grey.withOpacity(0.2), // Fainter line
+                ),
+                const SizedBox(height: 12),
+
+                // Footer: Amount & Status
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total Amount',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          amount,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        _buildModernStatusBadge(
+                          text: paymentStatus,
+                          color: statusColor,
+                          icon: Icons.payments_rounded,
+                        ),
+                        if (verifyText.isNotEmpty) ...[
+                          const SizedBox(width: 8),
                           Container(
-                            width: 40,
-                            height: 40,
+                            padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
+                              shape: BoxShape.circle,
+                              color: verifyColor.withOpacity(0.1),
                               border: Border.all(
-                                color: Colors.grey.withOpacity(0.1),
+                                color: verifyColor.withOpacity(0.2),
                               ),
                             ),
-                            child: Center(
-                              child: Text(
-                                supplierName.isNotEmpty
-                                    ? supplierName[0].toUpperCase()
-                                    : 'S',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-
-                          // Supplier info and Amount
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  supplierName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1E293B),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  amount,
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.blueGrey[900],
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
-                              ],
+                            child: Icon(
+                              verifyIcon,
+                              size: 14,
+                              color: verifyColor,
                             ),
                           ),
                         ],
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // Divider with Ticket effect (Dotted Line)
-                      CustomPaint(
-                        painter: DottedLinePainter(),
-                        child: Container(height: 1),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Footer: Details Grid (Date, Voucher, Status)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Left: Voucher & Date
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'INV-$voucherNumber',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.blueGrey[400],
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                dateStr,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.blueGrey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          // Right: Status Badges
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              _buildModernStatusBadge(
-                                text: paymentStatus,
-                                color: statusColor,
-                                icon: Icons.payments_rounded,
-                              ),
-                              if (verifyText.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                _buildModernStatusBadge(
-                                  text: verifyText,
-                                  color: verifyColor,
-                                  icon: verifyIcon,
-                                  isOutlined: true,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
               ],
             ),
