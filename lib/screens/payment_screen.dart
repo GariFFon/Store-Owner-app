@@ -113,7 +113,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
     showDialog(
       context: context,
       barrierColor: Colors.black.withOpacity(0.7),
-      builder: (context) => PaymentDetailsDialog(voucher: voucher),
+      builder: (context) =>
+          PaymentDetailsDialog(voucher: voucher, storeId: widget.storeId),
     );
   }
 
@@ -834,22 +835,74 @@ class _PaymentScreenState extends State<PaymentScreen> {
 }
 
 // ============== PAYMENT DETAILS DIALOG (Premium Redesign) ==============
-class PaymentDetailsDialog extends StatelessWidget {
+class PaymentDetailsDialog extends StatefulWidget {
   final PaymentVoucher voucher;
+  final String storeId;
 
-  const PaymentDetailsDialog({super.key, required this.voucher});
+  const PaymentDetailsDialog({
+    super.key,
+    required this.voucher,
+    required this.storeId,
+  });
+
+  @override
+  State<PaymentDetailsDialog> createState() => _PaymentDetailsDialogState();
+}
+
+class _PaymentDetailsDialogState extends State<PaymentDetailsDialog> {
+  bool _isLoading = true;
+  PaymentDetail? _detail;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDetails();
+  }
+
+  Future<void> _fetchDetails() async {
+    try {
+      final detail = await PaymentService.viewPayment(
+        voucherId: widget.voucher.voucherId,
+        storeId: widget.storeId,
+      );
+      if (mounted) {
+        setState(() {
+          _detail = detail;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Matching the Blue theme
     final themeColor = const Color(0xFF2563EB);
+    // Use detail data if available, otherwise fallback to voucher data
+    final isPosted = _detail?.isPosted ?? widget.voucher.isPosted;
+    final amount = _detail?.amount ?? widget.voucher.amount;
+    final dateStr = _detail?.date ?? widget.voucher.date;
+    final partyName = _detail?.party.name ?? widget.voucher.partyName;
+    final partyType = _detail?.party.type ?? widget.voucher.partyType;
+    final narration = _detail?.narration ?? widget.voucher.narration;
+
+    // Additional fields from detail
+    final financialYear = _detail?.financialYear;
+    final voucherType = _detail?.voucherType;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(16),
       child: Container(
         width: double.infinity,
-        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 750),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -863,7 +916,7 @@ class PaymentDetailsDialog extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Header with Gradient
+            // Header
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -891,7 +944,7 @@ class PaymentDetailsDialog extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          voucher.isPosted ? 'POSTED' : 'DRAFT',
+                          isPosted ? 'POSTED' : 'DRAFT',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -919,7 +972,7 @@ class PaymentDetailsDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '₹${voucher.amount.toStringAsFixed(2)}',
+                    '₹${amount.toStringAsFixed(2)}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 40,
@@ -929,7 +982,7 @@ class PaymentDetailsDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    DateFormat.yMMMd().format(DateTime.parse(voucher.date)),
+                    DateFormat.yMMMd().format(DateTime.parse(dateStr)),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.8),
                       fontSize: 14,
@@ -939,100 +992,135 @@ class PaymentDetailsDialog extends StatelessWidget {
               ),
             ),
 
-            // Scrollable Content
+            // Content
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Party Section
-                    _buildSectionHeader("PARTY DETAILS"),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.person, color: Colors.grey),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                  ? Center(child: Text("Error: $_errorMessage"))
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionHeader("PARTY DETAILS"),
+                          const SizedBox(height: 16),
+                          Row(
                             children: [
-                              Text(
-                                voucher.partyName,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Colors.grey,
                                 ),
                               ),
-                              Text(
-                                voucher.partyType ?? 'Party',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[500],
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      partyName,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      partyType ?? 'Party',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(height: 16),
 
-                    const SizedBox(height: 32),
+                          const SizedBox(height: 32),
 
-                    // Payment Info
-                    _buildSectionHeader("PAYMENT INFORMATION"),
-                    const SizedBox(height: 16),
-                    _buildInfoRow(
-                      "Voucher No.",
-                      voucher.voucherNumber,
-                      Icons.confirmation_number_outlined,
-                      themeColor,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildInfoRow(
-                      "Account",
-                      voucher.paymentAccount,
-                      Icons.account_balance_wallet_outlined,
-                      Colors.orange,
-                    ),
-
-                    const SizedBox(height: 32),
-                    _buildLedgerEntries(voucher),
-
-                    if (voucher.narration != null &&
-                        voucher.narration!.isNotEmpty) ...[
-                      const SizedBox(height: 32),
-                      _buildSectionHeader("NARRATION"),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[200]!),
-                        ),
-                        child: Text(
-                          voucher.narration!,
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontSize: 14,
-                            height: 1.5,
+                          _buildSectionHeader("PAYMENT INFORMATION"),
+                          const SizedBox(height: 16),
+                          // New Fields: Financial Year, Voucher Type, Status
+                          if (financialYear != null) ...[
+                            _buildInfoRow(
+                              "Financial Year",
+                              financialYear,
+                              Icons.calendar_today_outlined,
+                              Colors.blueGrey,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          if (voucherType != null) ...[
+                            _buildInfoRow(
+                              "Voucher Type",
+                              voucherType,
+                              Icons.category_outlined,
+                              Colors.purple,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          _buildInfoRow(
+                            "Status",
+                            isPosted ? "Posted" : "Draft",
+                            isPosted
+                                ? Icons.check_circle_outline
+                                : Icons.edit_note,
+                            isPosted ? Colors.green : Colors.orange,
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          _buildInfoRow(
+                            "Voucher No.",
+                            widget.voucher.voucherNumber,
+                            Icons.confirmation_number_outlined,
+                            themeColor,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildInfoRow(
+                            "Account",
+                            widget
+                                .voucher
+                                .paymentAccount, // Keep original or update if in detail
+                            Icons.account_balance_wallet_outlined,
+                            Colors.orange,
+                          ),
+
+                          const SizedBox(height: 32),
+                          _buildLedgerEntries(_detail!),
+
+                          if (narration != null && narration.isNotEmpty) ...[
+                            const SizedBox(height: 32),
+                            _buildSectionHeader("NARRATION"),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[200]!),
+                              ),
+                              child: Text(
+                                narration,
+                                style: TextStyle(
+                                  color: Colors.grey[700],
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
-                  ],
-                ),
-              ),
+                    ),
             ),
           ],
         ),
@@ -1094,7 +1182,7 @@ class PaymentDetailsDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildLedgerEntries(PaymentVoucher voucher) {
+  Widget _buildLedgerEntries(PaymentDetail detail) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1108,7 +1196,7 @@ class PaymentDetailsDialog extends StatelessWidget {
           ),
           child: Column(
             children: [
-              // Table Header
+              // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 child: Row(
@@ -1156,87 +1244,61 @@ class PaymentDetailsDialog extends StatelessWidget {
               ),
               Divider(height: 1, color: Colors.grey[200]),
 
-              // Row 1: Party (Debit)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Row(
+              // Entries
+              ...detail.ledgerEntries.map((entry) {
+                return Column(
                   children: [
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        '${voucher.partyType ?? 'Party'} - ${voucher.partyName}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1E293B),
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              entry.account,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              entry.debit > 0
+                                  ? '₹${entry.debit.toStringAsFixed(2)}'
+                                  : '-',
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              entry.credit > 0
+                                  ? '₹${entry.credit.toStringAsFixed(2)}'
+                                  : '-',
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '₹${voucher.amount.toStringAsFixed(2)}',
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '-',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(fontSize: 13, color: Colors.grey[400]),
-                      ),
-                    ),
+                    if (entry != detail.ledgerEntries.last)
+                      Divider(height: 1, color: Colors.grey[200]),
                   ],
-                ),
-              ),
-
-              Divider(height: 1, color: Colors.grey[200]),
-
-              // Row 2: Cash/Bank (Credit)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        voucher.paymentAccount,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '-',
-                        textAlign: TextAlign.right,
-                        style: TextStyle(fontSize: 13, color: Colors.grey[400]),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '₹${voucher.amount.toStringAsFixed(2)}',
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                );
+              }),
             ],
           ),
         ),
