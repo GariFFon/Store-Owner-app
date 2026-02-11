@@ -21,14 +21,19 @@ class _SalesScreenState extends State<SalesScreen> {
   Timer? _debounce;
 
   bool _isLoading = true;
+  bool _isLoadingMore = false;
   List<Voucher> _allVouchers = [];
 
   List<Voucher> _filteredVouchers = [];
 
   // Stats
-  double _totalRevenue = 0.0;
+  int _totalSalesCount = 0; // Total count from API
+  double _totalRevenue = 0.0; // Grand total (with tax)
   double _totalTax = 0.0;
   int _postedCount = 0;
+  int _currentOffset = 0;
+  int _limit = 50;
+  bool _hasMoreData = true;
 
   // Filters & Sort
   bool _showSearch = false; // Add search visibility toggle
@@ -42,27 +47,61 @@ class _SalesScreenState extends State<SalesScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _fetchSales();
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _searchController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  Future<void> _fetchSales() async {
-    setState(() => _isLoading = true);
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoadingMore &&
+        _hasMoreData &&
+        !_isLoading) {
+      _loadMoreSales();
+    }
+  }
+
+  Future<void> _fetchSales({bool isLoadMore = false}) async {
+    if (!isLoadMore) {
+      setState(() {
+        _isLoading = true;
+        _currentOffset = 0;
+        _allVouchers = [];
+      });
+    } else {
+      setState(() => _isLoadingMore = true);
+    }
+
     try {
-      final response = await SalesService.fetchSales(storeId: widget.storeId);
+      final response = await SalesService.fetchSales(
+        storeId: widget.storeId,
+        limit: _limit,
+        offset: _currentOffset,
+      );
+
       if (mounted) {
         setState(() {
-          _allVouchers = response.vouchers;
+          _totalSalesCount = response.count;
+          if (isLoadMore) {
+            _allVouchers.addAll(response.vouchers);
+          } else {
+            _allVouchers = response.vouchers;
+          }
+          _hasMoreData = _allVouchers.length < response.count;
+          _currentOffset = _allVouchers.length;
           _applyFilters();
           _calculateStats();
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
     } catch (e) {
@@ -70,9 +109,16 @@ class _SalesScreenState extends State<SalesScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(e.toString())));
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
       }
     }
+  }
+
+  Future<void> _loadMoreSales() async {
+    await _fetchSales(isLoadMore: true);
   }
 
   void _calculateStats() {
@@ -271,6 +317,15 @@ class _SalesScreenState extends State<SalesScreen> {
                         ),
                       ),
 
+                    // Loading More Indicator
+                    if (_isLoadingMore)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      ),
+
                     const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
                   ],
                 ),
@@ -427,6 +482,13 @@ class _SalesScreenState extends State<SalesScreen> {
       Colors.blue,
     );
 
+    final salesCard = _buildStatBox(
+      "Total Sales",
+      _totalSalesCount.toString(),
+      Icons.shopping_cart,
+      Colors.green,
+    );
+
     final revenueCard = _buildStatBox(
       "Revenue",
       _formatCurrency(_totalRevenue),
@@ -445,13 +507,23 @@ class _SalesScreenState extends State<SalesScreen> {
     );
 
     if (isWide) {
-      return Row(
+      return Column(
         children: [
-          Expanded(child: countCard),
-          const SizedBox(width: 16),
-          Expanded(flex: 2, child: revenueCard),
-          const SizedBox(width: 16),
-          Expanded(child: taxCard),
+          Row(
+            children: [
+              Expanded(flex: 2, child: revenueCard),
+              const SizedBox(width: 16),
+              Expanded(child: countCard),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: salesCard),
+              const SizedBox(width: 16),
+              Expanded(child: taxCard),
+            ],
+          ),
         ],
       );
     }
@@ -467,6 +539,8 @@ class _SalesScreenState extends State<SalesScreen> {
             Expanded(child: taxCard),
           ],
         ),
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: salesCard),
       ],
     );
   }
