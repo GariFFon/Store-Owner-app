@@ -72,6 +72,10 @@ class _OTPInputSectionState extends State<OTPInputSection> {
             autofocus: true,
             showCursor: false,
             enableInteractiveSelection: false,
+            style: const TextStyle(
+              height: 0,
+              color: Colors.transparent,
+            ), // Hide text completely
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.zero,
@@ -97,9 +101,11 @@ class _OTPInputSectionState extends State<OTPInputSection> {
               final isActive = index == widget.otpCode.length;
 
               return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 8),
-                width: 56,
-                height: 56,
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                ), // Reduced margin
+                width: 50, // Reduced size
+                height: 50, // Reduced size
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
