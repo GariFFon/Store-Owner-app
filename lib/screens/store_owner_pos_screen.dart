@@ -591,6 +591,27 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
         _grandTotal = (data['grand_total'] ?? 0.0).toDouble();
         _cartData = data;
+
+        // Build product_id -> total quantity map from product_in_cart
+        // product_in_cart has the correct product_id that matches product grid IDs
+        final Map<String, int> productQuantities = {};
+        final productInCart = data['product_in_cart'] ?? [];
+        for (var item in productInCart) {
+          final pid = item['product_id']?.toString() ?? '';
+          if (pid.isEmpty) continue;
+          final qty = (item['quantity'] as num?)?.toInt() ?? 1;
+          productQuantities[pid] = (productQuantities[pid] ?? 0) + qty;
+        }
+
+        // Update product card quantities to match actual cart state
+        for (int i = 0; i < _products.length; i++) {
+          final productId = _products[i]['id']?.toString() ?? '';
+          final actualQty = productQuantities[productId] ?? 0;
+          if (_products[i]['quantity'] != actualQty) {
+            _products[i] = Map<String, dynamic>.from(_products[i]);
+            _products[i]['quantity'] = actualQty;
+          }
+        }
       });
     }
   }
@@ -658,10 +679,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       } else {
         // Revert optimistic update on failure
         _updateLocalProductQuantity(productId, 1);
+        // Still refresh cart to keep totals in sync
+        await _validateCart();
       }
     } catch (e) {
       // Revert optimistic update on error
       _updateLocalProductQuantity(productId, 1);
+      // Still refresh cart to keep totals in sync
+      await _validateCart();
       print('Error decrementing item: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: TranslatedText('Error updating cart: $e')),
@@ -4044,8 +4069,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           Expanded(
             child: InkWell(
               onTap: () {
-                // Decrement with empty combination ID as requested
-                _decrementCartItem('', product['id']);
+                // Look up the product_combination_id from cart items
+                String combinationId = '';
+                final pid = product['id']?.toString() ?? '';
+                for (var cartItem in _cartItemsAvailable) {
+                  if (cartItem['product_id']?.toString() == pid ||
+                      cartItem['id']?.toString() == pid) {
+                    combinationId =
+                        cartItem['product_combination_id']?.toString() ??
+                        cartItem['id']?.toString() ??
+                        '';
+                    break;
+                  }
+                }
+                _decrementCartItem(combinationId, product['id']);
               },
               child: Center(
                 child: Icon(Icons.remove, size: 16, color: theme.primaryColor),
