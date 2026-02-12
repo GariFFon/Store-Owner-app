@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/components/onboarding_page.dart';
 import 'package:exanor/components/onboarding_page_indicator.dart';
-import 'package:exanor/screens/auth/auth_landing_screen.dart';
+import 'package:exanor/screens/auth/login_screen.dart';
+
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'dart:developer' as developer;
 
@@ -167,10 +168,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         MaterialPageRoute(
           builder: (context) {
             developer.log(
-              '📱 OnboardingScreen: Building AuthLandingScreen...',
+              '📱 OnboardingScreen: Building LoginScreen...',
               name: 'OnboardingScreen',
             );
-            return const AuthLandingScreen();
+            return const LoginScreen();
           },
         ),
       );

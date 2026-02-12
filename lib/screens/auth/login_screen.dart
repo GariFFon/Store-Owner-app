@@ -128,6 +128,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                   decoration: InputDecoration(
                     border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     hintText: '00000 00000',
                     hintStyle: GoogleFonts.inter(color: Colors.grey.shade300),
