@@ -434,7 +434,7 @@ class _EditCouponBottomSheetState extends State<EditCouponBottomSheet>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '₹$amount',
+                _discountType == 'fixed' ? '₹$amount' : '$amount%',
                 style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
