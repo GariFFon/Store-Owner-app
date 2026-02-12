@@ -11,6 +11,7 @@ class StoreOwnerApiService {
     try {
       final response = await ApiService.post(
         '/user-stores/',
+
         useBearerToken: true,
       );
 
@@ -536,7 +537,7 @@ class StoreOwnerApiService {
         'store_id': storeId,
         'store_access': true,
         'create': true,
-        'account_type_choices': accountType.toLowerCase(),
+        'account_type_choices': _mapAccountTypeToApi(accountType),
         'bank_name': bankName,
         'account_number_or_upi_id': accountNumber,
         'ifsc_code': ifscCode,
@@ -605,7 +606,7 @@ class StoreOwnerApiService {
         'create': false,
         'view': false,
         'bank_details_id': bankDetailsId,
-        'account_type_choices': accountType.toLowerCase(),
+        'account_type_choices': _mapAccountTypeToApi(accountType),
         'bank_name': bankName,
         'account_number_or_upi_id': accountNumber,
         'ifsc_code': ifscCode,
@@ -1234,5 +1235,19 @@ class StoreOwnerApiService {
     } catch (e) {
       throw Exception('Failed to update coupon: $e');
     }
+  }
+
+  static String _mapAccountTypeToApi(String displayType) {
+    final lower = displayType.toLowerCase();
+    if (lower.contains('savings')) return 'savings';
+    if (lower.contains('current')) return 'current';
+    if (lower.contains('cash')) return 'cash';
+    if (lower.contains('bhim')) return 'bhimupi';
+    if (lower.contains('paytm')) return 'paytmupi';
+    if (lower.contains('phonepe')) return 'phonepeupi';
+    if (lower.contains('google')) return 'googlepayupi';
+    if (lower.contains('amazon')) return 'amazonpayupi';
+    if (lower.contains('other')) return 'other';
+    return 'savings'; // Fallback
   }
 }
