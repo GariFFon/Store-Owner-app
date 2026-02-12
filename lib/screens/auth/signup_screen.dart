@@ -62,7 +62,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 children: [
                   // Country Code Picker - Fixed Width & No Truncation
                   SizedBox(
-                    width: 100,
+                    width: 100, // Reverted to 100
                     child: CountryCodePicker(
                       onChanged: (CountryCode countryCode) {
                         setState(() {

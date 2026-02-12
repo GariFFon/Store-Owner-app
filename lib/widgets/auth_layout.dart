@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:math' as math; // For rotation
 
 class AuthLayout extends StatelessWidget {
   final Widget child;
   final String title;
   final String subtitle;
   final String leftHeadline;
+  final VoidCallback? onBack;
 
   const AuthLayout({
     super.key,
@@ -13,18 +15,18 @@ class AuthLayout extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.leftHeadline = "Unlock Your\nStore Business",
+    this.onBack,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // Determine screen size for responsive layout
     final size = MediaQuery.of(context).size;
     final isDesktop = size.width > 900;
 
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF0F4F8,
-      ), // Cool Bluish-Grey ("Bluish Cherry" interpretation - crisp & premium)
+      backgroundColor: const Color(0xFFF5F7FA), // Neutral Light Grey
+      resizeToAvoidBottomInset: true, // Allow scaffold to resize for keyboard
       body: isDesktop
           ? _buildDesktopLayout(context)
           : _buildMobileLayout(context),
@@ -34,24 +36,94 @@ class AuthLayout extends StatelessWidget {
   Widget _buildDesktopLayout(BuildContext context) {
     return Row(
       children: [
-        // LEFT SIDE - Branding & Illustration
+        // LEFT SIDE - Branding & Illustration with Blue Background & Patterns
         Expanded(
           flex: 1,
-          child: Padding(
-            padding: const EdgeInsets.all(60),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          child: Container(
+            color: const Color(0xFF4285F4), // Brand Blue Background
+            child: Stack(
               children: [
-                _buildLogo(isMobile: false),
-                const SizedBox(height: 60),
-                _buildHeadline(isMobile: false),
-                const Spacer(),
-                const Center(child: ModernAbstractIllustration()),
-                const Spacer(),
+                // Background Pattern (Scattered Icons)
+                _buildBackgroundIcon(
+                  Icons.receipt_long_rounded,
+                  top: 40,
+                  right: 40,
+                  size: 140,
+                  angle: -0.2,
+                ),
+                _buildBackgroundIcon(
+                  Icons.point_of_sale_rounded,
+                  top: 150,
+                  left: -40,
+                  size: 180,
+                  angle: 0.1,
+                ),
+                _buildBackgroundIcon(
+                  Icons.shopping_cart_outlined,
+                  bottom: 80,
+                  right: -20,
+                  size: 160,
+                  angle: -0.15,
+                ),
+                _buildBackgroundIcon(
+                  Icons.inventory_2_outlined,
+                  bottom: 150,
+                  left: 40,
+                  size: 120,
+                  angle: 0.2,
+                ),
+                _buildBackgroundIcon(
+                  Icons.qr_code_scanner_rounded,
+                  top: 300,
+                  right: 100,
+                  size: 80,
+                  angle: 0.1,
+                ),
+                _buildBackgroundIcon(
+                  Icons.calculate_outlined,
+                  bottom: 40,
+                  left: 150,
+                  size: 100,
+                  angle: -0.1,
+                ),
+                _buildBackgroundIcon(
+                  Icons.store_rounded,
+                  top: 80,
+                  left: 80,
+                  size: 90,
+                  angle: 0.05,
+                ),
+                _buildBackgroundIcon(
+                  Icons.local_shipping_outlined,
+                  bottom: 300,
+                  right: 30,
+                  size: 110,
+                  angle: -0.1,
+                ),
+
+                // Content Overlay
+                Padding(
+                  padding: const EdgeInsets.all(60),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLogo(isMobile: false, color: Colors.white),
+                      const SizedBox(height: 60),
+                      _buildHeadline(isMobile: false, color: Colors.white),
+                      const Spacer(),
+                      // Illustration (might need tweaks for blue background, let's keep it or simplify)
+                      // The user said "images part", implies keeping the illustration or replacing?
+                      // Assuming adding icons TO the part, so mixing pattern + illustration.
+                      const Center(child: ModernAbstractIllustration()),
+                      const Spacer(),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         ),
+
         // RIGHT SIDE - Form
         Expanded(
           flex: 1,
@@ -86,97 +158,188 @@ class AuthLayout extends StatelessWidget {
   }
 
   Widget _buildMobileLayout(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center, // Center everything
-          children: [
-            // Mobile Branding
-            _buildLogo(isMobile: true),
-            const SizedBox(height: 16),
-            _buildHeadline(isMobile: true),
+    final size = MediaQuery.of(context).size;
 
-            const SizedBox(height: 48), // Spacing between Header and Card
-            // Form Card
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF4285F4).withOpacity(0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.stretch, // Stretch for inputs
-                children: [
-                  _buildFormHeader(context, isMobile: true), // Will be centered
-                  const SizedBox(height: 32),
-                  child,
-                ],
-              ),
+    return Stack(
+      children: [
+        // 1. Solid Blue Top Background with POS Icons Pattern
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: size.height * 0.5,
+          child: Container(
+            color: const Color(0xFF4285F4), // Brand Blue
+            child: Stack(
+              children: [
+                // Varied POS Icons scattered as background pattern
+                _buildBackgroundIcon(
+                  Icons.receipt_long_rounded,
+                  top: 40,
+                  right: 20,
+                  size: 100,
+                  angle: -0.2,
+                ),
+                _buildBackgroundIcon(
+                  Icons.point_of_sale_rounded,
+                  top: 80,
+                  left: -20,
+                  size: 120,
+                  angle: 0.1,
+                ),
+                _buildBackgroundIcon(
+                  Icons.shopping_cart_outlined,
+                  bottom: 40,
+                  right: -10,
+                  size: 90,
+                  angle: -0.15,
+                ),
+                _buildBackgroundIcon(
+                  Icons.inventory_2_outlined,
+                  bottom: 80,
+                  left: 30,
+                  size: 80,
+                  angle: 0.2,
+                ),
+                _buildBackgroundIcon(
+                  Icons.qr_code_scanner_rounded,
+                  top: 150,
+                  right: 80,
+                  size: 60,
+                  angle: 0.1,
+                ),
+                _buildBackgroundIcon(
+                  Icons.calculate_outlined,
+                  top: 20,
+                  left: 100,
+                  size: 70,
+                  angle: -0.1,
+                ),
+              ],
             ),
+          ),
+        ),
 
-            const SizedBox(height: 32),
-            _buildCopyright(),
-          ],
+        // 2. Scrollable Content
+        Positioned.fill(
+          child: CustomScrollView(
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    // Distribute Vertical Space
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Spacer(),
+
+                      // LOGO SECTION: Simple, Elegant Text
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'exanor',
+                            style: GoogleFonts.poppins(
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: -1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 48),
+
+                      // CARD SECTION
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 40,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildFormHeader(context, isMobile: true),
+                            const SizedBox(height: 32),
+                            child,
+                          ],
+                        ),
+                      ),
+
+                      // Bottom Spacer
+                      const Spacer(flex: 2),
+
+                      // COPYRIGHT
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: _buildCopyright(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper for background icons pattern
+  Widget _buildBackgroundIcon(
+    IconData icon, {
+    double? top,
+    double? bottom,
+    double? left,
+    double? right,
+    required double size,
+    required double angle,
+  }) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: Transform.rotate(
+        angle: angle,
+        child: Icon(
+          icon,
+          size: size,
+          color: Colors.white.withOpacity(0.08), // Very subtle watermark
         ),
       ),
     );
   }
 
-  Widget _buildLogo({bool isMobile = false}) {
+  Widget _buildLogo({bool isMobile = false, Color? color}) {
     return Text(
       'exanor',
+      textAlign: isMobile ? TextAlign.center : TextAlign.start,
       style: GoogleFonts.poppins(
-        fontSize: isMobile ? 38 : 42,
+        fontSize: isMobile ? 32 : 42,
         fontWeight: FontWeight.bold,
-        color: const Color(0xFF4285F4),
+        color: color ?? const Color(0xFF4285F4),
       ),
     );
   }
 
-  Widget _buildHeadline({required bool isMobile}) {
+  Widget _buildHeadline({required bool isMobile, Color? color}) {
     if (isMobile) {
-      return Column(
-        children: [
-          // Elegant Typographic Headline ("Elite/Cursy/Italic")
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text(
-              leftHeadline.replaceAll('\n', ' '),
-              textAlign: TextAlign.center,
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 28, // Reduced size
-                fontStyle: FontStyle.italic,
-                fontWeight:
-                    FontWeight.w700, // Updated to w700 as per instruction
-                color: const Color(0xFF2D2D2D),
-                letterSpacing: -0.5,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Manage inventory, orders & more.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-              height: 1.5,
-            ),
-          ),
-        ],
-      );
+      return const SizedBox.shrink(); // Removed on mobile
     }
-
-    // Desktop Layout (Unchanged)
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -186,7 +349,7 @@ class AuthLayout extends StatelessWidget {
             fontSize: 40,
             fontWeight: FontWeight.bold,
             height: 1.2,
-            color: const Color(0xFF2D2D2D),
+            color: color ?? const Color(0xFF2D2D2D),
           ),
         ),
         const SizedBox(height: 16),
@@ -194,7 +357,7 @@ class AuthLayout extends StatelessWidget {
           'Manage inventory, orders & more.',
           style: GoogleFonts.inter(
             fontSize: 18,
-            color: Colors.grey.shade600,
+            color: color?.withOpacity(0.8) ?? Colors.grey.shade600,
             height: 1.5,
           ),
         ),
@@ -204,24 +367,42 @@ class AuthLayout extends StatelessWidget {
 
   Widget _buildFormHeader(BuildContext context, {bool isMobile = false}) {
     return Column(
-      // On mobile, center the title/subtitle. On desktop, start aligned.
-      crossAxisAlignment: isMobile
-          ? CrossAxisAlignment.center
-          : CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (onBack != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: InkWell(
+              onTap: onBack,
+              borderRadius: BorderRadius.circular(20),
+              child: const SizedBox(
+                height: 40,
+                width: 40,
+                child: Icon(Icons.arrow_back, size: 24, color: Colors.black54),
+              ),
+            ),
+          ),
         Text(
           title,
-          textAlign: isMobile ? TextAlign.center : TextAlign.start,
-          style: GoogleFonts.poppins(
-            fontSize: isMobile ? 26 : 32, // Smaller on mobile
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF2D2D2D),
-          ),
+          textAlign: TextAlign.start,
+          maxLines: 1,
+          style: isMobile
+              ? GoogleFonts.playfairDisplay(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  fontStyle: FontStyle.italic,
+                  color: const Color(0xFF2D2D2D),
+                )
+              : GoogleFonts.poppins(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF2D2D2D),
+                ),
         ),
         const SizedBox(height: 8),
         Text(
           subtitle,
-          textAlign: isMobile ? TextAlign.center : TextAlign.start,
+          textAlign: TextAlign.start,
           style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade600),
         ),
       ],
@@ -238,10 +419,8 @@ class AuthLayout extends StatelessWidget {
   }
 }
 
-// A cleaner, abstract illustration using standard Icons and Shapes
 class ModernAbstractIllustration extends StatelessWidget {
   const ModernAbstractIllustration({super.key});
-
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -250,7 +429,6 @@ class ModernAbstractIllustration extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Background Blobs (Updated to Blue/Cool tones)
           Positioned(
             right: 20,
             top: 40,
@@ -258,7 +436,7 @@ class ModernAbstractIllustration extends StatelessWidget {
               height: 200,
               width: 200,
               decoration: BoxDecoration(
-                color: const Color(0xFFBBDEFB).withOpacity(0.5), // Soft Blue
+                color: const Color(0xFFBBDEFB).withOpacity(0.5),
                 shape: BoxShape.circle,
               ),
             ),
@@ -270,14 +448,11 @@ class ModernAbstractIllustration extends StatelessWidget {
               height: 180,
               width: 180,
               decoration: BoxDecoration(
-                color: const Color(0xFFE1BEE7).withOpacity(0.5), // Soft Purple
+                color: const Color(0xFFE1BEE7).withOpacity(0.5),
                 shape: BoxShape.circle,
               ),
             ),
           ),
-
-          // Icons composition
-          // Main Store Icon
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -294,11 +469,9 @@ class ModernAbstractIllustration extends StatelessWidget {
             child: const Icon(
               Icons.store_mall_directory_rounded,
               size: 80,
-              color: Color(0xFF4285F4), // Blue Icon
+              color: Color(0xFF4285F4),
             ),
           ),
-
-          // Floating Elements
           Positioned(
             left: 40,
             top: 60,
@@ -313,14 +486,14 @@ class ModernAbstractIllustration extends StatelessWidget {
             child: _buildFloatingIcon(
               Icons.checkroom_rounded,
               const Color(0xFFAB47BC),
-            ), // Purple
+            ),
           ),
           Positioned(
             right: 80,
             top: 20,
             child: _buildFloatingIcon(
               Icons.local_shipping_outlined,
-              const Color(0xFF1976D2), // Darker Blue
+              const Color(0xFF1976D2),
             ),
           ),
         ],
