@@ -27,6 +27,8 @@ class _EditCouponBottomSheetState extends State<EditCouponBottomSheet>
   late final TextEditingController _maxDiscountController;
   late final TextEditingController _usageLimitController;
   late final TextEditingController _userLimitController;
+  late final TextEditingController _maxAmountController;
+  late final TextEditingController _itemLimitController;
 
   // State
   String _discountType = 'fixed';
@@ -65,8 +67,14 @@ class _EditCouponBottomSheetState extends State<EditCouponBottomSheet>
     _maxDiscountController = TextEditingController(
       text: coupon.maximumDiscountAmountLimit.toStringAsFixed(0),
     );
+    _maxAmountController = TextEditingController(
+      text: coupon.maximumAmount.toStringAsFixed(2),
+    );
     _usageLimitController = TextEditingController(text: '1000');
     _userLimitController = TextEditingController(text: '5');
+    _itemLimitController = TextEditingController(
+      text: coupon.limitUsageToXItems.toString(),
+    );
     _offerFreeShipping = coupon.freeShipping;
     _isUniversal = coupon.isUniversal;
   }
@@ -82,6 +90,8 @@ class _EditCouponBottomSheetState extends State<EditCouponBottomSheet>
     _maxDiscountController.dispose();
     _usageLimitController.dispose();
     _userLimitController.dispose();
+    _maxAmountController.dispose();
+    _itemLimitController.dispose();
     super.dispose();
   }
 
@@ -120,6 +130,8 @@ class _EditCouponBottomSheetState extends State<EditCouponBottomSheet>
       "minimum_amount": double.tryParse(_minAmountController.text) ?? 0,
       "maximum_discount_amount_limit":
           double.tryParse(_maxDiscountController.text) ?? 0,
+      "maximum_amount": double.tryParse(_maxAmountController.text) ?? 0,
+      "limit_usage_to_x_items": int.tryParse(_itemLimitController.text) ?? 0,
       "free_shipping": _offerFreeShipping,
       "is_universal": _isUniversal,
     };
@@ -721,6 +733,14 @@ class _EditCouponBottomSheetState extends State<EditCouponBottomSheet>
                 prefix: '₹',
               ),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildCompactField(
+                label: 'Max Amount',
+                controller: _maxAmountController,
+                prefix: '₹',
+              ),
+            ),
           ],
         ),
 
@@ -771,6 +791,17 @@ class _EditCouponBottomSheetState extends State<EditCouponBottomSheet>
           hint: 'e.g. 1',
           keyboardType: TextInputType.number,
           helperText: 'How many times each customer can use this coupon',
+        ),
+
+        const SizedBox(height: 14),
+
+        _buildTextField(
+          label: 'Item Limit',
+          controller: _itemLimitController,
+          icon: Icons.layers_rounded,
+          hint: 'e.g. 3',
+          keyboardType: TextInputType.number,
+          helperText: 'Max quantity of items this coupon applies to',
         ),
 
         const SizedBox(height: 24),
