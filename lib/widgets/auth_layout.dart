@@ -25,7 +25,7 @@ class AuthLayout extends StatelessWidget {
     final isDesktop = size.width > 900;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // Neutral Light Grey
+      backgroundColor: const Color(0xFFF5F7FA), // Revert to Light Neutral Grey
       resizeToAvoidBottomInset: true, // Allow scaffold to resize for keyboard
       body: isDesktop
           ? _buildDesktopLayout(context)
@@ -34,13 +34,18 @@ class AuthLayout extends StatelessWidget {
   }
 
   Widget _buildDesktopLayout(BuildContext context) {
+    // Icon color for Darker Grey Background
+    final iconColor = const Color(0xFF4285F4).withOpacity(0.08);
+
     return Row(
       children: [
-        // LEFT SIDE - Branding & Illustration with Blue Background & Patterns
+        // LEFT SIDE - Branding & Illustration pattern on Darker Grey Background
         Expanded(
           flex: 1,
           child: Container(
-            color: const Color(0xFF4285F4), // Brand Blue Background
+            color: const Color(
+              0xFFE2E8F0,
+            ), // Darker Grey for "Tablet Image Part"
             child: Stack(
               children: [
                 // Background Pattern (Scattered Icons)
@@ -50,6 +55,7 @@ class AuthLayout extends StatelessWidget {
                   right: 40,
                   size: 140,
                   angle: -0.2,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.point_of_sale_rounded,
@@ -57,6 +63,7 @@ class AuthLayout extends StatelessWidget {
                   left: -40,
                   size: 180,
                   angle: 0.1,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.shopping_cart_outlined,
@@ -64,6 +71,7 @@ class AuthLayout extends StatelessWidget {
                   right: -20,
                   size: 160,
                   angle: -0.15,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.inventory_2_outlined,
@@ -71,6 +79,7 @@ class AuthLayout extends StatelessWidget {
                   left: 40,
                   size: 120,
                   angle: 0.2,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.qr_code_scanner_rounded,
@@ -78,6 +87,7 @@ class AuthLayout extends StatelessWidget {
                   right: 100,
                   size: 80,
                   angle: 0.1,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.calculate_outlined,
@@ -85,6 +95,7 @@ class AuthLayout extends StatelessWidget {
                   left: 150,
                   size: 100,
                   angle: -0.1,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.store_rounded,
@@ -92,6 +103,7 @@ class AuthLayout extends StatelessWidget {
                   left: 80,
                   size: 90,
                   angle: 0.05,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.local_shipping_outlined,
@@ -99,6 +111,7 @@ class AuthLayout extends StatelessWidget {
                   right: 30,
                   size: 110,
                   angle: -0.1,
+                  color: iconColor,
                 ),
 
                 // Content Overlay
@@ -107,13 +120,10 @@ class AuthLayout extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLogo(isMobile: false, color: Colors.white),
+                      _buildLogo(isMobile: false), // Default Dark Colors
                       const SizedBox(height: 60),
-                      _buildHeadline(isMobile: false, color: Colors.white),
+                      _buildHeadline(isMobile: false), // Default Dark Colors
                       const Spacer(),
-                      // Illustration (might need tweaks for blue background, let's keep it or simplify)
-                      // The user said "images part", implies keeping the illustration or replacing?
-                      // Assuming adding icons TO the part, so mixing pattern + illustration.
                       const Center(child: ModernAbstractIllustration()),
                       const Spacer(),
                     ],
@@ -159,6 +169,7 @@ class AuthLayout extends StatelessWidget {
 
   Widget _buildMobileLayout(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final iconColor = Colors.white.withOpacity(0.08); // White icons for Blue bg
 
     return Stack(
       children: [
@@ -179,6 +190,7 @@ class AuthLayout extends StatelessWidget {
                   right: 20,
                   size: 100,
                   angle: -0.2,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.point_of_sale_rounded,
@@ -186,6 +198,7 @@ class AuthLayout extends StatelessWidget {
                   left: -20,
                   size: 120,
                   angle: 0.1,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.shopping_cart_outlined,
@@ -193,6 +206,7 @@ class AuthLayout extends StatelessWidget {
                   right: -10,
                   size: 90,
                   angle: -0.15,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.inventory_2_outlined,
@@ -200,6 +214,7 @@ class AuthLayout extends StatelessWidget {
                   left: 30,
                   size: 80,
                   angle: 0.2,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.qr_code_scanner_rounded,
@@ -207,6 +222,7 @@ class AuthLayout extends StatelessWidget {
                   right: 80,
                   size: 60,
                   angle: 0.1,
+                  color: iconColor,
                 ),
                 _buildBackgroundIcon(
                   Icons.calculate_outlined,
@@ -214,6 +230,7 @@ class AuthLayout extends StatelessWidget {
                   left: 100,
                   size: 70,
                   angle: -0.1,
+                  color: iconColor,
                 ),
               ],
             ),
@@ -307,6 +324,7 @@ class AuthLayout extends StatelessWidget {
     double? right,
     required double size,
     required double angle,
+    required Color color,
   }) {
     return Positioned(
       top: top,
@@ -315,11 +333,7 @@ class AuthLayout extends StatelessWidget {
       right: right,
       child: Transform.rotate(
         angle: angle,
-        child: Icon(
-          icon,
-          size: size,
-          color: Colors.white.withOpacity(0.08), // Very subtle watermark
-        ),
+        child: Icon(icon, size: size, color: color),
       ),
     );
   }
