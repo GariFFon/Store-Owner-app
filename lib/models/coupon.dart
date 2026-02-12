@@ -9,6 +9,8 @@ class Coupon {
   final bool freeShipping;
   final double minimumAmount;
   final double maximumDiscountAmountLimit;
+  final double maximumAmount;
+  final int limitUsageToXItems;
 
   Coupon({
     required this.id,
@@ -21,6 +23,8 @@ class Coupon {
     required this.freeShipping,
     required this.minimumAmount,
     required this.maximumDiscountAmountLimit,
+    this.maximumAmount = 0.0,
+    this.limitUsageToXItems = 0,
   });
 
   factory Coupon.fromJson(Map<String, dynamic> json) {
@@ -40,6 +44,10 @@ class Coupon {
             json['maximum_discount_amount_limit']?.toString() ?? '0.0',
           ) ??
           0.0,
+      maximumAmount:
+          double.tryParse(json['maximum_amount']?.toString() ?? '0.0') ?? 0.0,
+      limitUsageToXItems:
+          int.tryParse(json['limit_usage_to_x_items']?.toString() ?? '0') ?? 0,
     );
   }
 
@@ -56,6 +64,8 @@ class Coupon {
       'minimum_amount': minimumAmount.toStringAsFixed(2),
       'maximum_discount_amount_limit': maximumDiscountAmountLimit
           .toStringAsFixed(2),
+      'maximum_amount': maximumAmount.toStringAsFixed(2),
+      'limit_usage_to_x_items': limitUsageToXItems,
     };
   }
 }
