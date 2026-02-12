@@ -1,5 +1,6 @@
 import 'package:exanor/screens/gst_rates_screen.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
+import 'package:exanor/screens/store_owner_pos_screen.dart';
 import 'package:exanor/screens/overview_screen.dart';
 import 'package:exanor/screens/payment_screen.dart';
 import 'package:exanor/screens/purchase_screen.dart';
@@ -23,12 +24,14 @@ class StoreMainDrawer extends StatefulWidget {
   final String storeId;
   final String storeName;
   final String? ownerName;
+  final bool Function(String)? onTabSelected;
 
   const StoreMainDrawer({
     super.key,
     required this.storeId,
     required this.storeName,
     this.ownerName,
+    this.onTabSelected,
   });
 
   @override
@@ -63,6 +66,21 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
     } catch (e) {
       // ignore
     }
+  }
+
+  void _handleNavigation(String tabId, WidgetBuilder screenBuilder) {
+    Navigator.pop(context); // Close drawer first
+
+    // Try to switch tab first
+    if (widget.onTabSelected != null) {
+      final handled = widget.onTabSelected!(tabId);
+      if (handled) {
+        return;
+      }
+    }
+
+    // Fallback to push if not handled (tab not present)
+    Navigator.push(context, MaterialPageRoute(builder: screenBuilder));
   }
 
   @override
@@ -244,7 +262,13 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                     icon: Icons.point_of_sale_rounded,
                     title: 'Sales Panel (POS)',
                     // Main screen
-                    onTap: () => Navigator.pop(context),
+                    onTap: () => _handleNavigation(
+                      'pos',
+                      (context) => StoreOwnerPOSScreen(
+                        storeId: widget.storeId,
+                        storeName: widget.storeName,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 24),
@@ -257,16 +281,10 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                   _buildDrawerItem(
                     icon: Icons.local_shipping_outlined,
                     title: 'Orders',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              OrdersListScreen(storeId: widget.storeId),
-                        ),
-                      );
-                    },
+                    onTap: () => _handleNavigation(
+                      'orders',
+                      (context) => OrdersListScreen(storeId: widget.storeId),
+                    ),
                   ),
                   _buildDrawerItem(
                     icon: Icons.confirmation_number_outlined,
@@ -309,18 +327,13 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                         icon: Icons.shopping_bag_outlined,
                         title: 'Purchases',
                         isSmall: true,
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => PurchaseScreen(
-                                storeId: widget.storeId,
-                                storeName: widget.storeName,
-                              ),
-                            ),
-                          );
-                        },
+                        onTap: () => _handleNavigation(
+                          'purchases',
+                          (context) => PurchaseScreen(
+                            storeId: widget.storeId,
+                            storeName: widget.storeName,
+                          ),
+                        ),
                       ),
                       _buildDrawerItem(
                         icon: Icons.receipt_long_outlined,
@@ -356,18 +369,13 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                         icon: Icons.receipt,
                         title: 'Receipts',
                         isSmall: true,
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ReceiptsScreen(
-                                storeId: widget.storeId,
-                                storeName: widget.storeName,
-                              ),
-                            ),
-                          );
-                        },
+                        onTap: () => _handleNavigation(
+                          'receipts',
+                          (context) => ReceiptsScreen(
+                            storeId: widget.storeId,
+                            storeName: widget.storeName,
+                          ),
+                        ),
                       ),
                       _buildDrawerItem(
                         icon: Icons.storefront_outlined,

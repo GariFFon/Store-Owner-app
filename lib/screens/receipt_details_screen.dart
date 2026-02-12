@@ -482,7 +482,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
                   ),
                   _buildVerticalSep(),
                   Expanded(
-                    flex: 1,
+                    flex: 2,
                     child: Text(
                       'DEBIT',
                       textAlign: TextAlign.right,
@@ -494,7 +494,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
                   ),
                   _buildVerticalSep(),
                   Expanded(
-                    flex: 1,
+                    flex: 2,
                     child: Text(
                       'CREDIT',
                       textAlign: TextAlign.right,
@@ -527,7 +527,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
                   ),
                   _buildVerticalSep(),
                   Expanded(
-                    flex: 1,
+                    flex: 2,
                     child: Text(
                       _formatCurrency(receipt['amount']),
                       textAlign: TextAlign.right,
@@ -539,7 +539,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
                   ),
                   _buildVerticalSep(),
                   Expanded(
-                    flex: 1,
+                    flex: 2,
                     child: Text(
                       '-',
                       textAlign: TextAlign.right,
@@ -573,7 +573,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
                   ),
                   _buildVerticalSep(),
                   Expanded(
-                    flex: 1,
+                    flex: 2,
                     child: Text(
                       '-',
                       textAlign: TextAlign.right,
@@ -582,7 +582,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
                   ),
                   _buildVerticalSep(),
                   Expanded(
-                    flex: 1,
+                    flex: 2,
                     child: Text(
                       _formatCurrency(receipt['amount']),
                       textAlign: TextAlign.right,
@@ -605,7 +605,7 @@ class ReceiptDetailsScreen extends StatelessWidget {
     return Container(
       width: 1,
       color: Colors.grey.withOpacity(0.2),
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 

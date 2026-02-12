@@ -45,6 +45,7 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
   final _districtController = TextEditingController();
   final _pincodeController = TextEditingController();
   final _countryController = TextEditingController();
+  final _categorySearchController = TextEditingController();
 
   // Images
   XFile? _storeLogo;
@@ -54,11 +55,50 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
   // GST
   bool _showGSTForm = false;
   final _gstNumberController = TextEditingController();
-  final _gstRegisteredStateController = TextEditingController();
+  final _gstRegisteredStateController =
+      TextEditingController(); // Keep for compatibility if needed, but we'll use _selectedState
+  String? _selectedState;
+  final List<String> _states = [
+    "Andhra Pradesh",
+    "Arunachal Pradesh",
+    "Assam",
+    "Bihar",
+    "Chhattisgarh",
+    "Goa",
+    "Gujarat",
+    "Haryana",
+    "Himachal Pradesh",
+    "Jharkhand",
+    "Karnataka",
+    "Kerala",
+    "Madhya Pradesh",
+    "Maharashtra",
+    "Manipur",
+    "Meghalaya",
+    "Mizoram",
+    "Nagaland",
+    "Odisha",
+    "Punjab",
+    "Rajasthan",
+    "Sikkim",
+    "Tamil Nadu",
+    "Telangana",
+    "Tripura",
+    "Uttar Pradesh",
+    "Uttarakhand",
+    "West Bengal",
+    "Andaman and Nicobar Islands",
+    "Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu",
+    "Delhi",
+    "Jammu and Kashmir",
+    "Ladakh",
+    "Lakshadweep",
+    "Puducherry",
+  ];
   String _gstRegistrationType = 'Regular';
   bool _isTdsEnabled = false;
-  bool _isOtherTerritory = false;
-  String _gstr1Periodicity = 'Monthly';
+  String? _gstr1Periodicity = 'Monthly';
 
   // Animation
   late AnimationController _fadeController;
@@ -96,12 +136,12 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
     _countryController.dispose();
     _gstNumberController.dispose();
     _gstRegisteredStateController.dispose();
+    _categorySearchController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchCategories() async {
-    // ... Existing logic retained ...
     try {
       if (mounted) setState(() => _isLoading = true);
       final response = await ApiService.post(
@@ -159,59 +199,28 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Full screen scaffold
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Column(
         children: [
-          // 1. Content Body (Scrollable)
-          Positioned.fill(
-            child: Column(
-              children: [
-                // Spacer for fixed header
-                const SizedBox(height: 180),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 100),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 400),
-                      switchInCurve: Curves.easeOutQuart,
-                      switchOutCurve: Curves.easeInQuart,
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0.04, 0),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: KeyedSubtree(
-                        key: ValueKey(_currentStep),
-                        child: _buildCurrentStepContent(),
-                      ),
-                    ),
-                  ),
+          _buildHeader(),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: KeyedSubtree(
+                key: ValueKey(_currentStep),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                  child: _buildCurrentStepContent(),
                 ),
-              ],
+              ),
             ),
           ),
-
-          // 2. Premium Header (Fixed)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 180,
-            child: _buildHeader(),
-          ),
-
-          // 3. Floating Bottom Action Bar
-          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
+          _buildBottomBar(),
         ],
       ),
     );
@@ -220,133 +229,150 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
   Widget _buildHeader() {
     return Container(
       decoration: BoxDecoration(
-        color: _bgLight,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+        color: const Color(0xFFEFF6FF), // Light Blue like Order Screen
         boxShadow: [
           BoxShadow(
-            color: _primaryColor.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Watermark Icon
-          Positioned(
-            right: -20,
-            top: -40,
-            child: Transform.rotate(
-              angle: -math.pi / 6,
-              child: Icon(
-                Icons.storefront_rounded,
-                size: 200,
-                color: _primaryColor.withOpacity(0.05),
+      child: ClipRect(
+        child: Stack(
+          children: [
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.storefront_rounded,
+                  size: 180,
+                  color: const Color(0xFFDBEAFE).withOpacity(0.6),
+                ),
               ),
             ),
-          ),
 
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Row: Back Button & Step Indicator
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          if (_currentStep > 0)
-                            setState(() => _currentStep--);
-                          else
-                            Navigator.pop(context);
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
+            // Content
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Top Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        InkWell(
+                          onTap: () {
+                            if (_currentStep > 0)
+                              setState(() => _currentStep--);
+                            else
+                              Navigator.pop(context);
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.blueGrey.withOpacity(0.5),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 20,
+                              color: Colors.blueGrey,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: Colors.blue.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Text(
+                            "STEP ${_currentStep + 1}/${_stepTitles.length}",
+                            style: const TextStyle(
+                              color: Color(0xFF1565C0),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _stepTitles[_currentStep],
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
+                        letterSpacing: -0.5,
+                        height: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Progress Bar
+                    Stack(
+                      children: [
+                        Container(
+                          height: 4,
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            size: 18,
-                            color: _slate900,
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          "Step ${_currentStep + 1} of ${_stepTitles.length}",
-                          style: TextStyle(
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          height: 4,
+                          width:
+                              MediaQuery.of(context).size.width *
+                              ((_currentStep + 1) / _stepTitles.length),
+                          decoration: BoxDecoration(
                             color: _primaryColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  // Title
-                  Text(
-                    _stepTitles[_currentStep],
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: _slate900,
-                      letterSpacing: -0.5,
-                      height: 1.2,
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Progress Bar
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: (_currentStep + 1) / _stepTitles.length,
-                      backgroundColor: Colors.white,
-                      valueColor: AlwaysStoppedAnimation(_primaryColor),
-                      minHeight: 6,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildBottomBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
@@ -359,39 +385,51 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
                 flex: 1,
                 child: TextButton(
                   onPressed: () => setState(() => _currentStep--),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
                   child: Text(
                     "Back",
                     style: TextStyle(
                       color: _slate500,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
                     ),
                   ),
                 ),
               ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               flex: 2,
-              child: ElevatedButton(
-                onPressed: _onNextPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryColor,
-                  shadowColor: _primaryColor.withOpacity(0.4),
-                  elevation: 8,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+              child: Container(
+                height: 48, // More compact height
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_primaryColor, const Color(0xFF1D4ED8)],
                   ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primaryColor.withOpacity(0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  _currentStep == 4 ? "Create Store" : "Continue",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                child: ElevatedButton(
+                  onPressed: _onNextPressed,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: Text(
+                    _currentStep == 4 ? "Create Store" : "Continue",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -401,8 +439,6 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       ),
     );
   }
-
-  // --- CONTENT SCREEN BUILDERS ---
 
   Widget _buildCurrentStepContent() {
     switch (_currentStep) {
@@ -423,33 +459,19 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
   Widget _buildCategoryStep() {
     if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: _primaryColor),
-            const SizedBox(height: 16),
-            Text(
-              "Loading Categories...",
-              style: TextStyle(color: _slate500, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
-      );
+      return Center(child: CircularProgressIndicator(color: _primaryColor));
     }
     if (_errorMessage != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline_rounded, size: 48, color: Colors.red[300]),
-            const SizedBox(height: 16),
-            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-            TextButton(onPressed: _fetchCategories, child: const Text("Retry")),
-          ],
-        ),
+        child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
       );
     }
+
+    final filteredCategories = _categories.where((cat) {
+      final name = (cat['category_name'] ?? '').toString().toLowerCase();
+      final query = _categorySearchController.text.toLowerCase();
+      return name.contains(query);
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,161 +480,192 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
           "What's your niche?",
           style: TextStyle(
             fontSize: 22,
+            fontWeight: FontWeight.w700,
             color: _slate900,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          "Select a category that best describes your store.",
-          style: TextStyle(fontSize: 14, color: _slate500, height: 1.4),
+          "Select the category that best fits your business.",
+          style: TextStyle(fontSize: 14, color: _slate500),
         ),
         const SizedBox(height: 24),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            // 3 columns for mobile to make them smaller and neater
-            final crossAxisCount = constraints.maxWidth > 600 ? 5 : 3;
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: 0.8, // Taller for elegant look
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+        TextField(
+          controller: _categorySearchController,
+          onChanged: (value) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Search categories...',
+            prefixIcon: Icon(Icons.search_rounded, color: _slate500),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _slate200),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _slate200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _primaryColor, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12), // Reduced spacing from 24 to 12
+        if (filteredCategories.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                "No categories found",
+                style: TextStyle(color: _slate500),
               ),
-              itemCount: _categories.length,
-              itemBuilder: (context, index) {
-                final cat = _categories[index];
-                final isSel = _selectedCategoryId == cat['id'];
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // 3 cols on phone (Standard), 6 on tablet
+              final crossAxisCount = constraints.maxWidth > 600 ? 6 : 3;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: 0.9, // Taller for cleaner look
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                itemCount: filteredCategories.length,
+                itemBuilder: (context, index) {
+                  final cat = filteredCategories[index];
+                  final isSel = _selectedCategoryId == cat['id'];
 
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  transform: isSel
-                      ? (Matrix4.identity()..scale(1.02))
-                      : Matrix4.identity(),
-                  decoration: BoxDecoration(
-                    color: isSel ? const Color(0xFFEFF6FF) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSel ? _primaryColor : _slate200.withOpacity(0.6),
-                      width: isSel ? 2 : 1,
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    decoration: BoxDecoration(
+                      color: isSel ? _primaryColor : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSel ? _primaryColor : _slate200,
+                        width: isSel ? 0 : 1.5, // Thicker border for unselected
+                      ),
+                      boxShadow: isSel
+                          ? [
+                              BoxShadow(
+                                color: _primaryColor.withOpacity(0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 2,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                     ),
-                    boxShadow: isSel
-                        ? [
-                            BoxShadow(
-                              color: _primaryColor.withOpacity(0.2),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
-                            ),
-                          ]
-                        : [
-                            BoxShadow(
-                              color: const Color(0xFF64748B).withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                  ),
-                  child: InkWell(
-                    onTap: () =>
-                        setState(() => _selectedCategoryId = cat['id']),
-                    borderRadius: BorderRadius.circular(16),
-                    splashColor: _primaryColor.withOpacity(0.1),
-                    child: Stack(
-                      children: [
-                        // Selection Checkmark
-                        if (isSel)
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: _primaryColor,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.check,
-                                size: 10,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        onTap: () =>
+                            setState(() => _selectedCategoryId = cat['id']),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Stack(
                           children: [
-                            // Icon Container
-                            Container(
-                              width: 48,
-                              height: 48, // Compact
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isSel
-                                    ? Colors.white
-                                    : const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: isSel
-                                    ? [
-                                        BoxShadow(
-                                          color: _primaryColor.withOpacity(0.1),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                              child: cat['category_icon'] != null
-                                  ? Image.network(
-                                      cat['category_icon'],
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => Icon(
-                                        Icons.store_rounded,
-                                        color: isSel
-                                            ? _primaryColor
-                                            : _slate500,
-                                        size: 24,
-                                      ),
-                                    )
-                                  : Icon(
-                                      Icons.store_rounded,
-                                      color: isSel ? _primaryColor : _slate500,
-                                      size: 24,
-                                    ),
-                            ),
-                            const SizedBox(height: 12),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              child: Text(
-                                cat['category_name'] ?? 'General',
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isSel
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: isSel ? _primaryColor : _slate900,
-                                  height: 1.2,
+                            if (isSel)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.25),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.check,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
                                 ),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: Center(
+                                      child: cat['category_icon'] != null
+                                          ? Image.network(
+                                              cat['category_icon'],
+                                              fit: BoxFit.contain,
+                                              height: 54, // Larger icon
+                                              width: 54,
+                                              // NO color filter here, keeping original colors
+                                              errorBuilder: (_, __, ___) =>
+                                                  Icon(
+                                                    Icons.store_rounded,
+                                                    color: isSel
+                                                        ? Colors.white
+                                                        : _slate500,
+                                                    size: 40,
+                                                  ),
+                                            )
+                                          : Icon(
+                                              Icons.store_rounded,
+                                              color: isSel
+                                                  ? Colors.white
+                                                  : _slate500,
+                                              size: 40,
+                                            ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Align(
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        cat['category_name'] ?? 'General',
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: isSel
+                                              ? FontWeight.w700
+                                              : FontWeight.w600,
+                                          color: isSel
+                                              ? Colors.white
+                                              : _slate900,
+                                          height: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
+                  );
+                },
+              );
+            },
+          ),
       ],
     );
   }
@@ -651,7 +704,6 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       children: [
         _buildSectionHeader("Store Identity"),
         const SizedBox(height: 12),
-        // Logos Stack
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -681,17 +733,22 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.blueGrey[50],
+            color: const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _slate200),
           ),
           child: Row(
             children: [
-              Icon(Icons.tips_and_updates_rounded, color: Colors.blueGrey[700]),
+              Icon(Icons.lightbulb_outline_rounded, color: _primaryColor),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  "Pro Tip: High-quality images increase customer trust by 40%.",
-                  style: TextStyle(color: Colors.blueGrey[900], fontSize: 13),
+                  "Pro Tip: High-quality images increase customer trust significanty.",
+                  style: TextStyle(
+                    color: _slate500,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -713,28 +770,24 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       children: [
         Text(
           title,
-          style: TextStyle(fontWeight: FontWeight.bold, color: _slate900),
+          style: TextStyle(fontWeight: FontWeight.w600, color: _slate900),
         ),
-        Text(subtitle, style: TextStyle(fontSize: 12, color: _slate500)),
         const SizedBox(height: 8),
         InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(isCircle ? 100 : 16),
+          borderRadius: BorderRadius.circular(isCircle ? 100 : 12),
           child: Container(
-            height: 140,
+            height: 120,
             width: double.infinity,
             decoration: BoxDecoration(
               color: Colors.white,
               shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
-              borderRadius: isCircle ? null : BorderRadius.circular(16),
-              border: Border.all(color: _slate200, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              borderRadius: isCircle ? null : BorderRadius.circular(12),
+              border: Border.all(
+                color: _slate200,
+                width: 1.5,
+                style: BorderStyle.solid,
+              ),
               image: image != null
                   ? DecorationImage(
                       image: FileImage(File(image.path)),
@@ -747,198 +800,126 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.cloud_upload_rounded,
+                        Icons.add_photo_alternate_rounded,
                         color: _primaryColor,
-                        size: 32,
+                        size: 28,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Text(
                         "Upload",
                         style: TextStyle(
                           color: _primaryColor,
-                          fontWeight: FontWeight.bold,
                           fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   )
-                : Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
-                      borderRadius: isCircle ? null : BorderRadius.circular(16),
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.edit, color: Colors.white, size: 28),
-                    ),
-                  ),
+                : null,
           ),
         ),
+        const SizedBox(height: 4),
+        Text(subtitle, style: TextStyle(fontSize: 11, color: _slate500)),
       ],
     );
   }
 
   Widget _buildGSTStep() {
-    if (!_showGSTForm) {
-      return Center(
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: _slate200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.receipt_long_rounded, size: 64, color: _primaryColor),
-              const SizedBox(height: 24),
-              Text(
-                "Do you have a GST Number?",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _slate900,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Enable GST to unlock tax invoices and reports.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: _slate500, height: 1.5),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => setState(() => _showGSTForm = true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    "Yes, Add GST Details",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => setState(() => _currentStep++),
-                child: Text(
-                  "No, Skip for Now",
-                  style: TextStyle(color: _slate500),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(child: _buildSectionHeader("GST Configuration")),
-            TextButton(
-              onPressed: () => setState(() => _showGSTForm = false),
-              child: const Text("Cancel"),
-            ),
-          ],
-        ),
-        _buildTextField(label: "GST Number", controller: _gstNumberController),
-        const SizedBox(height: 16),
-        _buildTextField(
-          label: "Registered State",
-          controller: _gstRegisteredStateController,
-        ),
-
-        const SizedBox(height: 24),
-        Text(
-          "Registration Type",
-          style: TextStyle(fontWeight: FontWeight.bold, color: _slate900),
-        ),
-        const SizedBox(height: 12),
+        _buildSectionHeader("Tax Information"),
         Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _slate200),
-            borderRadius: BorderRadius.circular(12),
           ),
-          child: Column(
+          child: SwitchListTile(
+            title: Text(
+              "I have a GST Number",
+              style: TextStyle(fontWeight: FontWeight.w600, color: _slate900),
+            ),
+            subtitle: Text(
+              "Enable if your business is registered for GST",
+              style: TextStyle(fontSize: 12, color: _slate500),
+            ),
+            value: _showGSTForm,
+            activeColor: _primaryColor,
+            onChanged: (val) => setState(() => _showGSTForm = val),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        if (_showGSTForm) ...[
+          const SizedBox(height: 24),
+          _buildTextField(
+            label: "GST Number",
+            controller: _gstNumberController,
+          ),
+          const SizedBox(height: 16),
+          // State Dropdown
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RadioListTile<String>(
-                title: const Text("Regular"),
-                value: "Regular",
-                groupValue: _gstRegistrationType,
-                onChanged: (v) => setState(() => _gstRegistrationType = v!),
+              Text(
+                "Registered State",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _slate500,
+                ),
               ),
-              const Divider(height: 1),
-              RadioListTile<String>(
-                title: const Text("Composite"),
-                value: "Composite",
-                groupValue: _gstRegistrationType,
-                onChanged: (v) => setState(() => _gstRegistrationType = v!),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _slate200),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedState,
+                    hint: Text(
+                      "Select State",
+                      style: TextStyle(color: _slate500),
+                    ),
+                    isExpanded: true,
+                    icon: Icon(Icons.arrow_drop_down_rounded, color: _slate500),
+                    items: _states.map((String state) {
+                      return DropdownMenuItem<String>(
+                        value: state,
+                        child: Text(state, style: TextStyle(color: _slate900)),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedState = val;
+                        _gstRegisteredStateController.text = val ?? '';
+                      });
+                    },
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-
-        const SizedBox(height: 24),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(
-            "TDS Enabled",
-            style: TextStyle(fontWeight: FontWeight.bold, color: _slate900),
-          ),
-          value: _isTdsEnabled,
-          onChanged: (v) => setState(() => _isTdsEnabled = v),
-          activeColor: _primaryColor,
-        ),
+        ],
       ],
     );
   }
 
   Widget _buildReviewStep() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.verified_rounded, size: 80, color: Colors.green),
-        const SizedBox(height: 24),
-        Text(
-          "You're almost done!",
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: _slate900,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          "Review your details before creating the store.",
-          textAlign: TextAlign.center,
-          style: TextStyle(color: _slate500),
-        ),
-        const SizedBox(height: 32),
+        _buildSectionHeader("Review Details"),
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: _bgLight,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _primaryColor.withOpacity(0.2)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _slate200),
           ),
           child: Column(
             children: [
@@ -947,17 +928,23 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
               _buildReviewRow(
                 "Category",
                 _categories.firstWhere(
-                  (e) => e['id'] == _selectedCategoryId,
+                  (c) => c['id'] == _selectedCategoryId,
                   orElse: () => {'category_name': 'Unknown'},
                 )['category_name'],
               ),
               const Divider(),
               _buildReviewRow("Phone", _phoneController.text),
               const Divider(),
+              _buildReviewRow("Email", _emailController.text),
+              const Divider(),
               _buildReviewRow(
                 "GST",
                 _showGSTForm ? _gstNumberController.text : "Not Provided",
               ),
+              if (_showGSTForm) ...[
+                const Divider(),
+                _buildReviewRow("State", _gstRegisteredStateController.text),
+              ],
             ],
           ),
         ),
@@ -967,30 +954,32 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
   Widget _buildReviewRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: _slate500)),
+          Text(label, style: TextStyle(color: _slate500, fontSize: 13)),
           Text(
             value,
-            style: TextStyle(fontWeight: FontWeight.bold, color: _slate900),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: _slate900,
+              fontSize: 13,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // --- WIDGET HELPERS ---
-
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
           color: _slate900,
         ),
       ),
@@ -1010,9 +999,9 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
         Text(
           label,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: _slate900,
+            color: _slate500,
           ),
         ),
         const SizedBox(height: 8),
@@ -1020,20 +1009,14 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
           controller: controller,
           keyboardType: isNumber
               ? TextInputType.phone
-              : isEmail
-              ? TextInputType.emailAddress
-              : TextInputType.text,
-          style: TextStyle(color: _slate900, fontWeight: FontWeight.w500),
+              : (isEmail ? TextInputType.emailAddress : TextInputType.text),
           decoration: InputDecoration(
+            hintText: "Enter $label",
             prefixIcon: icon != null
-                ? Icon(icon, color: _slate500, size: 22)
+                ? Icon(icon, size: 20, color: _slate500)
                 : null,
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: _slate200),
@@ -1046,6 +1029,7 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: _primaryColor, width: 2),
             ),
+            contentPadding: const EdgeInsets.all(16),
           ),
         ),
       ],
@@ -1053,7 +1037,6 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
   }
 
   void _onNextPressed() async {
-    // 1. Validation
     if (_currentStep == 0 && _selectedCategoryId == null) {
       _showSnack("Please select a category first.");
       return;
@@ -1065,9 +1048,7 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       }
     }
 
-    // 2. Logic Jumping
     if (_currentStep == 2) {
-      // Branding -> Map -> GST
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
@@ -1085,9 +1066,8 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
     }
 
     if (_currentStep == 4) {
-      // Submit
       _showSnack("Creating your store...");
-      // Add submission logic
+      // Logic to submit
     } else {
       if (_currentStep < _stepTitles.length - 1) {
         setState(() => _currentStep++);
