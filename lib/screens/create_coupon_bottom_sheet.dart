@@ -708,6 +708,14 @@ class _CreateCouponBottomSheetState extends State<CreateCouponBottomSheet>
                 prefix: '₹',
               ),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildCompactField(
+                label: 'Max Amount',
+                controller: _maxAmountController,
+                prefix: '₹',
+              ),
+            ),
           ],
         ),
 
