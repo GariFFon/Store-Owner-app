@@ -601,10 +601,10 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
           return GridView.builder(
             padding: const EdgeInsets.all(24),
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 400,
+              maxCrossAxisExtent: 450,
               mainAxisSpacing: 24,
               crossAxisSpacing: 24,
-              mainAxisExtent: 330,
+              mainAxisExtent: 350,
             ),
             itemCount: _filteredStores.length,
             itemBuilder: (context, index) {
@@ -663,8 +663,8 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
         : const Color(0xFFF0ABFC); // Fuchsia 200
 
     // Responsive Flex — image takes more space for a bigger visual
-    final int imageFlex = isTable ? 68 : 68;
-    final int contentFlex = isTable ? 32 : 32;
+    final int imageFlex = isTable ? 68 : 65;
+    final int contentFlex = isTable ? 32 : 35;
 
     return Container(
       decoration: BoxDecoration(
@@ -760,8 +760,8 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                       right: 12,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
+                          horizontal: 12,
+                          vertical: 6,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.95),
@@ -778,7 +778,7 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                           category.toUpperCase(),
                           style: const TextStyle(
                             color: Colors.black87,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.5,
                           ),

@@ -201,7 +201,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
       if (isDesktop)
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _buildDesktopLedgerTable(transactions),
           ),
         )
@@ -920,13 +920,14 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
   }
 
   Widget _buildDesktopLedgerTable(List transactions) {
-    if (transactions.isEmpty)
+    if (transactions.isEmpty) {
       return const Center(child: Text("No transactions"));
+    }
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: Colors.grey[300]!),
       ),
       child: Table(
         columnWidths: const {
@@ -940,7 +941,10 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
         children: [
           // Header
           TableRow(
-            decoration: BoxDecoration(color: Colors.grey[50]),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            ),
             children: [
               for (var h in [
                 "Date",
@@ -951,12 +955,17 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
                 "Balance",
               ])
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   child: Text(
                     h,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
@@ -966,59 +975,50 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen>
           ...transactions.map((txn) {
             return TableRow(
               decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.grey[100]!)),
+                border: Border(top: BorderSide(color: Colors.grey[200]!)),
               ),
               children: [
+                _tableCell(_formatDate(txn['date'])),
+                _tableCell(txn['voucher_number'] ?? '-'),
                 Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    _formatDate(txn['date']),
-                    style: const TextStyle(fontSize: 13),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    txn['voucher_number'] ?? '-',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
                   child: _buildTypeBadge(txn['voucher_type']),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    txn['debit'] != '0.00'
-                        ? _formatCurrency(txn['debit'])
-                        : '-',
-                    style: const TextStyle(color: Colors.red, fontSize: 13),
-                  ),
+                _tableCell(
+                  txn['debit'] != '0.00' ? _formatCurrency(txn['debit']) : '-',
+                  textColor: Colors.red,
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    txn['credit'] != '0.00'
-                        ? _formatCurrency(txn['credit'])
-                        : '-',
-                    style: const TextStyle(color: Colors.green, fontSize: 13),
-                  ),
+                _tableCell(
+                  txn['credit'] != '0.00'
+                      ? _formatCurrency(txn['credit'])
+                      : '-',
+                  textColor: Colors.green,
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    _formatCurrency(txn['running_balance']),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
+                _tableCell(
+                  _formatCurrency(txn['running_balance']),
+                  isBold: true,
                 ),
               ],
             );
           }),
         ],
+      ),
+    );
+  }
+
+  Widget _tableCell(String text, {Color? textColor, bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          color: textColor,
+          fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+        ),
       ),
     );
   }

@@ -463,149 +463,161 @@ class ReceiptDetailsScreen extends StatelessWidget {
       title: 'Ledger Entries',
       child: Column(
         children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      'ACCOUNT',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                      ),
+          // Header with painted background
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9), // Slate 100
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'ACCOUNT',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF64748B), // Slate 500
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  _buildVerticalSep(),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'DEBIT',
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                      ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'DEBIT',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF64748B),
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  _buildVerticalSep(),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'CREDIT',
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                      ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'CREDIT',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF64748B),
+                      letterSpacing: 0.5,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const Divider(),
+          const SizedBox(height: 8),
+
           // Row 1 (Cash/Bank - Debit)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      receipt['receipt_account'] ?? 'Unknown Account',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
+            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    receipt['receipt_account'] ?? 'Unknown Account',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF334155), // Slate 700
                     ),
                   ),
-                  _buildVerticalSep(),
-                  Expanded(
-                    flex: 2,
+                ),
+                Expanded(
+                  flex: 3,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
                     child: Text(
                       _formatCurrency(receipt['amount']),
                       textAlign: TextAlign.right,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.red,
+                        color: const Color(0xFFDC2626), // Red 600
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  _buildVerticalSep(),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      '-',
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.bodyMedium,
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    '-',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[400],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          Divider(
-            color: theme.colorScheme.outline.withOpacity(0.08),
-            height: 24,
-            thickness: 1,
-          ),
+          Divider(color: Colors.grey.withOpacity(0.1), height: 1, thickness: 1),
           // Row 2 (Customer - Credit)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      'Customer - ${receipt['party_name']}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Customer',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF334155),
+                        ),
                       ),
+                      if (receipt['party_name'] != null)
+                        Text(
+                          receipt['party_name'] ?? '',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.grey[500],
+                            fontSize: 10,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    '-',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[400],
                     ),
                   ),
-                  _buildVerticalSep(),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      '-',
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                  _buildVerticalSep(),
-                  Expanded(
-                    flex: 2,
+                ),
+                Expanded(
+                  flex: 3,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
                     child: Text(
                       _formatCurrency(receipt['amount']),
                       textAlign: TextAlign.right,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.green,
+                        color: const Color(0xFF16A34A), // Green 600
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildVerticalSep() {
-    return Container(
-      width: 1,
-      color: Colors.grey.withOpacity(0.2),
-      margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 

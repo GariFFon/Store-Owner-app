@@ -263,7 +263,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                     else
                       SliverPadding(
                         padding: isDesktopOrTablet
-                            ? EdgeInsets.zero
+                            ? const EdgeInsets.fromLTRB(16, 0, 16, 16)
                             : const EdgeInsets.symmetric(
                                 horizontal: 20,
                                 vertical: 8,
@@ -724,39 +724,37 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
   }
 
   Widget _buildTableHeader(Color primary) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        child: Row(
-          children: [
-            Expanded(flex: 3, child: Text('CUSTOMER', style: _headerStyle)),
-            Expanded(flex: 2, child: Text('CONTACT', style: _headerStyle)),
-            Expanded(flex: 2, child: Text('LOCATION', style: _headerStyle)),
-            Expanded(
-              flex: 2,
-              child: Text(
-                'OUTSTANDING',
-                style: _headerStyle,
-                textAlign: TextAlign.right,
-              ),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9), // Painted title background
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        children: [
+          Expanded(flex: 3, child: Text('CUSTOMER', style: _headerStyle)),
+          Expanded(flex: 2, child: Text('CONTACT', style: _headerStyle)),
+          Expanded(flex: 2, child: Text('LOCATION', style: _headerStyle)),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'OUTSTANDING',
+              style: _headerStyle,
+              textAlign: TextAlign.right,
             ),
-            const SizedBox(width: 40),
-          ],
-        ),
+          ),
+          const SizedBox(width: 40),
+        ],
       ),
     );
   }
 
-  TextStyle get _headerStyle => TextStyle(
-    fontWeight: FontWeight.bold,
+  TextStyle get _headerStyle => const TextStyle(
     fontSize: 12,
-    color: Colors.grey[500],
+    fontWeight: FontWeight.w700,
+    color: Color(0xFF64748B),
     letterSpacing: 0.5,
   );
 
@@ -768,7 +766,6 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     return GestureDetector(
       onTap: () => _navigateToDetails(party),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         decoration: BoxDecoration(
           color: Colors.white,

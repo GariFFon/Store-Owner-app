@@ -109,7 +109,7 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
                           if (isDesktop)
                             SliverPadding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
+                                horizontal: 16,
                               ),
                               sliver: SliverToBoxAdapter(
                                 child: _buildDesktopTable(),
@@ -430,8 +430,8 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
@@ -452,11 +452,9 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
         },
         children: [
           TableRow(
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9), // Painted title background
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
             children: [
               for (var h in [
@@ -469,13 +467,17 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
                 "Created At",
               ])
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   child: Text(
                     h,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Colors.black54,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
