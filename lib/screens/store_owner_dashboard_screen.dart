@@ -195,6 +195,21 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
         drawer: StoreMainDrawer(
           storeId: widget.storeId,
           storeName: widget.storeName,
+          onTabSelected: (tabId) {
+            // Find tab index by ID
+            final index = _tabs.indexWhere((t) => t['id'] == tabId);
+            if (index != -1) {
+              setState(() {
+                _currentIndex = index;
+                // Close assistant if opening another tab
+                if (tabId != 'assistant') {
+                  _isAssistantOpen = false;
+                }
+              });
+              return true; // We handled the navigation
+            }
+            return false; // Fallback to normal navigation
+          },
         ),
         body: IndexedStack(index: _currentIndex, children: screens),
         bottomNavigationBar: __buildBottomNavigationBar(theme, _tabs),

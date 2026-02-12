@@ -249,7 +249,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                 12,
                 MediaQuery.of(context).padding.top + 8,
                 12,
-                24,
+                12,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -292,7 +292,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
 
                       // Title
                       Expanded(
@@ -305,22 +305,22 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 24,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF1E293B),
                                 letterSpacing: -0.5,
                                 height: 1.0,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
+                                horizontal: 6,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
                                 color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
                                   color: Colors.green.withOpacity(0.2),
                                 ),
@@ -328,7 +328,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
                               child: Text(
                                 '${NumberFormat.compact().format(_totalItems)} RECEIPTS',
                                 style: const TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 9,
                                   fontWeight: FontWeight.w800,
                                   color: Colors.green,
                                   letterSpacing: 1.2,
@@ -485,9 +485,6 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
       );
     }
 
-    // Stats Widget
-    final statsSection = _buildStatsSection();
-
     if (_receipts.isEmpty) {
       // Even if empty, we might want to show stats (e.g. 0 receipts)
       // But usually user wants to see "No receipts" message.
@@ -497,7 +494,6 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            statsSection,
             SizedBox(height: MediaQuery.of(context).size.height * 0.2),
             Center(
               child: Column(
@@ -524,10 +520,6 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
           // Table Layout for larger screens
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: statsSection,
-              ),
               // Table Header
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -598,20 +590,16 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
             child: ListView.separated(
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
-              itemCount: _receipts.length + (_isLoadingMore ? 1 : 0) + 1,
+              itemCount: _receipts.length + (_isLoadingMore ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                if (index == 0) return statsSection;
-
-                final receiptIndex = index - 1;
-
-                if (receiptIndex == _receipts.length) {
+                if (index == _receipts.length) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-                final receipt = _receipts[receiptIndex];
+                final receipt = _receipts[index];
                 return _buildReceiptRow(theme, receipt);
               },
             ),
@@ -982,92 +970,6 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatsSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: _buildStatBox(
-        "Total Receipts",
-        _totalItems.toString(),
-        Icons.receipt_long,
-        const Color(0xFF2563EB), // Blue
-        isHero: true,
-      ),
-    );
-  }
-
-  Widget _buildStatBox(
-    String title,
-    String value,
-    IconData icon,
-    Color color, {
-    bool isHero = false,
-  }) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: isHero ? 20 : 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isHero ? color.withOpacity(0.2) : Colors.grey[100]!,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 14, color: color),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey[500],
-                    letterSpacing: 0.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1E293B),
-                letterSpacing: -0.5,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

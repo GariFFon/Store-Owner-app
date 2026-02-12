@@ -566,7 +566,6 @@ class _MyAppState extends State<MyApp> {
             debugShowCheckedModeBanner: false,
             title: 'exanor',
             theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
             themeMode: ThemeManager().materialThemeMode,
             navigatorKey: ApiService.navigatorKey,
             navigatorObservers: [

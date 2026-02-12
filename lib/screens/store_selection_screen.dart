@@ -306,10 +306,10 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                     Text(
                       greetingText.toUpperCase(), // Includes comma now
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: 1.0,
-                        color: Colors.blueGrey[500],
+                        color: Colors.blueGrey[400],
                         fontFamily: 'Plus Jakarta Sans',
                       ),
                     ),
@@ -353,7 +353,7 @@ class _StoreSelectionScreenState extends State<StoreSelectionScreen> {
                   ],
                 ),
 
-                const SizedBox(height: 6),
+                const SizedBox(height: 2),
 
                 // Row 2: Title & Actions
                 Row(
