@@ -2261,232 +2261,303 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         _orderData?['id'] ??
         widget.orderId;
 
+    // Get current status gradient
+    final currentStatus = _orderStatuses.isNotEmpty
+        ? _orderStatuses.last
+        : {'status': 'Unknown'};
+    final statusGradient = _getStatusGradient(currentStatus['status']);
+    final statusColor = _getStatusColorFromString(currentStatus['status']);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      // Matte Shadow decoration
+      // Premium Status Gradient Decoration
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: statusGradient,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: statusColor.withOpacity(0.4),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(color: Colors.grey.withOpacity(0.05)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          // Header: Title + Order ID
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+          // Subtle Pattern Overlay
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Opacity(
+              opacity: 0.1,
+              child: Icon(
+                _getStatusIcon(currentStatus['status']),
+                size: 140,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Theme(
+            data: theme.copyWith(
+              dividerColor: Colors.transparent,
+              expansionTileTheme: const ExpansionTileThemeData(
+                iconColor: Colors.white,
+                collapsedIconColor: Colors.white,
+              ),
+            ),
+            child: ExpansionTile(
+              initiallyExpanded: false,
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 12,
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              title: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.timeline_rounded,
-                      size: 18,
-                      color: theme.colorScheme.primary,
+                      size: 20,
+                      color: Colors.white,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  TranslatedText(
-                    'Order Timeline',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: orderId));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: TranslatedText('Order ID copied to clipboard'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.withOpacity(0.1)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TranslatedText(
-                        '#$orderId',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      const TranslatedText(
+                        'Order Status',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white70,
                           letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.copy_rounded,
-                        size: 12,
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
-                      ),
+                      const SizedBox(height: 2),
+                      if (_orderStatuses.isNotEmpty)
+                        TranslatedText(
+                          currentStatus['status_title'] ??
+                              currentStatus['status'] ??
+                              'Unknown',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
                     ],
+                  ),
+                ],
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 16, left: 4),
+                child: GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: orderId));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: TranslatedText('Order ID copied to clipboard'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Order ID: ',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            '#$orderId',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.copy_rounded,
+                          size: 12,
+                          color: Colors.white.withOpacity(0.7),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 24),
+              children: [
+                Divider(color: Colors.white.withOpacity(0.1)),
+                const SizedBox(height: 16),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _orderStatuses.length,
+                  itemBuilder: (context, index) {
+                    // Reverse order: Newest at top
+                    final status =
+                        _orderStatuses[_orderStatuses.length - 1 - index];
+                    final isFirst = index == 0;
+                    final isLast = index == _orderStatuses.length - 1;
 
-          // Horizontal Timeline
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: List.generate(_orderStatuses.length, (index) {
-                final status = _orderStatuses[index];
-                final isLast = index == _orderStatuses.length - 1;
-                final isFirst = index == 0;
-
-                // Color based on status
-                final statusColor = _getStatusColorFromString(status['status']);
-
-                return IntrinsicWidth(
-                  child: Column(
-                    children: [
-                      // Top Row: Line + Icon + Line
-                      SizedBox(
-                        height: 40,
-                        child: Row(
-                          children: [
-                            // Left Line
-                            Expanded(
-                              child: Container(
-                                height: 2,
-                                color: isFirst
-                                    ? Colors.transparent
-                                    : statusColor.withOpacity(0.2),
-                              ),
-                            ),
-                            // Icon
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: isLast ? statusColor : Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: statusColor,
-                                  width: 2,
+                    return IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Timestamp Column
+                          SizedBox(
+                            width: 70,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                TranslatedText(
+                                  (status['timestamp'] ?? '').split(' ').first,
+                                  textAlign: TextAlign.end,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
                                 ),
-                                boxShadow: isLast
-                                    ? [
-                                        BoxShadow(
-                                          color: statusColor.withOpacity(0.4),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ]
-                                    : [],
-                              ),
-                              child: Icon(
-                                _getStatusIcon(status['status']),
-                                size: 18,
-                                color: isLast ? Colors.white : statusColor,
-                              ),
+                                const SizedBox(height: 2),
+                                TranslatedText(
+                                  (status['timestamp'] ?? '')
+                                              .split(' ')
+                                              .length >
+                                          1
+                                      ? (status['timestamp'] ?? '')
+                                            .split(' ')
+                                            .sublist(1)
+                                            .join(' ')
+                                      : '',
+                                  textAlign: TextAlign.end,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white.withOpacity(0.5),
+                                  ),
+                                ),
+                              ],
                             ),
-                            // Right Line
-                            Expanded(
-                              child: Container(
-                                height: 2,
-                                color: isLast
-                                    ? Colors.transparent
-                                    : _getStatusColorFromString(
-                                        _orderStatuses[index + 1]['status'],
-                                      ).withOpacity(0.2),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // Content: Title + Subtitle + Time
-                      Container(
-                        constraints: const BoxConstraints(
-                          minWidth: 100,
-                          maxWidth: 140,
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Column(
-                          children: [
-                            TranslatedText(
-                              status['status_title'] ?? status['status'],
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: theme.colorScheme.onSurface,
-                                fontSize: 12,
-                              ),
-                            ),
-                            if (status['status_subtitle'] != null) ...[
-                              const SizedBox(height: 2),
-                              TranslatedText(
-                                status['status_subtitle'],
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontSize: 10,
-                                  color: theme.colorScheme.onSurface
-                                      .withOpacity(0.5),
+                          ),
+                          const SizedBox(width: 16),
+                          // Timeline Line & Dot
+                          Column(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: isFirst
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isFirst
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.3),
+                                    width: 2,
+                                  ),
+                                  boxShadow: isFirst
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.white.withOpacity(
+                                              0.5,
+                                            ),
+                                            blurRadius: 8,
+                                            spreadRadius: 2,
+                                          ),
+                                        ]
+                                      : [],
                                 ),
                               ),
+                              if (!isLast)
+                                Expanded(
+                                  child: Container(
+                                    width: 2,
+                                    margin: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.white.withOpacity(0.3),
+                                          Colors.white.withOpacity(0.05),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                             ],
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: TranslatedText(
-                                status['timestamp'] ?? '',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
-                                  color: theme.colorScheme.onSurface
-                                      .withOpacity(0.4),
-                                ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Content
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SelectableText(
+                                    status['status_title'] ??
+                                        status['status'] ??
+                                        '',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  if (status['status_subtitle'] != null) ...[
+                                    const SizedBox(height: 4),
+                                    SelectableText(
+                                      status['status_subtitle'],
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.white.withOpacity(0.7),
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ],
@@ -2497,15 +2568,49 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Color _getStatusColorFromString(String? status) {
     status = status?.toLowerCase() ?? '';
     if (status.contains('placed') || status.contains('confirmed')) {
-      return Colors.green;
+      return const Color(0xFF2563EB);
     } else if (status.contains('preparing') || status.contains('processing')) {
-      return Colors.orange;
+      return const Color(0xFFEA580C);
     } else if (status.contains('ready') || status.contains('completed')) {
-      return Colors.blue;
+      return const Color(0xFF059669);
     } else if (status.contains('cancelled') || status.contains('rejected')) {
-      return Colors.red;
+      return const Color(0xFFDC2626);
     }
-    return Colors.purple;
+    return const Color(0xFF7C3AED);
+  }
+
+  LinearGradient _getStatusGradient(String? status) {
+    status = status?.toLowerCase() ?? '';
+    if (status.contains('placed') || status.contains('confirmed')) {
+      return const LinearGradient(
+        colors: [Color(0xFF2563EB), Color(0xFF3B82F6)], // Royal Blue to Blue
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (status.contains('preparing') || status.contains('processing')) {
+      return const LinearGradient(
+        colors: [Color(0xFFEA580C), Color(0xFFF97316)], // Orange to Amber
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (status.contains('ready') || status.contains('completed')) {
+      return const LinearGradient(
+        colors: [Color(0xFF059669), Color(0xFF10B981)], // Emerald to Teal
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (status.contains('cancelled') || status.contains('rejected')) {
+      return const LinearGradient(
+        colors: [Color(0xFFDC2626), Color(0xFFEF4444)], // Red to Rose
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    }
+    return const LinearGradient(
+      colors: [Color(0xFF7C3AED), Color(0xFF8B5CF6)], // Violet to Purple
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
   }
 
   IconData _getStatusIcon(String? status) {

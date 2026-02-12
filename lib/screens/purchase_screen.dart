@@ -838,7 +838,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
                   // Payment Status Filter Bar
                   _buildPaymentFilterBar(),

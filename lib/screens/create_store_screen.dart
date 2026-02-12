@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:image_picker/image_picker.dart';
 import 'package:exanor/screens/location_selection_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class CreateStoreScreen extends StatefulWidget {
   const CreateStoreScreen({super.key});
@@ -227,13 +228,17 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
   }
 
   Widget _buildHeader() {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF), // Light Blue like Order Screen
+        color: lightBlueBg,
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF94A3B8).withOpacity(0.5),
-            blurRadius: 10,
+            color: const Color(0xFF94A3B8).withOpacity(0.2),
+            blurRadius: 16,
             offset: const Offset(0, 4),
           ),
         ],
@@ -243,37 +248,31 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
           children: [
             // Watermark
             Positioned(
-              right: -30,
+              right: -20,
               top: -10,
               child: Transform.rotate(
                 angle: -math.pi / 6,
                 child: Icon(
                   Icons.storefront_rounded,
-                  size: 180,
-                  color: const Color(0xFFDBEAFE).withOpacity(0.6),
+                  size: 160,
+                  color: watermarkColor.withOpacity(0.8),
                 ),
               ),
             ),
-
-            // Content
             SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Top Row
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Back Button
                         InkWell(
                           onTap: () {
-                            if (_currentStep > 0)
-                              setState(() => _currentStep--);
-                            else
-                              Navigator.pop(context);
+                            Navigator.pop(context);
                           },
                           borderRadius: BorderRadius.circular(10),
                           child: Container(
@@ -287,74 +286,76 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
                                 width: 1.5,
                               ),
                             ),
-                            child: const Icon(
-                              Icons.arrow_back_ios_new_rounded,
-                              size: 20,
-                              color: Colors.blueGrey,
+                            child: const Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(right: 2),
+                                child: Icon(
+                                  Icons.arrow_back_ios_new_rounded,
+                                  color: Colors.blueGrey,
+                                  size: 20,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.blue.withOpacity(0.2),
-                            ),
-                          ),
-                          child: Text(
-                            "STEP ${_currentStep + 1}/${_stepTitles.length}",
-                            style: const TextStyle(
-                              color: Color(0xFF1565C0),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 10,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _stepTitles[_currentStep],
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
-                        letterSpacing: -0.5,
-                        height: 1.0,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Progress Bar
-                    Stack(
-                      children: [
-                        Container(
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          height: 4,
-                          width:
-                              MediaQuery.of(context).size.width *
-                              ((_currentStep + 1) / _stepTitles.length),
-                          decoration: BoxDecoration(
-                            color: _primaryColor,
-                            borderRadius: BorderRadius.circular(2),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Create Store",
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                  height: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF2563EB,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'STEP ${_currentStep + 1} OF ${_stepTitles.length}: ${_stepTitles[_currentStep].toUpperCase()}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF2563EB),
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
+              ),
+            ),
+            // Progress Line at bottom
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: LinearProgressIndicator(
+                value: (_currentStep + 1) / _stepTitles.length,
+                backgroundColor: Colors.transparent,
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  Color(0xFF2563EB),
+                ),
+                minHeight: 2,
               ),
             ),
           ],
@@ -365,14 +366,14 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
   Widget _buildBottomBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: const Offset(0, -4),
+            offset: const Offset(0, -5),
           ),
         ],
       ),
@@ -381,54 +382,72 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
         child: Row(
           children: [
             if (_currentStep > 0)
-              Expanded(
-                flex: 1,
-                child: TextButton(
-                  onPressed: () => setState(() => _currentStep--),
-                  child: Text(
-                    "Back",
-                    style: TextStyle(
-                      color: _slate500,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
+              TextButton(
+                onPressed: () => setState(() => _currentStep--),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  "Back",
+                  style: GoogleFonts.inter(
+                    color: _slate500,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
                   ),
                 ),
               ),
-            const SizedBox(width: 12),
+            if (_currentStep > 0) const SizedBox(width: 12),
             Expanded(
-              flex: 2,
               child: Container(
-                height: 48, // More compact height
+                height: 48,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [_primaryColor, const Color(0xFF1D4ED8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: _primaryColor.withOpacity(0.25),
+                      color: _primaryColor.withOpacity(0.3),
                       blurRadius: 8,
-                      offset: const Offset(0, 3),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: ElevatedButton(
-                  onPressed: _onNextPressed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: EdgeInsets.zero,
-                  ),
-                  child: Text(
-                    _currentStep == 4 ? "Create Store" : "Continue",
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    onTap: _onNextPressed,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _currentStep == 4 ? "Complete Setup" : "Continue",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -459,11 +478,36 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
   Widget _buildCategoryStep() {
     if (_isLoading) {
-      return Center(child: CircularProgressIndicator(color: _primaryColor));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: _primaryColor, strokeWidth: 3),
+            const SizedBox(height: 16),
+            Text(
+              "Loading Categories...",
+              style: GoogleFonts.inter(
+                color: _slate500,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
     }
     if (_errorMessage != null) {
       return Center(
-        child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded, color: Colors.red[300], size: 48),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: GoogleFonts.inter(color: Colors.red[700]),
+            ),
+          ],
+        ),
       );
     }
 
@@ -478,191 +522,182 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       children: [
         Text(
           "What's your niche?",
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
             color: _slate900,
+            letterSpacing: -1,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          "Select the category that best fits your business.",
-          style: TextStyle(fontSize: 14, color: _slate500),
+          "Select the category that best represents your business to get started.",
+          style: GoogleFonts.inter(fontSize: 15, color: _slate500, height: 1.5),
         ),
-        const SizedBox(height: 24),
-        TextField(
-          controller: _categorySearchController,
-          onChanged: (value) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: 'Search categories...',
-            prefixIcon: Icon(Icons.search_rounded, color: _slate500),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _slate200),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _slate200),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _primaryColor, width: 1.5),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
+        const SizedBox(height: 24), // Reduced from 32 to 24
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF64748B).withOpacity(0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: TextField(
+            controller: _categorySearchController,
+            onChanged: (value) => setState(() {}),
+            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
+            decoration: InputDecoration(
+              hintText: 'Search categories...',
+              hintStyle: GoogleFonts.inter(color: _slate500.withOpacity(0.7)),
+              prefixIcon: Icon(Icons.search_rounded, color: _slate500),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: _primaryColor.withOpacity(0.5),
+                  width: 1.5,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 16,
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 12), // Reduced spacing from 24 to 12
+        const SizedBox(height: 12),
         if (filteredCategories.isEmpty)
           Center(
             child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                "No categories found",
-                style: TextStyle(color: _slate500),
+              padding: const EdgeInsets.all(48),
+              child: Column(
+                children: [
+                  Icon(Icons.search_off_rounded, size: 48, color: _slate200),
+                  const SizedBox(height: 16),
+                  Text(
+                    "No categories found",
+                    style: GoogleFonts.inter(
+                      color: _slate500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           )
         else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              // 3 cols on phone (Standard), 6 on tablet
-              final crossAxisCount = constraints.maxWidth > 600 ? 6 : 3;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  childAspectRatio: 0.9, // Taller for cleaner look
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: filteredCategories.length,
-                itemBuilder: (context, index) {
-                  final cat = filteredCategories[index];
-                  final isSel = _selectedCategoryId == cat['id'];
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 1.1,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: filteredCategories.length,
+            itemBuilder: (context, index) {
+              final cat = filteredCategories[index];
+              final isSel = _selectedCategoryId == cat['id'];
 
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    decoration: BoxDecoration(
-                      color: isSel ? _primaryColor : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSel ? _primaryColor : _slate200,
-                        width: isSel ? 0 : 1.5, // Thicker border for unselected
-                      ),
-                      boxShadow: isSel
-                          ? [
-                              BoxShadow(
-                                color: _primaryColor.withOpacity(0.35),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ]
-                          : [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.03),
-                                blurRadius: 2,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        onTap: () =>
-                            setState(() => _selectedCategoryId = cat['id']),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Stack(
-                          children: [
-                            if (isSel)
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.25),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.check,
-                                    size: 14,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Expanded(
-                                    flex: 3,
-                                    child: Center(
-                                      child: cat['category_icon'] != null
-                                          ? Image.network(
-                                              cat['category_icon'],
-                                              fit: BoxFit.contain,
-                                              height: 54, // Larger icon
-                                              width: 54,
-                                              // NO color filter here, keeping original colors
-                                              errorBuilder: (_, __, ___) =>
-                                                  Icon(
-                                                    Icons.store_rounded,
-                                                    color: isSel
-                                                        ? Colors.white
-                                                        : _slate500,
-                                                    size: 40,
-                                                  ),
-                                            )
-                                          : Icon(
-                                              Icons.store_rounded,
-                                              color: isSel
-                                                  ? Colors.white
-                                                  : _slate500,
-                                              size: 40,
-                                            ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Expanded(
-                                    flex: 2,
-                                    child: Align(
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        cat['category_name'] ?? 'General',
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: isSel
-                                              ? FontWeight.w700
-                                              : FontWeight.w600,
-                                          color: isSel
-                                              ? Colors.white
-                                              : _slate900,
-                                          height: 1.1,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.fastOutSlowIn,
+                decoration: BoxDecoration(
+                  color: isSel ? _primaryColor : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSel ? _primaryColor : Colors.transparent,
+                    width: isSel ? 0 : 0,
+                  ),
+                  boxShadow: isSel
+                      ? [
+                          BoxShadow(
+                            color: _primaryColor.withOpacity(0.4),
+                            blurRadius: 12,
+                            offset: const Offset(0, 8),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: const Color(0xFF64748B).withOpacity(0.08),
+                            blurRadius: 20,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () =>
+                        setState(() => _selectedCategoryId = cat['id']),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isSel
+                                  ? Colors.white.withOpacity(0.2)
+                                  : _bgLight,
+                              shape: BoxShape.circle,
                             ),
-                          ],
-                        ),
+                            child: cat['category_icon'] != null
+                                ? Image.network(
+                                    cat['category_icon'],
+                                    width: 32,
+                                    height: 32,
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.store_rounded,
+                                      color: isSel
+                                          ? Colors.white
+                                          : _primaryColor,
+                                      size: 32,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.store_rounded,
+                                    color: isSel ? Colors.white : _primaryColor,
+                                    size: 32,
+                                  ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            cat['category_name'] ?? 'General',
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: isSel
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              color: isSel ? Colors.white : _slate900,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
               );
             },
           ),
@@ -770,56 +805,70 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       children: [
         Text(
           title,
-          style: TextStyle(fontWeight: FontWeight.w600, color: _slate900),
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: _slate900,
+            fontSize: 14,
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(isCircle ? 100 : 12),
-          child: Container(
-            height: 120,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
+          borderRadius: BorderRadius.circular(isCircle ? 100 : 16),
+          child: CustomPaint(
+            painter: _DashedBorderPainter(
+              color: _primaryColor.withOpacity(0.5),
+              strokeWidth: 2,
+              radius: isCircle ? 100 : 16,
               shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
-              borderRadius: isCircle ? null : BorderRadius.circular(12),
-              border: Border.all(
-                color: _slate200,
-                width: 1.5,
-                style: BorderStyle.solid,
+            ),
+            child: Container(
+              height: isCircle ? 100 : 120, // Reduced height for Logo (Circle)
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: _bgLight.withOpacity(0.5),
+                shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
+                borderRadius: isCircle ? null : BorderRadius.circular(16),
+                image: image != null
+                    ? DecorationImage(
+                        image: FileImage(File(image.path)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
-              image: image != null
-                  ? DecorationImage(
-                      image: FileImage(File(image.path)),
-                      fit: BoxFit.cover,
+              child: image == null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_rounded,
+                          color: _primaryColor,
+                          size: 28,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Click to Upload",
+                          style: GoogleFonts.inter(
+                            color: _primaryColor,
+                            fontSize: isCircle ? 10 : 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     )
                   : null,
             ),
-            child: image == null
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.add_photo_alternate_rounded,
-                        color: _primaryColor,
-                        size: 28,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "Upload",
-                        style: TextStyle(
-                          color: _primaryColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  )
-                : null,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(subtitle, style: TextStyle(fontSize: 11, color: _slate500)),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: _slate500,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
@@ -872,10 +921,17 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
               ),
               const SizedBox(height: 8),
               Container(
+                height: 48,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _slate200),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF64748B).withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: DropdownButtonHideUnderline(
@@ -883,14 +939,28 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
                     value: _selectedState,
                     hint: Text(
                       "Select State",
-                      style: TextStyle(color: _slate500),
+                      style: GoogleFonts.inter(
+                        color: _slate500.withOpacity(0.6),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     isExpanded: true,
-                    icon: Icon(Icons.arrow_drop_down_rounded, color: _slate500),
+                    isDense: true,
+                    menuMaxHeight: 300,
+                    icon: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: _slate500,
+                    ),
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: _slate900,
+                    ),
                     items: _states.map((String state) {
                       return DropdownMenuItem<String>(
                         value: state,
-                        child: Text(state, style: TextStyle(color: _slate900)),
+                        child: Text(state),
                       );
                     }).toList(),
                     onChanged: (val) {
@@ -974,13 +1044,14 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w800,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
           color: _slate900,
+          letterSpacing: -0.5,
         ),
       ),
     );
@@ -998,38 +1069,59 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: 13,
+          style: GoogleFonts.inter(
+            fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: _slate500,
+            color: _slate900,
           ),
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          keyboardType: isNumber
-              ? TextInputType.phone
-              : (isEmail ? TextInputType.emailAddress : TextInputType.text),
-          decoration: InputDecoration(
-            hintText: "Enter $label",
-            prefixIcon: icon != null
-                ? Icon(icon, size: 20, color: _slate500)
-                : null,
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _slate200),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF64748B).withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: TextFormField(
+            controller: controller,
+            keyboardType: isNumber
+                ? TextInputType.phone
+                : (isEmail ? TextInputType.emailAddress : TextInputType.text),
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: _slate900,
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _slate200),
+            decoration: InputDecoration(
+              hintText: "Enter $label",
+              hintStyle: GoogleFonts.inter(
+                color: _slate500.withOpacity(0.6),
+                fontSize: 15,
+              ),
+              prefixIcon: icon != null
+                  ? Icon(icon, size: 20, color: _slate500)
+                  : null,
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: _primaryColor, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.all(18),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _primaryColor, width: 2),
-            ),
-            contentPadding: const EdgeInsets.all(16),
           ),
         ),
       ],
@@ -1044,6 +1136,10 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
     if (_currentStep == 1) {
       if (_storeNameController.text.isEmpty || _phoneController.text.isEmpty) {
         _showSnack("Please fill required details.");
+        return;
+      }
+      if (_phoneController.text.length != 10) {
+        _showSnack("Phone number must be exactly 10 digits.");
         return;
       }
     }
@@ -1083,5 +1179,93 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
         backgroundColor: _slate900,
       ),
     );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double radius;
+  final BoxShape shape;
+
+  _DashedBorderPainter({
+    required this.color,
+    this.strokeWidth = 1,
+    this.radius = 0,
+    this.shape = BoxShape.rectangle,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (strokeWidth <= 0) return;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    Path path;
+    if (shape == BoxShape.circle) {
+      path = Path()..addOval(Rect.fromLTWH(0, 0, size.width, size.height));
+    } else {
+      path = Path()
+        ..addRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(0, 0, size.width, size.height),
+            Radius.circular(radius),
+          ),
+        );
+    }
+
+    final dashPath = _dashPath(
+      path,
+      dashArray: CircularIntervalList<double>([8, 4]),
+    );
+    canvas.drawPath(dashPath, paint);
+  }
+
+  Path _dashPath(
+    Path source, {
+    required CircularIntervalList<double> dashArray,
+  }) {
+    final Path dest = Path();
+    for (final PathMetric metric in source.computeMetrics()) {
+      double distance = 0.0;
+      bool draw = true;
+      while (distance < metric.length) {
+        final double len = dashArray.next;
+        if (draw) {
+          dest.addPath(
+            metric.extractPath(distance, distance + len),
+            Offset.zero,
+          );
+        }
+        distance += len;
+        draw = !draw;
+      }
+    }
+    return dest;
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.radius != radius ||
+        oldDelegate.shape != shape;
+  }
+}
+
+class CircularIntervalList<T> {
+  final List<T> _values;
+  int _index = 0;
+
+  CircularIntervalList(this._values);
+
+  T get next {
+    if (_index >= _values.length) {
+      _index = 0;
+    }
+    return _values[_index++];
   }
 }
