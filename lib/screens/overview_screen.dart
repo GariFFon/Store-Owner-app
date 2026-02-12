@@ -1034,9 +1034,18 @@ class _OverviewScreenState extends State<OverviewScreen> {
             centerSpaceRadius: 50,
             sections: _orderMethodsData.map((e) {
               final name = e['order_method_name'] ?? '';
-              final color = name.toLowerCase().contains('dine')
-                  ? const Color(0xFF10B981)
-                  : const Color(0xFFF59E0B);
+              Color color;
+              final lower = name.toLowerCase();
+              if (lower.contains('dine')) {
+                color = const Color(0xFF10B981);
+              } else if (lower.contains('take')) {
+                color = const Color(0xFFF59E0B);
+              } else if (lower.contains('delivery')) {
+                color = const Color(0xFF3B82F6);
+              } else {
+                color = const Color(0xFF9CA3AF);
+              }
+
               final val = (e['total_orders'] as num).toDouble();
               return PieChartSectionData(
                 color: color,
@@ -1060,9 +1069,17 @@ class _OverviewScreenState extends State<OverviewScreen> {
             alignment: WrapAlignment.center,
             children: _orderMethodsData.map((e) {
               final name = e['order_method_name'] ?? '';
-              final color = name.toLowerCase().contains('dine')
-                  ? const Color(0xFF10B981)
-                  : const Color(0xFFF59E0B);
+              Color color;
+              final lower = name.toLowerCase();
+              if (lower.contains('dine')) {
+                color = const Color(0xFF10B981);
+              } else if (lower.contains('take')) {
+                color = const Color(0xFFF59E0B);
+              } else if (lower.contains('delivery')) {
+                color = const Color(0xFF3B82F6);
+              } else {
+                color = const Color(0xFF9CA3AF);
+              }
               return _legendItem(name, color);
             }).toList(),
           ),
