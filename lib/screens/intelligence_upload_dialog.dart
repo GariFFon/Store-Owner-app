@@ -153,10 +153,17 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    const Color(0xFF6366F1), // Indigo
-                    const Color(0xFF8B5CF6), // Purple
+                    const Color(0xFF2563EB), // Blue 600
+                    const Color(0xFF3B82F6), // Blue 500
                   ],
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF3B82F6).withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: Stack(
                 clipBehavior: Clip.none,
@@ -186,6 +193,9 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                              ),
                             ),
                             child: const Row(
                               children: [
@@ -227,6 +237,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                           height: 1.1,
+                          letterSpacing: -0.5,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -279,13 +290,20 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
   Widget _buildStepItem(IconData icon, String label) {
     return Column(
       children: [
-        Icon(icon, size: 20, color: const Color(0xFF64748B)),
-        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9), // Slate 100
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 20, color: const Color(0xFF64748B)),
+        ),
+        const SizedBox(height: 8),
         Text(
           label,
           style: const TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: Color(0xFF64748B),
           ),
         ),
@@ -309,18 +327,24 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
         width: double.infinity,
         decoration: BoxDecoration(
           color: _selectedFile != null
-              ? const Color(0xFFF0FDF4) // Green-50
-              : const Color(0xFFF8FAFC), // Slate-50
-          borderRadius: BorderRadius.circular(16),
+              ? const Color(0xFFEFF6FF) // Blue 50
+              : const Color(0xFFF8FAFC), // Slate 50
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: _selectedFile != null
-                ? Colors.green.withOpacity(0.3)
+                ? const Color(0xFF3B82F6).withOpacity(0.5)
                 : const Color(0xFFE2E8F0),
             width: 1.5,
-            style: _selectedFile != null
-                ? BorderStyle.solid
-                : BorderStyle.none, // Dashed look simulated or solid
+            style: _selectedFile != null ? BorderStyle.solid : BorderStyle.none,
           ),
+          boxShadow: [
+            if (_selectedFile == null)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -334,7 +358,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                 ),
                 child: const Icon(
                   Icons.check_rounded,
-                  color: Colors.green,
+                  color: Color(0xFF2563EB),
                   size: 32,
                 ),
               ),
@@ -347,15 +371,19 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFF1E293B),
                   ),
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
+              const Text(
                 'Tap to change file',
-                style: TextStyle(fontSize: 12, color: Colors.green[700]),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF3B82F6),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ] else ...[
               Container(
@@ -366,7 +394,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                 ),
                 child: Icon(
                   Icons.cloud_upload_rounded,
-                  color: const Color(0xFF6366F1),
+                  color: const Color(0xFF3B82F6),
                   size: 32,
                 ),
               ),
@@ -375,7 +403,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                 'Click to Upload Invoice',
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFF1E293B),
                 ),
               ),
@@ -404,7 +432,7 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
               foregroundColor: const Color(0xFF1E293B),
               side: const BorderSide(color: Color(0xFFE2E8F0)),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
           ),
@@ -417,14 +445,13 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
             label: const Text('Analyze'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: const Color(0xFF1E293B),
+              backgroundColor: const Color(0xFF1E293B), // Slate 800
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
               ),
-              // Disable aesthetic
-              disabledBackgroundColor: const Color(0xFFE2E8F0),
+              disabledBackgroundColor: const Color(0xFFF1F5F9),
               disabledForegroundColor: const Color(0xFF94A3B8),
             ),
           ),
@@ -449,8 +476,11 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                     height: 100 + (_scannerController.value * 30),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(
-                        0xFF6366F1,
+                      color: const Color.fromARGB(
+                        255,
+                        37,
+                        99,
+                        235,
                       ).withOpacity(0.2 - (_scannerController.value * 0.15)),
                     ),
                   );
@@ -460,14 +490,14 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5F3FF),
+                  color: const Color(0xFFEFF6FF),
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF8B5CF6), width: 2),
+                  border: Border.all(color: const Color(0xFF3B82F6), width: 2),
                 ),
                 child: const Icon(
                   Icons.psychology_rounded,
                   size: 40,
-                  color: Color(0xFF8B5CF6),
+                  color: Color(0xFF3B82F6),
                 ),
               ),
             ],
@@ -477,8 +507,9 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
             'Analyzing Invoice...',
             style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
               color: Color(0xFF1E293B),
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 8),
@@ -494,7 +525,9 @@ class _IntelligenceUploadDialogState extends State<IntelligenceUploadDialog>
           const SizedBox(height: 32),
           const LinearProgressIndicator(
             backgroundColor: Color(0xFFF1F5F9),
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+            minHeight: 6,
+            borderRadius: BorderRadius.all(Radius.circular(10)),
           ),
         ],
       ),

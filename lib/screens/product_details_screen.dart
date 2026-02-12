@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
+import 'dart:math' as math;
 import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:exanor/screens/payment_information_screen.dart';
+import 'package:intl/intl.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -20,9 +23,9 @@ class ProductDetailsScreen extends StatefulWidget {
   State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
 }
 
-class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
-  // Track which products are expanded
-  final Set<int> _expandedProducts = {};
+class _ProductDetailsScreenState extends State<ProductDetailsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
   // Dropdown options
   List<Map<String, dynamic>> _units = [];
@@ -34,32 +37,116 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final Map<int, String> _selectedGodowns = {};
   final Map<int, String> _selectedRacks = {};
 
-  // Linked products - track both status and product details
+  // Linked products
   final Map<int, bool> _linkedProducts = {};
   final Map<int, String> _linkedProductNames = {};
   final Map<int, String> _linkedProductIds = {};
   final Map<int, String> _linkedProductHsnCodes = {};
 
-  // Barcode controllers for each product
-  final Map<int, TextEditingController> _barcodeControllers = {};
-
-  // Date controllers for each product
-  final Map<int, TextEditingController> _mfgDateControllers = {};
-  final Map<int, TextEditingController> _expDateControllers = {};
-
-  // Product field controllers
+  // Controllers
   final Map<int, TextEditingController> _hsnControllers = {};
   final Map<int, TextEditingController> _quantityControllers = {};
   final Map<int, TextEditingController> _costControllers = {};
   final Map<int, TextEditingController> _mrpControllers = {};
   final Map<int, TextEditingController> _sellControllers = {};
+  final Map<int, TextEditingController> _barcodeControllers = {};
+  final Map<int, TextEditingController> _mfgDateControllers = {};
+  final Map<int, TextEditingController> _expDateControllers = {};
 
-  final _uuid = const Uuid();
+  // Invoice Details
+  final TextEditingController _invoiceNumController = TextEditingController();
+  final TextEditingController _invoiceDateController = TextEditingController();
+
+  double _totalEstimatedValue = 0.0;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _initializeControllers();
     _fetchDropdownData();
+    _calculateTotal();
+  }
+
+  void _calculateTotal() {
+    double total = 0.0;
+    _costControllers.forEach((index, controller) {
+      final cost = double.tryParse(controller.text) ?? 0.0;
+      final qty =
+          double.tryParse(_quantityControllers[index]?.text ?? '0') ?? 0.0;
+      total += (cost * qty);
+    });
+    setState(() {
+      _totalEstimatedValue = total;
+    });
+  }
+
+  void _initializeControllers() {
+    final response = widget.data['response'] ?? {};
+    final productsList = List<dynamic>.from(response['product_data'] ?? []);
+
+    _invoiceNumController.text = response['invoice_id']?.toString() ?? '';
+    _invoiceDateController.text = response['invoice_date']?.toString() ?? '';
+
+    for (int i = 0; i < productsList.length; i++) {
+      final product = Map<String, dynamic>.from(productsList[i]);
+
+      _hsnControllers[i] = TextEditingController(
+        text: product['hsn_sac_code']?.toString() ?? '',
+      );
+      _quantityControllers[i] = TextEditingController(
+        text: product['quantity']?.toString() ?? '1',
+      )..addListener(_calculateTotal);
+      _costControllers[i] = TextEditingController(
+        text: product['rate']?.toString() ?? '0',
+      )..addListener(_calculateTotal);
+      _mrpControllers[i] = TextEditingController(
+        text: product['mrp']?.toString() ?? '0',
+      );
+      _sellControllers[i] = TextEditingController(
+        text:
+            product['selling_price']?.toString() ??
+            product['mrp']?.toString() ??
+            '0',
+      );
+      _barcodeControllers[i] = TextEditingController(
+        text:
+            product['barcode']?.toString() ??
+            'GEN-${const Uuid().v4().substring(0, 8).toUpperCase()}',
+      );
+      _mfgDateControllers[i] = TextEditingController(
+        text: product['manufactured_on_date']?.toString() ?? '',
+      );
+      _expDateControllers[i] = TextEditingController(
+        text: product['expiry_date']?.toString() ?? '',
+      );
+
+      if (product['unit_id'] != null) {
+        _selectedUnits[i] = product['unit_id'].toString();
+      }
+      if (product['godown_id'] != null) {
+        _selectedGodowns[i] = product['godown_id'].toString();
+      }
+      if (product['rack_id'] != null) {
+        _selectedRacks[i] = product['rack_id'].toString();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _hsnControllers.forEach((_, c) => c.dispose());
+    _quantityControllers.forEach((_, c) => c.dispose());
+    _costControllers.forEach((_, c) => c.dispose());
+    _mrpControllers.forEach((_, c) => c.dispose());
+    _sellControllers.forEach((_, c) => c.dispose());
+    _barcodeControllers.forEach((_, c) => c.dispose());
+    _mfgDateControllers.forEach((_, c) => c.dispose());
+    _expDateControllers.forEach((_, c) => c.dispose());
+    _invoiceNumController.dispose();
+    _invoiceDateController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchDropdownData() async {
@@ -68,140 +155,112 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       final godowns = await StoreOwnerApiService.getGodowns(widget.storeId);
       final racks = await StoreOwnerApiService.getRacks(widget.storeId);
 
-      setState(() {
-        _units = units;
-        _godowns = godowns;
-        _racks = racks;
+      if (mounted) {
+        setState(() {
+          _units = units;
+          _godowns = godowns;
+          _racks = racks;
 
-        // Use 'PCS - Pieces' as default unit for all products
-        // We can do this by prepopulating _selectedUnits or handling it in build
-        // Let's find the unit ID for 'PCS - Pieces' or similar
-        // Or if the API returns a list, maybe we just pick the one that matches
-
-        // For now, let's try to find a unit that contains "PCS" or "Pieces"
-        // and set it as the selected unit for all products initially?
-        // Or better, let's just make sure when we BUILD the dropdown, if no selection is made,
-        // we default to PCS if available.
-        // But to ensure it's saved, we should probably set it in _selectedUnits
-        // for each product IF not already set.
-
-        if (_units.isNotEmpty) {
-          // Find "PCS - Pieces" or similar
-          final defaultUnit = _units.firstWhere(
-            (u) =>
-                (u['name']?.toString().toUpperCase().contains('PCS') ??
-                    false) ||
-                (u['name']?.toString().toUpperCase().contains('PIECES') ??
-                    false),
-            orElse: () => _units.first,
-          );
-
-          // We'll apply this default logic in _getUpdatedData and _buildDropdownField
-          // But store the ID for reference if needed
-        }
-      });
+          // Set defaults
+          final productsList =
+              (widget.data['response'] ?? {})['product_data']
+                  as List<dynamic>? ??
+              [];
+          for (int i = 0; i < productsList.length; i++) {
+            if (!_selectedUnits.containsKey(i) && _units.isNotEmpty) {
+              final defaultUnit = _units.firstWhere(
+                (u) =>
+                    (u['name']?.toString().toUpperCase().contains('PCS') ??
+                        false) ||
+                    (u['name']?.toString().toUpperCase().contains('PIECES') ??
+                        false),
+                orElse: () => _units.first,
+              );
+              _selectedUnits[i] = defaultUnit['id'].toString();
+            }
+            if (!_selectedGodowns.containsKey(i) && _godowns.isNotEmpty) {
+              _selectedGodowns[i] = _godowns[0]['id'].toString();
+            }
+            if (!_selectedRacks.containsKey(i) && _racks.isNotEmpty) {
+              _selectedRacks[i] = _racks[0]['id'].toString();
+            }
+          }
+        });
+      }
     } catch (e) {
-      print('Error fetching dropdown data: $e');
+      debugPrint('Error fetching dropdown data: $e');
     }
   }
 
-  void _showProductSearchBottomSheet(int productIndex, String productName) {
-    showModalBottomSheet(
+  Future<void> _selectDate(BuildContext context, int index, bool isMfg) async {
+    final DateTime now = DateTime.now();
+    final DateTime? picked = await showDatePicker(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ProductSearchBottomSheet(
-        productIndex: productIndex,
-        productName: productName,
-        storeId: widget.storeId,
-        onProductLinked: (productId, linkedProductName, hsnCode) {
-          setState(() {
-            _linkedProducts[productIndex] = true;
-            _linkedProductIds[productIndex] = productId;
-            _linkedProductNames[productIndex] = linkedProductName;
-            _linkedProductHsnCodes[productIndex] = hsnCode;
-
-            // Update the HSN controller with the linked product's HSN code
-            if (_hsnControllers.containsKey(productIndex)) {
-              _hsnControllers[productIndex]!.text = hsnCode;
-            } else {
-              _hsnControllers[productIndex] = TextEditingController(
-                text: hsnCode,
-              );
-            }
-          });
-        },
-      ),
+      initialDate: isMfg ? (now.subtract(const Duration(days: 1))) : now,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF3B82F6), // Blue 500
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF1E293B), // Slate 800
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
+
+    if (picked != null) {
+      final formattedDate = DateFormat('yyyy-MM-dd').format(picked);
+      setState(() {
+        if (isMfg) {
+          _mfgDateControllers[index]?.text = formattedDate;
+        } else {
+          _expDateControllers[index]?.text = formattedDate;
+        }
+      });
+    }
   }
 
-  void _unlinkProduct(int productIndex) {
-    setState(() {
-      _linkedProducts[productIndex] = false;
-      _linkedProductIds.remove(productIndex);
-      _linkedProductNames.remove(productIndex);
-      _linkedProductHsnCodes.remove(productIndex);
-    });
-  }
-
-  /// Build updated data with linked product IDs, selected dropdowns, and barcodes
   Map<String, dynamic> _getUpdatedData() {
-    // Deep copy the original data
     final updatedData = Map<String, dynamic>.from(widget.data);
     final response = Map<String, dynamic>.from(updatedData['response'] ?? {});
     final productsList = List<dynamic>.from(response['product_data'] ?? []);
-
-    // Default manufacturing date if not provided by AI
     const defaultMfgDate = '1999-01-01';
 
-    // Update each product with linked IDs and selected values
+    // Update invoice details
+    response['invoice_id'] = _invoiceNumController.text;
+    response['invoice_date'] = _invoiceDateController.text;
+
     for (int i = 0; i < productsList.length; i++) {
       final product = Map<String, dynamic>.from(productsList[i]);
 
-      // Add linked product combination template ID and HSN code
       if (_linkedProductIds.containsKey(i)) {
         product['products_combination_template_id'] = _linkedProductIds[i];
       }
-
-      // Add linked HSN code if product is linked
       if (_linkedProductHsnCodes.containsKey(i)) {
         product['hsn_sac_code'] = _linkedProductHsnCodes[i];
+      } else if (_hsnControllers.containsKey(i)) {
+        product['hsn_sac_code'] = _hsnControllers[i]!.text;
       }
 
-      // Add selected unit ID - use "PCS - Pieces" or first unit as default if not selected
       if (_selectedUnits.containsKey(i)) {
         product['unit_id'] = _selectedUnits[i];
-      } else if (_units.isNotEmpty) {
-        // Find "PCS - Pieces" or similar
-        final defaultUnit = _units.firstWhere(
-          (u) =>
-              (u['name']?.toString().toUpperCase().contains('PCS') ?? false) ||
-              (u['name']?.toString().toUpperCase().contains('PIECES') ?? false),
-          orElse: () => _units.first,
-        );
-        product['unit_id'] = defaultUnit['id'];
       }
-
-      // Add selected godown ID - use first godown as default if not selected
       if (_selectedGodowns.containsKey(i)) {
         product['godown_id'] = _selectedGodowns[i];
-      } else if (_godowns.isNotEmpty) {
-        product['godown_id'] = _godowns[0]['id'];
       }
-
-      // Add selected rack ID - use first rack as default if not selected
       if (_selectedRacks.containsKey(i)) {
         product['rack_id'] = _selectedRacks[i];
-      } else if (_racks.isNotEmpty) {
-        product['rack_id'] = _racks[0]['id'];
       }
 
-      // Add barcode
       if (_barcodeControllers.containsKey(i)) {
         product['barcode'] = _barcodeControllers[i]!.text;
       }
 
-      // Add manufactured date - use today's date if not set
       if (_mfgDateControllers.containsKey(i) &&
           _mfgDateControllers[i]!.text.isNotEmpty) {
         product['manufactured_on_date'] = _mfgDateControllers[i]!.text;
@@ -209,8 +268,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         product['manufactured_on_date'] = defaultMfgDate;
       }
 
-      // Add expiry date
-      // Add expiry date - use 2050-01-01 as default if not set
       if (_expDateControllers.containsKey(i) &&
           _expDateControllers[i]!.text.isNotEmpty) {
         product['expiry_date'] = _expDateControllers[i]!.text;
@@ -218,258 +275,141 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         product['expiry_date'] = '2050-01-01';
       }
 
-      // Add user-edited product fields
-      if (_hsnControllers.containsKey(i) &&
-          _hsnControllers[i]!.text.isNotEmpty) {
-        product['hsn_sac_code'] = _hsnControllers[i]!.text;
-      }
-      if (_quantityControllers.containsKey(i) &&
-          _quantityControllers[i]!.text.isNotEmpty) {
+      if (_quantityControllers.containsKey(i)) {
         product['quantity'] =
             double.tryParse(_quantityControllers[i]!.text) ??
             product['quantity'];
       }
-      if (_costControllers.containsKey(i) &&
-          _costControllers[i]!.text.isNotEmpty) {
+      if (_costControllers.containsKey(i)) {
         product['rate'] =
             double.tryParse(_costControllers[i]!.text) ?? product['rate'];
       }
-      if (_mrpControllers.containsKey(i) &&
-          _mrpControllers[i]!.text.isNotEmpty) {
+      if (_mrpControllers.containsKey(i)) {
         product['mrp'] =
             double.tryParse(_mrpControllers[i]!.text) ?? product['mrp'];
       }
-      if (_sellControllers.containsKey(i) &&
-          _sellControllers[i]!.text.isNotEmpty) {
+      if (_sellControllers.containsKey(i)) {
         product['selling_price'] =
             double.tryParse(_sellControllers[i]!.text) ?? product['mrp'];
       }
 
       productsList[i] = product;
     }
-
     response['product_data'] = productsList;
     updatedData['response'] = response;
-
     return updatedData;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Extract products from API response
-    final response = widget.data['response'] ?? {};
-    final productsList = response['product_data'] as List<dynamic>? ?? [];
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.blue),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Back to Purchase List',
-          style: TextStyle(fontSize: 14, color: Colors.blue),
-        ),
-        titleSpacing: 0,
-        elevation: 0,
-        backgroundColor: Colors.white,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
       ),
-      body: Column(
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: Column(
+          children: [
+            _buildHeader(context),
+
+            // Summary Preview Card (inspired by Coupon Preview)
+            _buildSummaryPreview(),
+
+            const SizedBox(height: 16),
+
+            // Tab Bar
+            _buildTabBar(),
+
+            const SizedBox(height: 8),
+
+            // Tab Content
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildProductsList(), // Map to "Products" tab
+                  _buildInvoiceDetails(), // Map to "Details" tab
+                ],
+              ),
+            ),
+
+            // Bottom Action Bar
+            _buildBottomBar(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryPreview() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Header Card
-          Container(
-            color: Colors.black,
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            child: const Row(
-              children: [
-                Icon(Icons.auto_awesome, color: Colors.white),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Product Details',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        'Review and edit AI-extracted products',
-                        style: TextStyle(fontSize: 12, color: Colors.white70),
-                      ),
-                    ],
-                  ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TOTAL VALUE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[500],
+                  letterSpacing: 1.0,
                 ),
-              ],
-            ),
-          ),
-
-          // Progress Steps
-          Container(
-            color: Colors.grey[100],
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildProgressChip('Upload Invoice', true, true),
-                  const Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
-                  _buildProgressChip('Supplier Details', true, true),
-                  const Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
-                  _buildProgressChip('Product Data Mapping', true, false),
-                  const Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
-                  _buildProgressChip('Payment Information', false, false),
-                  const Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
-                  _buildProgressChip('Confirmation', false, false),
-                ],
               ),
-            ),
-          ),
-
-          // Tip Banner
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.blue[700], size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Tip: Click on product name to expand. Use checkbox to link with existing products.',
-                    style: TextStyle(fontSize: 11, color: Colors.blue[900]),
-                  ),
+              const SizedBox(height: 4),
+              Text(
+                '₹${_totalEstimatedValue.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                  letterSpacing: -0.5,
                 ),
-              ],
-            ),
-          ),
-
-          // Product List
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: productsList.length,
-              itemBuilder: (context, index) {
-                final product = productsList[index];
-                final isExpanded = _expandedProducts.contains(index);
-                final isLinked = _linkedProducts[index] ?? false;
-
-                // Use linked HSN code if product is linked, otherwise use original
-                final hsnCode =
-                    isLinked && _linkedProductHsnCodes.containsKey(index)
-                    ? _linkedProductHsnCodes[index]!
-                    : (product['hsn_sac_code']?.toString() ?? '');
-
-                return _buildProductCard(
-                  index,
-                  product['product_name'] ?? 'Unknown Product',
-                  product['quantity']?.toString() ?? '1',
-                  product['rate']?.toString() ?? '',
-                  product['mrp']?.toString() ?? '',
-                  hsnCode,
-                  product['unit'] ?? '',
-                  product['manufacturing_date']?.toString() ?? '',
-                  product['expiry_date']?.toString() ?? '',
-                  isExpanded,
-                  isLinked,
-                  () {
-                    setState(() {
-                      if (isExpanded) {
-                        _expandedProducts.remove(index);
-                      } else {
-                        _expandedProducts.add(index);
-                      }
-                    });
-                  },
-                );
-              },
-            ),
-          ),
-
-          // Bottom Button
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        side: const BorderSide(color: Colors.black),
-                      ),
-                      child: const Text(
-                        'Back',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // Get updated data with linked product IDs and selections
-                        final updatedData = _getUpdatedData();
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PaymentInformationScreen(
-                              data: updatedData,
-                              storeId: widget.storeId,
-                              supplierStoreId: widget.supplierStoreId,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Continue',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFDBEAFE)),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  _quantityControllers.length.toString(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF2563EB),
+                  ),
+                ),
+                Text(
+                  'ITEMS',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.blue[800],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -477,517 +417,699 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildProgressChip(String label, bool isCompleted, bool isActive) {
+  Widget _buildTabBar() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      height: 48,
       decoration: BoxDecoration(
-        color: isActive
-            ? Colors.blue
-            : isCompleted
-            ? Colors.green
-            : Colors.grey[300],
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: isActive || isCompleted ? Colors.white : Colors.grey[700],
+      padding: const EdgeInsets.all(4),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: const Color(0xFF0F172A),
+        unselectedLabelColor: const Color(0xFF64748B),
+        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        tabs: const [
+          Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inventory_2_rounded, size: 16),
+                SizedBox(width: 8),
+                Text('Products'),
+              ],
+            ),
+          ),
+          Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.receipt_long_rounded, size: 16),
+                SizedBox(width: 8),
+                Text('Invoice Info'),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildProductCard(
-    int index,
-    String productName,
-    String quantity,
-    String cost,
-    String mrp,
-    String hsn,
-    String unit,
-    String mfgDate,
-    String expDate,
-    bool isExpanded,
-    bool isLinked,
-    VoidCallback onToggle,
-  ) {
+  Widget _buildProductsList() {
+    final response = widget.data['response'] ?? {};
+    final productsList = response['product_data'] as List<dynamic>? ?? [];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 800) {
+          final leftItems = <Widget>[];
+          final rightItems = <Widget>[];
+
+          for (int i = 0; i < productsList.length; i++) {
+            final product = productsList[i];
+            final isLinked = _linkedProducts[i] ?? false;
+            final item = _buildProductTicket(
+              i,
+              product['product_name'] ?? 'Unknown',
+              isLinked,
+            );
+            if (i % 2 == 0) {
+              leftItems.add(item);
+            } else {
+              rightItems.add(item);
+            }
+          }
+
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: Column(children: leftItems)),
+                const SizedBox(width: 16),
+                Expanded(child: Column(children: rightItems)),
+              ],
+            ),
+          );
+        } else {
+          return ListView.builder(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+            itemCount: productsList.length,
+            itemBuilder: (context, index) {
+              final product = productsList[index];
+              final isLinked = _linkedProducts[index] ?? false;
+              return _buildProductTicket(
+                index,
+                product['product_name'] ?? 'Unknown',
+                isLinked,
+              );
+            },
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildProductTicket(int index, String productName, bool isLinked) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 10,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header - Clickable product name
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Quantity badge
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${quantity}x',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                      fontSize: 14,
-                    ),
-                  ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFEFF6FF), Color(0xFFF1F5F9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Center(
+              child: Text(
+                '${index + 1}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF475569),
                 ),
-                const SizedBox(width: 14),
-                // Product name - clickable to expand
-                Expanded(
-                  child: InkWell(
-                    onTap: onToggle,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+            ),
+          ),
+          title: Text(
+            isLinked && _linkedProductNames.containsKey(index)
+                ? _linkedProductNames[index]!
+                : productName,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E293B),
+              height: 1.3,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isLinked && _linkedProductNames.containsKey(index))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Row(
                       children: [
-                        // Show linked product name if linked, otherwise original product name
-                        Text(
-                          isLinked && _linkedProductNames.containsKey(index)
-                              ? _linkedProductNames[index]!
-                              : productName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Icon(
+                          Icons.swap_horiz_rounded,
+                          size: 12,
+                          color: Colors.grey[400],
                         ),
-                        const SizedBox(height: 4),
-                        // Show original product name in shadow text if linked
-                        if (isLinked &&
-                            _linkedProductNames.containsKey(index)) ...[
-                          Text(
-                            'Original Product: $productName',
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            productName,
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey[400],
+                              fontWeight: FontWeight.w500,
                               fontStyle: FontStyle.italic,
+                              color: Colors.grey[400],
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
-                        ],
-                        Row(
-                          children: [
-                            Text(
-                              'MRP: ₹$mrp',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[700],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Cost: ₹$cost',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[700],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
                   ),
-                ),
-                // Checkbox button - toggle on/off
-                InkWell(
-                  onTap: () {
-                    if (isLinked) {
-                      // If already linked, unlink it
-                      _unlinkProduct(index);
-                    } else {
-                      // If not linked, open search bottom sheet
-                      _showProductSearchBottomSheet(index, productName);
-                    }
-                  },
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isLinked ? Colors.blue : Colors.grey[400]!,
-                        width: 2,
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                      color: isLinked ? Colors.blue : Colors.transparent,
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _buildMiniTag(
+                      'Qty: ${_quantityControllers[index]?.text}',
+                      Colors.blue,
                     ),
-                    child: isLinked
-                        ? const Icon(Icons.check, color: Colors.white, size: 20)
-                        : null,
-                  ),
+                    _buildMiniTag(
+                      'Rate: ${_costControllers[index]?.text}',
+                      Colors.green,
+                    ),
+                    _buildMiniTag(
+                      'MRP: ${_mrpControllers[index]?.text}',
+                      Colors.orange,
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-
-          // Expandable details
-          if (isExpanded) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildEditableField(
-                          'HSN/SAC',
-                          hsn,
-                          index,
-                          'hsn',
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildEditableField(
-                          'Quantity',
-                          quantity,
-                          index,
-                          'quantity',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildEditableField(
-                          'Cost (₹)',
-                          cost,
-                          index,
-                          'cost',
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildEditableField(
-                          'MRP (₹)',
-                          mrp,
-                          index,
-                          'mrp',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildEditableField('Sell (₹)', mrp, index, 'sell'),
-                  const SizedBox(height: 16),
-
-                  // Date fields with controllers
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildDateField(
-                          'MFG DATE',
-                          mfgDate,
-                          index,
-                          'mfg',
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildDateField(
-                          'EXP DATE',
-                          expDate,
-                          index,
-                          'exp',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Dropdowns
-                  _buildDropdownField('Unit', unit, _units, index, 'unit'),
-                  const SizedBox(height: 16),
-                  _buildDropdownField(
-                    'Godown',
-                    'Default Godown',
-                    _godowns,
-                    index,
-                    'godown',
-                  ),
-                  const SizedBox(height: 16),
-                  _buildDropdownField(
-                    'Rack',
-                    'Default Rack',
-                    _racks,
-                    index,
-                    'rack',
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Barcode field (without Link button)
-                  _buildBarcodeField(index),
-                ],
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildLinkControl(index, isLinked, productName),
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.expand_more_rounded,
+                color: Color(0xFF94A3B8),
+                size: 24,
               ),
+            ],
+          ),
+          children: [
+            const Divider(color: Color(0xFFF1F5F9), thickness: 1),
+            const SizedBox(height: 16),
+            // Form Fields
+            Row(
+              children: [
+                Expanded(
+                  child: _buildInput(
+                    index,
+                    _quantityControllers[index]!,
+                    'Qty',
+                    isNumber: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInput(
+                    index,
+                    _costControllers[index]!,
+                    'Cost',
+                    isNumber: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInput(
+                    index,
+                    _mrpControllers[index]!,
+                    'MRP',
+                    isNumber: true,
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdown(index, 'Unit', _units, _selectedUnits),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInput(
+                    index,
+                    _sellControllers[index]!,
+                    'Sell Price',
+                    isNumber: true,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildInput(index, _hsnControllers[index]!, 'HSN Code'),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildDatePicker(index, 'Mfg Date', true)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildDatePicker(index, 'Exp Date', false)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdown(
+                    index,
+                    'Godown',
+                    _godowns,
+                    _selectedGodowns,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildDropdown(index, 'Rack', _racks, _selectedRacks),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildInput(
+              index,
+              _barcodeControllers[index]!,
+              'Barcode',
+              suffixIcon: Icons.qr_code_rounded,
+            ),
+            const SizedBox(height: 20),
+            const SizedBox(height: 20),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildFieldRow(
-    String label1,
-    String value1,
-    String label2,
-    String value2,
-  ) {
-    if (label2.isEmpty) {
-      return _buildField(label1, value1);
-    }
-    return Row(
+  void _unlinkProduct(int index) {
+    setState(() {
+      _linkedProducts[index] = false;
+      _linkedProductIds.remove(index);
+      _linkedProductNames.remove(index);
+
+      // Reset to original values if needed, or keep edited values
+      // For now, we just remove the link status
+    });
+  }
+
+  void _showLinkProductDialog(int index, String productName) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ProductSearchSheet(
+        storeId: widget.storeId,
+        initialQuery: productName,
+        onSelect: (product) {
+          setState(() {
+            _linkedProducts[index] = true;
+            _linkedProductIds[index] =
+                product['product_id'] ?? product['id'] ?? '';
+            _linkedProductNames[index] =
+                product['product_name'] ??
+                product['product_combination_template_name'] ??
+                'Unknown Product';
+
+            // Auto-fill details from linked product
+            if (product['selling_price'] != null) {
+              _sellControllers[index]?.text = product['selling_price']
+                  .toString();
+            }
+            if (product['mrp'] != null) {
+              _mrpControllers[index]?.text = product['mrp'].toString();
+            }
+            if (product['barcode'] != null) {
+              _barcodeControllers[index]?.text = product['barcode'].toString();
+            }
+          });
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  Widget _buildLinkControl(int index, bool isLinked, String productName) {
+    return GestureDetector(
+      onTap: () {
+        if (!isLinked) {
+          _showLinkProductDialog(index, productName);
+        } else {
+          _unlinkProduct(index);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          gradient: isLinked
+              ? const LinearGradient(
+                  colors: [Color(0xFF3B82F6), Color(0xFF6366F1)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isLinked ? null : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: isLinked ? Colors.transparent : const Color(0xFFCBD5E1),
+            width: 1.5,
+          ),
+          boxShadow: isLinked
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF3B82F6).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: isLinked
+            ? const Icon(Icons.link_rounded, size: 20, color: Colors.white)
+            : Icon(Icons.link_off_rounded, size: 20, color: Colors.grey[400]),
+      ),
+    );
+  }
+
+  Widget _buildInvoiceDetails() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
       children: [
-        Expanded(child: _buildField(label1, value1)),
-        const SizedBox(width: 12),
-        Expanded(child: _buildField(label2, value2)),
+        _buildSectionTitle('Invoice Metadata'),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _buildRawInput(
+                _invoiceNumController,
+                'Invoice Number',
+                Icons.receipt_long_rounded,
+              ),
+              const SizedBox(height: 16),
+              _buildRawInput(
+                _invoiceDateController,
+                'Invoice Date',
+                Icons.calendar_today_rounded,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        _buildSectionTitle('Supplier'),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.store_rounded,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Supplier ID',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      widget.supplierStoreId ?? 'N/A',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildField(String label, String value) {
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF64748B),
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+
+  Widget _buildRawInput(
+    TextEditingController controller,
+    String label,
+    IconData icon,
+  ) {
+    return TextFormField(
+      controller: controller,
+      style: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF1E293B),
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(
+          color: Colors.grey[500],
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIcon: Icon(icon, color: Colors.grey[400], size: 20),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[200]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniTag(String text, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color[700],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInput(
+    int index,
+    TextEditingController controller,
+    String label, {
+    bool isNumber = false,
+    IconData? suffixIcon,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 11,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF64748B),
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
-          controller: TextEditingController(text: value),
-          decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
+        SizedBox(
+          height: 48,
+          child: TextFormField(
+            controller: controller,
+            keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey[200]!),
+              ),
+              suffixIcon: suffixIcon != null
+                  ? Icon(suffixIcon, size: 16)
+                  : null,
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            isDense: true,
           ),
-          style: const TextStyle(fontSize: 13),
         ),
       ],
     );
   }
 
-  Widget _buildEditableField(
+  Widget _buildDropdown(
+    int index,
     String label,
-    String initialValue,
-    int productIndex,
-    String type,
+    List<Map<String, dynamic>> items,
+    Map<int, String> selectionMap,
   ) {
-    // Get or create the controller for this field
-    TextEditingController? controller;
-
-    switch (type) {
-      case 'hsn':
-        if (!_hsnControllers.containsKey(productIndex)) {
-          _hsnControllers[productIndex] = TextEditingController(
-            text: initialValue,
-          );
-        }
-        controller = _hsnControllers[productIndex];
-        break;
-      case 'quantity':
-        if (!_quantityControllers.containsKey(productIndex)) {
-          _quantityControllers[productIndex] = TextEditingController(
-            text: initialValue,
-          );
-        }
-        controller = _quantityControllers[productIndex];
-        break;
-      case 'cost':
-        if (!_costControllers.containsKey(productIndex)) {
-          _costControllers[productIndex] = TextEditingController(
-            text: initialValue,
-          );
-        }
-        controller = _costControllers[productIndex];
-        break;
-      case 'mrp':
-        if (!_mrpControllers.containsKey(productIndex)) {
-          _mrpControllers[productIndex] = TextEditingController(
-            text: initialValue,
-          );
-        }
-        controller = _mrpControllers[productIndex];
-        break;
-      case 'sell':
-        if (!_sellControllers.containsKey(productIndex)) {
-          _sellControllers[productIndex] = TextEditingController(
-            text: initialValue,
-          );
-        }
-        controller = _sellControllers[productIndex];
-        break;
-    }
+    final selectedValue = selectionMap[index];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 11,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: type == 'hsn'
-              ? TextInputType.text
-              : TextInputType.number,
-          decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            isDense: true,
-          ),
-          style: const TextStyle(fontSize: 13),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDropdownField(
-    String label,
-    String defaultValue,
-    List<Map<String, dynamic>> options,
-    int productIndex,
-    String type,
-  ) {
-    String? selectedValue;
-    if (type == 'unit') {
-      selectedValue = _selectedUnits[productIndex];
-
-      // If no unit is selected, try to find default "PCS" unit
-      if (selectedValue == null && options.isNotEmpty) {
-        final defaultUnit = options.firstWhere(
-          (u) =>
-              (u['name']?.toString().toUpperCase().contains('PCS') ?? false) ||
-              (u['name']?.toString().toUpperCase().contains('PIECES') ??
-                  false) ||
-              (u['description']?.toString().toUpperCase().contains('PIECES') ??
-                  false),
-          orElse: () => options.first,
-        );
-        selectedValue = defaultUnit['id'];
-
-        // Ideally should save this back to state, but we can't trigger setState during build.
-        // However, since we are handling default value logic in _getUpdatedData as well,
-        // visually showing it here is enough for the UI.
-        // To make it persist in state immediately for interactions, we rely on the user
-        // changing it or the final save logic.
-        // Actually, let's just use it for the dropdown's 'value'.
-      }
-    } else if (type == 'godown') {
-      selectedValue = _selectedGodowns[productIndex];
-    } else if (type == 'rack') {
-      selectedValue = _selectedRacks[productIndex];
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF64748B),
           ),
         ),
         const SizedBox(height: 6),
         Container(
+          height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey[200]!),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
+              value: items.any((e) => e['id'].toString() == selectedValue)
+                  ? selectedValue
+                  : null,
+              hint: Text(
+                'Select',
+                style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+              ),
               isExpanded: true,
-              value: selectedValue,
-              hint: Text(defaultValue, style: const TextStyle(fontSize: 13)),
-              items: options.map((option) {
-                String displayText;
-                String value;
-
-                if (type == 'unit') {
-                  displayText = '${option['code']} - ${option['description']}';
-                  value = option['id'];
-                } else if (type == 'godown') {
-                  displayText = option['name'];
-                  value = option['id'];
-                } else {
-                  displayText = option['name'];
-                  value = option['id'];
-                }
-
+              icon: const Icon(
+                Icons.arrow_drop_down_rounded,
+                color: Colors.grey,
+              ),
+              items: items.map((item) {
                 return DropdownMenuItem<String>(
-                  value: value,
+                  value: item['id'].toString(),
                   child: Text(
-                    displayText,
-                    style: const TextStyle(fontSize: 13),
+                    item['name'] ?? '',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 );
               }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  if (type == 'unit') {
-                    _selectedUnits[productIndex] = value!;
-                  } else if (type == 'godown') {
-                    _selectedGodowns[productIndex] = value!;
-                  } else if (type == 'rack') {
-                    _selectedRacks[productIndex] = value!;
-                  }
-                });
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    selectionMap[index] = val;
+                  });
+                }
               },
             ),
           ),
@@ -996,187 +1118,264 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildBarcodeField(int productIndex) {
-    // Generate UUID for barcode if not already exists
-    if (!_barcodeControllers.containsKey(productIndex)) {
-      _barcodeControllers[productIndex] = TextEditingController(
-        text: _uuid.v4(),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'BARCODE',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _barcodeControllers[productIndex],
-          readOnly: true,
-          decoration: InputDecoration(
-            hintText: 'Scan or Auto-generated UUID',
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            isDense: true,
-          ),
-          style: const TextStyle(fontSize: 13, color: Colors.grey),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDateField(
-    String label,
-    String initialValue,
-    int productIndex,
-    String type,
-  ) {
-    // Default dates
-    const defaultMfgDate = '1999-01-01';
-    const defaultExpDate = '2050-01-01';
-
-    if (type == 'mfg' && !_mfgDateControllers.containsKey(productIndex)) {
-      // Use 1999-01-01 as default if manufacturing date is empty
-      final dateValue = initialValue.isNotEmpty ? initialValue : defaultMfgDate;
-      _mfgDateControllers[productIndex] = TextEditingController(
-        text: dateValue,
-      );
-    } else if (type == 'exp' &&
-        !_expDateControllers.containsKey(productIndex)) {
-      // Use 2050-01-01 as default if expiry date is empty
-      final dateValue = initialValue.isNotEmpty ? initialValue : defaultExpDate;
-      _expDateControllers[productIndex] = TextEditingController(
-        text: dateValue,
-      );
-    }
-
-    final controller = type == 'mfg'
-        ? _mfgDateControllers[productIndex]
-        : _expDateControllers[productIndex];
-
-    Future<void> selectDate() async {
-      // Parse current date from controller
-      DateTime initialDate = DateTime.now();
-      try {
-        if (controller!.text.isNotEmpty) {
-          initialDate = DateTime.parse(controller.text);
-        }
-      } catch (e) {
-        // Use current date if parsing fails
-      }
-
-      final DateTime? picked = await showDatePicker(
-        context: context,
-        initialDate: initialDate,
-        firstDate: DateTime(1990),
-        lastDate: DateTime(2100),
-        builder: (context, child) {
-          return Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: Colors.black,
-                onPrimary: Colors.white,
-                surface: Colors.white,
-                onSurface: Colors.black,
-              ),
-            ),
-            child: child!,
-          );
-        },
-      );
-
-      if (picked != null) {
-        final formattedDate =
-            '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-        controller!.text = formattedDate;
-      }
-    }
+  Widget _buildDatePicker(int index, String label, bool isMfg) {
+    final controller = isMfg
+        ? _mfgDateControllers[index]
+        : _expDateControllers[index];
+    final value = controller?.text ?? '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 11,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF64748B),
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          readOnly: true,
-          onTap: selectDate,
-          decoration: InputDecoration(
-            hintText: 'YYYY-MM-DD',
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
+        InkWell(
+          onTap: () => _selectDate(context, index, isMfg),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey[200]!),
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            isDense: true,
-            suffixIcon: GestureDetector(
-              onTap: selectDate,
-              child: Icon(
-                Icons.calendar_today,
-                size: 16,
-                color: Colors.grey[600],
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  value.isEmpty ? 'Select' : value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: value.isEmpty
+                        ? Colors.grey[400]
+                        : const Color(0xFF1E293B),
+                  ),
+                ),
+                const Icon(
+                  Icons.calendar_today_rounded,
+                  size: 14,
+                  color: Colors.grey,
+                ),
+              ],
             ),
           ),
-          style: const TextStyle(fontSize: 13),
         ),
       ],
     );
   }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -20,
+            top: -10,
+            child: Transform.rotate(
+              angle: -math.pi / 6,
+              child: Icon(
+                Icons.shopping_bag_outlined,
+                size: 160,
+                color: const Color(0xFFDBEAFE).withOpacity(0.5),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              MediaQuery.of(context).padding.top + 12,
+              16,
+              20,
+            ),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Purchase Entry',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E293B),
+                          letterSpacing: -0.5,
+                          height: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3B82F6).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'AI MODE',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2563EB),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Edit & Verify',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.blueGrey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomBar(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12,
+        20,
+        MediaQuery.of(context).padding.bottom + 12,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: GestureDetector(
+        onTap: () {
+          final updatedData = _getUpdatedData();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PaymentInformationScreen(
+                data: updatedData,
+                storeId: widget.storeId,
+                supplierStoreId: widget.supplierStoreId,
+              ),
+            ),
+          );
+        },
+        child: Container(
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF3B82F6).withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Continue to Payment',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              SizedBox(width: 8),
+              Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-// Product Search Bottom Sheet Widget
-class ProductSearchBottomSheet extends StatefulWidget {
-  final int productIndex;
-  final String productName;
+class _ProductSearchSheet extends StatefulWidget {
   final String storeId;
-  final Function(String productId, String linkedProductName, String hsnCode)
-  onProductLinked;
+  final String initialQuery;
+  final Function(Map<String, dynamic>) onSelect;
 
-  const ProductSearchBottomSheet({
-    super.key,
-    required this.productIndex,
-    required this.productName,
+  const _ProductSearchSheet({
     required this.storeId,
-    required this.onProductLinked,
+    required this.onSelect,
+    this.initialQuery = '',
   });
 
   @override
-  State<ProductSearchBottomSheet> createState() =>
-      _ProductSearchBottomSheetState();
+  State<_ProductSearchSheet> createState() => _ProductSearchSheetState();
 }
 
-class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
+class _ProductSearchSheetState extends State<_ProductSearchSheet> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = false;
@@ -1185,60 +1384,90 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill search bar with product name
-    _searchController.text = widget.productName;
-    // Debounce search
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _searchProducts(widget.productName);
-    });
-
-    _searchController.addListener(_onSearchChanged);
+    if (widget.initialQuery.isNotEmpty) {
+      _searchController.text = widget.initialQuery;
+      _performSearch(widget.initialQuery);
+    } else {
+      _loadInitialProducts();
+    }
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  void _onSearchChanged() {
+  Future<void> _loadInitialProducts() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final response =
+          await StoreOwnerApiService.searchProductCombinationTemplates(
+            query: '',
+            storeId: widget.storeId,
+          );
+      if (mounted) {
+        setState(() {
+          if (response['response'] != null) {
+            _searchResults = List<Map<String, dynamic>>.from(
+              response['response'],
+            );
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (mounted && _searchController.text.isNotEmpty) {
-        _searchProducts(_searchController.text);
-      } else if (mounted) {
-        setState(() {
-          _searchResults = [];
-        });
+      if (query.isNotEmpty) {
+        _performSearch(query);
+      } else {
+        _loadInitialProducts();
       }
     });
   }
 
-  Future<void> _searchProducts(String query) async {
+  Future<void> _performSearch(String query) async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final result =
+      final response =
           await StoreOwnerApiService.searchProductCombinationTemplates(
             query: query,
             storeId: widget.storeId,
           );
-
-      if (result['status'] == 200 && result['response'] != null) {
+      if (mounted) {
         setState(() {
-          _searchResults = List<Map<String, dynamic>>.from(result['response']);
+          if (response['response'] != null) {
+            _searchResults = List<Map<String, dynamic>>.from(
+              response['response'],
+            );
+          } else {
+            _searchResults = [];
+          }
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error searching products: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -1248,249 +1477,391 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
-          // Black Header with Link Icon and Close Button
+          // Handle Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: const BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
             ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
             child: Row(
               children: [
-                const Icon(Icons.link, color: Colors.white, size: 24),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Link Product',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Search and link existing product',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                const Icon(
+                  Icons.link_rounded,
+                  size: 24,
+                  color: Color(0xFF1E293B),
                 ),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Link Product',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Search and link existing product',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
                   onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    padding: const EdgeInsets.all(8),
+                  ),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
               ],
             ),
           ),
-
-          // Search bar with blue border
+          // Search Bar
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search products...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.blue, width: 2),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                autofocus: true,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1E293B),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.blue, width: 2),
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                decoration: InputDecoration(
+                  hintText: 'Search product name...',
+                  hintStyle: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[400],
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: Colors.grey[400],
+                    size: 22,
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFFFFF),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: Colors.grey[200]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: Colors.grey[200]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Colors.blue, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                 ),
               ),
             ),
           ),
-
-          // Search results
+          // Results
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _searchResults.isEmpty
                 ? Center(
-                    child: Text(
-                      _searchController.text.isEmpty
-                          ? 'Start typing to search products'
-                          : 'No products found',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CircularProgressIndicator(strokeWidth: 3),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Searching...',
+                          style: TextStyle(
+                            color: Colors.grey[500],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                : _searchResults.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: Icon(
+                            Icons.inventory_2_outlined,
+                            size: 48,
+                            color: Colors.grey[300],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _searchController.text.isEmpty
+                              ? 'Type to search products'
+                              : 'No products found',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
                     itemCount: _searchResults.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final product = _searchResults[index];
-                      return _buildProductItem(product);
+                      final productName =
+                          product['product_name'] ??
+                          product['product_combination_template_name'] ??
+                          'Unknown Product';
+                      final imageUrl = product['img_url'];
+                      final gstData =
+                          product['gst_data'] as Map<String, dynamic>?;
+                      final hsnCode = gstData?['hsn_code'] ?? '';
+                      final cgst = gstData?['cgst_percent'] ?? 0;
+                      final sgst = gstData?['sgst_percent'] ?? 0;
+                      final igst = gstData?['igst_percent'] ?? 0;
+
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            onTap: () => widget.onSelect(product),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Product name + image row
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          image: imageUrl != null
+                                              ? DecorationImage(
+                                                  image: NetworkImage(imageUrl),
+                                                  fit: BoxFit.cover,
+                                                )
+                                              : null,
+                                        ),
+                                        child: imageUrl == null
+                                            ? const Icon(
+                                                Icons.shopping_bag_outlined,
+                                                color: Color(0xFF3B82F6),
+                                                size: 20,
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          productName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                            color: Color(0xFF1E293B),
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.link_rounded,
+                                          color: Color(0xFF64748B),
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  // Symmetrical row of 4 tags
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildInfoTag(
+                                          'HSN: $hsnCode',
+                                          Colors.blueGrey,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: _buildInfoTag(
+                                          'CGST: $cgst%',
+                                          Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildInfoTag(
+                                          'SGST: $sgst%',
+                                          Colors.green,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: _buildInfoTag(
+                                          'IGST: $igst%',
+                                          Colors.blue,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
                     },
                   ),
           ),
-
-          // Can't find? Add New Product button
+          // Add New Product button
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border(top: BorderSide(color: Colors.grey[200]!)),
             ),
-            child: OutlinedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Coming Soon'),
-                    duration: Duration(seconds: 2),
+            child: GestureDetector(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Row(
+                      children: [
+                        Icon(
+                          Icons.construction_rounded,
+                          color: Colors.orange[700],
+                          size: 24,
+                        ),
+                        const SizedBox(width: 10),
+                        const Text('Coming Soon'),
+                      ],
+                    ),
+                    content: const Text(
+                      'This feature is currently under development. Stay tuned!',
+                      style: TextStyle(fontSize: 15),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Got it'),
+                      ),
+                    ],
                   ),
                 );
               },
-              style: OutlinedButton.styleFrom(
+              child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                side: BorderSide(color: Colors.grey[300]!),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add, color: Colors.grey[700]),
-                  const SizedBox(width: 8),
-                  Text(
-                    "Can't find? Add New Product",
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFFE2E8F0),
+                    style: BorderStyle.solid,
                   ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProductItem(Map<String, dynamic> product) {
-    final productName =
-        product['product_combination_template_name'] ?? 'Unknown';
-    final gstData = product['gst_data'] ?? {};
-    final hsnCode = gstData['hsn_code'] ?? '';
-    final cgstPercent = gstData['cgst_percent'] ?? 0.0;
-    final sgstPercent = gstData['sgst_percent'] ?? 0.0;
-    final igstPercent = gstData['igst_percent'] ?? 0.0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Product name and HSN
-                Row(
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: Text(
-                        productName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                    Icon(
+                      Icons.add_circle_outline_rounded,
+                      color: Colors.grey[500],
+                      size: 20,
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'HSN: $hsnCode',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    Text(
+                      "Can't find? Add New Product",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                // GST badges
-                Row(
-                  children: [
-                    _buildGstBadge(
-                      'COST: ${cgstPercent.toStringAsFixed(1)}%',
-                      Colors.orange,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildGstBadge(
-                      'SGST: ${sgstPercent.toStringAsFixed(1)}%',
-                      Colors.green,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildGstBadge(
-                      'IGST: ${igstPercent.toStringAsFixed(1)}%',
-                      Colors.blue,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Link button
-          InkWell(
-            onTap: () {
-              widget.onProductLinked(product['id'], productName, hsnCode);
-              Navigator.pop(context);
-            },
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                color: Colors.black,
-                shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.link, color: Colors.white, size: 18),
             ),
           ),
         ],
@@ -1498,19 +1869,24 @@ class _ProductSearchBottomSheetState extends State<ProductSearchBottomSheet> {
     );
   }
 
-  Widget _buildGstBadge(String text, Color color) {
+  Widget _buildInfoTag(String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 10,
-          color: color,
-          fontWeight: FontWeight.w600,
+      child: Center(
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
