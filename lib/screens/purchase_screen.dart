@@ -200,29 +200,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           mounted) {
         final supplierStoreId = supplierResult['supplierStoreId']?.toString();
 
-        final productContinue = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProductDetailsScreen(
-              data: result,
-              storeId: widget.storeId,
-              supplierStoreId: supplierStoreId,
-            ),
-          ),
-        );
-
-        if (productContinue == true && mounted) {
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddPurchaseOrderScreen(
-                  storeId: widget.storeId,
-                  aiData: result,
-                ),
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductDetailsScreen(
+                data: result,
+                storeId: widget.storeId,
+                supplierStoreId: supplierStoreId,
               ),
-            );
-          }
+            ),
+          );
         }
       }
     }
@@ -392,7 +380,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               title: 'Scan Invoice',
               subtitle: 'Extract details automatically using AI',
               icon: Icons.auto_awesome,
-              color: Colors.purple,
+              color: const Color(0xFF2563EB),
               isFeatured: true,
               onTap: () {
                 Navigator.pop(context);
@@ -403,7 +391,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               title: 'Manual Entry',
               subtitle: 'Fill in purchase details form manually',
               icon: Icons.edit_note_rounded,
-              color: Colors.blue,
+              color: const Color(0xFF64748B),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(

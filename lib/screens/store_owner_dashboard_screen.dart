@@ -11,7 +11,6 @@ import 'package:exanor/screens/assistant_screen.dart';
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'package:exanor/services/notification_service.dart';
 import 'package:flutter/material.dart';
-import 'dart:ui';
 
 class StoreOwnerDashboardScreen extends StatefulWidget {
   final String storeId;
@@ -90,19 +89,49 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
 
   void _loadTabs() {
     setState(() {
-      // Get base tabs from remote config
-      _tabs = FirebaseRemoteConfigService.getStoreOwnerBottomNavTabs();
-
-      // Always add Assistant tab at the end if not already present
-      final hasAssistant = _tabs.any((tab) => tab['id'] == 'assistant');
-      if (!hasAssistant) {
-        _tabs.add({
-          'id': 'assistant',
-          'label': 'Assistant',
-          'icon': 'assistant',
-          'activeIcon': 'assistant_active',
-        });
+      // Get base tabs from remote config or fallback
+      try {
+        _tabs = List<Map<String, dynamic>>.from(
+          FirebaseRemoteConfigService.getStoreOwnerBottomNavTabs(),
+        );
+      } catch (e) {
+        // Fallback if remote config service fails or returns unmodifiable list
+        _tabs = [
+          {
+            'id': 'pos',
+            'label': 'POS',
+            'icon': 'point_of_sale_outlined',
+            'activeIcon': 'point_of_sale',
+          },
+          {
+            'id': 'orders',
+            'label': 'Orders',
+            'icon': 'receipt_long_outlined',
+            'activeIcon': 'receipt_long',
+          },
+          {
+            'id': 'purchases',
+            'label': 'Purchases',
+            'icon': 'shopping_bag_outlined',
+            'activeIcon': 'shopping_bag',
+          },
+          {
+            'id': 'receipts',
+            'label': 'Receipts',
+            'icon': 'receipt_long_outlined',
+            'activeIcon': 'receipt_long',
+          },
+        ];
       }
+
+      // Ensure Assistant tab is always present and correctly configured
+      _tabs.removeWhere((tab) => tab['id'] == 'assistant');
+      _tabs.add({
+        'id': 'assistant',
+        'label': 'Assistant',
+        'icon': 'assistant',
+        'activeIcon': 'assistant_active',
+      });
     });
   }
 
@@ -457,7 +486,10 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOutCubic,
                 transform: Matrix4.identity()
-                  ..scale(isSelected ? _pulseAnimation.value : 1.0),
+                  ..scale(
+                    isSelected ? _pulseAnimation.value : 1.0,
+                    isSelected ? _pulseAnimation.value : 1.0,
+                  ),
                 transformAlignment: Alignment.center,
                 child: isSelected
                     ? ShaderMask(
