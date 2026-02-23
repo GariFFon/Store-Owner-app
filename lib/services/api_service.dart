@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
@@ -423,6 +424,22 @@ class ApiService {
       _log('🔄 401 Unauthorized - Attempting token refresh...');
       performanceMetric.putAttribute('auth_refresh_attempted', 'true');
 
+      // If we're already navigating to auth, don't attempt refresh or navigate again
+      if (_isNavigatingToAuth) {
+        _log('⚠️ Auth navigation already in progress - skipping refresh');
+        performanceMetric.putAttribute(
+          'auth_refresh_result',
+          'skipped_navigating',
+        );
+        await performanceMetric.stop();
+        throw ApiAuthException(
+          'Authentication required',
+          statusCode: 401,
+          response: data,
+          requiresRegistration: true,
+        );
+      }
+
       try {
         // Check token availability with detailed logging
         final currentAccessToken = await _getAccessToken();
@@ -474,7 +491,7 @@ class ApiService {
           _log('❌ Token refresh failed - Clearing session...');
           performanceMetric.putAttribute('auth_refresh_result', 'failed');
           await performanceMetric.stop();
-          await _clearTokens();
+          // _clearTokens already done inside _refreshTokens for 401 case
           await _navigateToPhoneRegistration();
           throw ApiAuthException(
             'Authentication required',
@@ -484,6 +501,7 @@ class ApiService {
           );
         }
       } catch (e) {
+        if (e is ApiAuthException) rethrow;
         _log('❌ Token refresh error: $e');
         performanceMetric.putAttribute('auth_refresh_error', e.toString());
         await performanceMetric.stop();
@@ -1008,12 +1026,27 @@ class ApiService {
     }
   }
 
+  // Completer-based lock to prevent multiple simultaneous refresh attempts
+  static Completer<bool>? _refreshCompleter;
+
   /// Refresh access token using refresh token
+  /// Uses a lock so only one refresh runs at a time; concurrent callers
+  /// share the same result.
   static Future<bool> _refreshTokens() async {
+    // If a refresh is already in progress, wait for its result
+    if (_refreshCompleter != null) {
+      _log('🔄 Token refresh already in progress - waiting for result...');
+      return _refreshCompleter!.future;
+    }
+
+    _refreshCompleter = Completer<bool>();
+
     try {
       final refreshToken = await _getRefreshToken();
       if (refreshToken == null) {
         _log('❌ No refresh token available');
+        _refreshCompleter!.complete(false);
+        _refreshCompleter = null;
         return false;
       }
 
@@ -1055,23 +1088,32 @@ class ApiService {
         if (newAccessToken != null) {
           await _updateTokens(newAccessToken, newRefreshToken);
           _log('✅ Tokens refreshed successfully');
+          _refreshCompleter!.complete(true);
+          _refreshCompleter = null;
           return true;
         } else {
           _log('❌ Invalid refresh response format - missing access token');
+          _refreshCompleter!.complete(false);
+          _refreshCompleter = null;
           return false;
         }
       } else if (response.statusCode == 401) {
         _log('❌ Refresh token expired or invalid - Status code 401');
-        // Clear tokens and navigate to phone registration screen
+        // Only clear tokens here; navigation is handled by the caller
         await _clearTokens();
-        await _navigateToPhoneRegistration();
+        _refreshCompleter!.complete(false);
+        _refreshCompleter = null;
         return false;
       } else {
         _log('❌ Refresh token request failed: ${response.statusCode}');
+        _refreshCompleter!.complete(false);
+        _refreshCompleter = null;
         return false;
       }
     } catch (e) {
       _log('❌ Token refresh error: $e');
+      _refreshCompleter?.complete(false);
+      _refreshCompleter = null;
       return false;
     }
   }
@@ -1139,6 +1181,7 @@ class ApiService {
   }
 
   /// Navigate to phone registration screen when auth fails
+  /// The flag stays set permanently until AuthLandingScreen calls resetAuthNavigationFlag().
   static Future<void> _navigateToPhoneRegistration() async {
     // Prevent multiple simultaneous navigation attempts
     if (_isNavigatingToAuth) {
@@ -1162,10 +1205,7 @@ class ApiService {
             (route) => false,
           );
           _log('✅ Navigated to auth landing screen using navigatorKey');
-          // Reset flag after a delay to allow the screen to mount
-          Future.delayed(const Duration(milliseconds: 500), () {
-            _isNavigatingToAuth = false;
-          });
+          // Flag stays set; AuthLandingScreen.build() calls resetAuthNavigationFlag()
           return;
         } catch (e) {
           _log('⚠️ Auth landing route failed, trying phone_registration: $e');
@@ -1174,9 +1214,6 @@ class ApiService {
             (route) => false,
           );
           _log('✅ Navigated to phone registration screen using navigatorKey');
-          Future.delayed(const Duration(milliseconds: 500), () {
-            _isNavigatingToAuth = false;
-          });
           return;
         }
       }
@@ -1189,9 +1226,6 @@ class ApiService {
           rootNavigator: true,
         ).pushNamedAndRemoveUntil('/auth_landing', (route) => false);
         _log('✅ Navigated to auth landing screen using context');
-        Future.delayed(const Duration(milliseconds: 500), () {
-          _isNavigatingToAuth = false;
-        });
         return;
       }
 
@@ -1199,10 +1233,6 @@ class ApiService {
       if (onAuthenticationFailed != null) {
         _log('🔄 Using auth failure callback to navigate');
         onAuthenticationFailed!();
-        // Reset flag after callback execution
-        Future.delayed(const Duration(milliseconds: 500), () {
-          _isNavigatingToAuth = false;
-        });
         return;
       }
 

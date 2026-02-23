@@ -1251,106 +1251,196 @@ class _SalesDetailsDialogState extends State<SalesDetailsDialog> {
           children: [
             // Header with Gradient
             Container(
-              padding: const EdgeInsets.all(24),
+              width: double.infinity,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [themeColor, themeColor.withOpacity(0.8)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                gradient: widget.voucher.isPosted
+                    ? const LinearGradient(
+                        colors: [Color(0xFF2563EB), Color(0xFF3B82F6)], // Blue
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : const LinearGradient(
+                        colors: [
+                          Color(0xFFEA580C),
+                          Color(0xFFF97316),
+                        ], // Orange
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(24),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        (widget.voucher.isPosted
+                                ? const Color(0xFF2563EB)
+                                : const Color(0xFFEA580C))
+                            .withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          widget.voucher.isPosted ? 'POSTED' : 'DRAFT',
-                          style: const TextStyle(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                child: Stack(
+                  children: [
+                    // Background Pattern (Watermark)
+                    Positioned(
+                      right: -30,
+                      top: -10,
+                      child: Transform.rotate(
+                        angle: -math.pi / 6,
+                        child: Opacity(
+                          opacity: 0.1,
+                          child: Icon(
+                            Icons.receipt_long_rounded,
+                            size: 180,
                             color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
                           ),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "TOTAL AMOUNT",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '₹${widget.voucher.grandTotal.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 40,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1.0,
+
+                    // Content
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.1),
+                                  ),
+                                ),
+                                child: Text(
+                                  widget.voucher.isPosted ? 'POSTED' : 'DRAFT',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () => Navigator.pop(context),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.white.withOpacity(
+                                    0.2,
+                                  ),
+                                  padding: const EdgeInsets.all(8),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            "TOTAL AMOUNT",
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '₹${widget.voucher.grandTotal.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 40,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.calendar_today,
+                                      color: Colors.white.withOpacity(0.9),
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      DateFormat.yMMMd().format(
+                                        DateTime.parse(widget.voucher.date),
+                                      ),
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.confirmation_number_outlined,
+                                      color: Colors.white.withOpacity(0.9),
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      widget.voucher.voucherNumber,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        color: Colors.white.withOpacity(0.8),
-                        size: 14,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        DateFormat.yMMMd().format(
-                          DateTime.parse(widget.voucher.date),
-                        ),
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Icon(
-                        Icons.confirmation_number_outlined,
-                        color: Colors.white.withOpacity(0.8),
-                        size: 14,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.voucher.voucherNumber,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
@@ -1428,72 +1518,125 @@ class _SalesDetailsDialogState extends State<SalesDetailsDialog> {
                                     ),
                                   ),
                                 ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: Column(
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: themeColor.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        "${item.quantity.toInt()}x",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: themeColor,
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: themeColor.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            "${item.quantity.toInt()}x",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: themeColor,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.productName ?? 'Item',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Unit Price: ₹${item.rate.toStringAsFixed(2)}',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                "Godown: Default Godown",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                              if (item.inventory?.hsnCode !=
+                                                  null) ...[
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  "HSN: ${item.inventory?.hsnCode}",
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey[400],
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                        Text(
+                                          '₹${item.amount.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.productName ?? 'Item',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
+                                    if (item.taxDetails != null) ...[
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8,
+                                          horizontal: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[50],
+                                          borderRadius: BorderRadius.circular(
+                                            8,
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Unit Price: ₹${item.rate.toStringAsFixed(2)}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            "Godown: Default Godown",
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                          if (item.inventory?.hsnCode !=
-                                              null) ...[
-                                            const SizedBox(height: 2),
+                                        ),
+                                        child: Wrap(
+                                          spacing: 16,
+                                          runSpacing: 4,
+                                          children: [
                                             Text(
-                                              "HSN: ${item.inventory?.hsnCode}",
+                                              "CGST: ${item.taxDetails!.cgstRate % 1 == 0 ? item.taxDetails!.cgstRate.toInt() : item.taxDetails!.cgstRate}% (₹${item.taxDetails!.cgstAmount.toStringAsFixed(2)})",
                                               style: TextStyle(
                                                 fontSize: 11,
-                                                color: Colors.grey[400],
+                                                color: Colors.grey[600],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            Text(
+                                              "SGST: ${item.taxDetails!.sgstRate % 1 == 0 ? item.taxDetails!.sgstRate.toInt() : item.taxDetails!.sgstRate}% (₹${item.taxDetails!.sgstAmount.toStringAsFixed(2)})",
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey[600],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            Text(
+                                              "IGST: ${item.taxDetails!.igstRate % 1 == 0 ? item.taxDetails!.igstRate.toInt() : item.taxDetails!.igstRate}% (₹${item.taxDetails!.igstAmount.toStringAsFixed(2)})",
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey[600],
+                                                fontWeight: FontWeight.w500,
                                               ),
                                             ),
                                           ],
-                                        ],
+                                        ),
                                       ),
-                                    ),
-                                    Text(
-                                      '₹${item.amount.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                    ],
                                   ],
                                 ),
                               );
@@ -1595,36 +1738,56 @@ class _SalesDetailsDialogState extends State<SalesDetailsDialog> {
                                     padding: const EdgeInsets.all(16),
                                     child: Column(
                                       children: [
-                                        _buildVerticalTaxRow(
-                                          "CGST",
-                                          widget
-                                              .voucher
-                                              .taxBreakdown!
-                                              .totalCgst,
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: _buildTaxBox(
+                                                "CGST",
+                                                widget
+                                                    .voucher
+                                                    .taxBreakdown!
+                                                    .totalCgst,
+                                                Colors.blue,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: _buildTaxBox(
+                                                "SGST",
+                                                widget
+                                                    .voucher
+                                                    .taxBreakdown!
+                                                    .totalSgst,
+                                                Colors.green,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                         const SizedBox(height: 12),
-                                        _buildVerticalTaxRow(
-                                          "SGST",
-                                          widget
-                                              .voucher
-                                              .taxBreakdown!
-                                              .totalSgst,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _buildVerticalTaxRow(
-                                          "IGST",
-                                          widget
-                                              .voucher
-                                              .taxBreakdown!
-                                              .totalIgst,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _buildVerticalTaxRow(
-                                          "CESS",
-                                          widget
-                                              .voucher
-                                              .taxBreakdown!
-                                              .totalCess,
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: _buildTaxBox(
+                                                "IGST",
+                                                widget
+                                                    .voucher
+                                                    .taxBreakdown!
+                                                    .totalIgst,
+                                                Colors.purple,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: _buildTaxBox(
+                                                "CESS",
+                                                widget
+                                                    .voucher
+                                                    .taxBreakdown!
+                                                    .totalCess,
+                                                Colors.orange,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -1713,28 +1876,55 @@ class _SalesDetailsDialogState extends State<SalesDetailsDialog> {
     );
   }
 
-  Widget _buildVerticalTaxRow(String label, double amount) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+  Widget _buildTaxBox(String label, double amount, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
-        ),
-        Text(
-          '₹${amount.toStringAsFixed(2)}',
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1E293B),
-            fontFamily: 'RobotoMono', // Optional monospace for alignment
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[500],
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Text(
+            '₹${amount.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E293B),
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

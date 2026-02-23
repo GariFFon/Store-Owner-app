@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:exanor/services/invoice_print_service.dart';
+import 'package:exanor/components/pos_print_options_dialog.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final String orderId;
@@ -312,6 +314,16 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         }
       }
     }
+  }
+
+  Future<void> _printPosInvoice() async {
+    showDialog(
+      context: context,
+      builder: (ctx) => PosPrintOptionsDialog(
+        orderId: widget.orderId,
+        title: 'Print Options',
+      ),
+    );
   }
 
   @override
@@ -646,6 +658,39 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         ],
                       ),
                     ),
+                    if (_orderData != null) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: _printPosInvoice,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.blue.withOpacity(0.3),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.blue.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.print_rounded,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:exanor/services/api_service.dart';
@@ -98,7 +99,7 @@ class StoreOwnerApiService {
     try {
       final response = await ApiService.post(
         '/search-products/',
-        body: {'store_id': storeId, 'query': query},
+        body: {'store_id': storeId, 'store_access': true, 'query': query},
         useBearerToken: true,
       );
 
@@ -671,7 +672,37 @@ class StoreOwnerApiService {
       );
 
       if (response['statusCode'] == 200 && response['data'] != null) {
-        return Map<String, dynamic>.from(response['data']);
+        final data = Map<String, dynamic>.from(response['data']);
+
+        // The AI API sometimes returns nested fields as JSON strings
+        // instead of parsed maps/lists. Decode them to prevent
+        // "String is not a subtype of type int" errors when indexing.
+        if (data['response'] is String) {
+          try {
+            data['response'] = jsonDecode(data['response'] as String);
+          } catch (_) {
+            // If it's not valid JSON, leave it as-is
+          }
+        }
+
+        // Also handle product_data being a string inside response
+        if (data['response'] is Map) {
+          final resp = data['response'] as Map;
+          if (resp['product_data'] is String) {
+            try {
+              resp['product_data'] = jsonDecode(resp['product_data'] as String);
+            } catch (_) {}
+          }
+          if (resp['supplier_details'] is String) {
+            try {
+              resp['supplier_details'] = jsonDecode(
+                resp['supplier_details'] as String,
+              );
+            } catch (_) {}
+          }
+        }
+
+        return data;
       }
       return {};
     } catch (e) {
