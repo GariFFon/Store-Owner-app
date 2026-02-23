@@ -186,6 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Back Arrow removed completely
         OTPInputSection(
           otpCode: _otpCode,
+          mainAxisAlignment: MainAxisAlignment.start,
           onChanged: (code) {
             setState(() {
               _otpCode = code;
@@ -194,7 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(height: 12),
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
             Text(
               "Didn't get code? ",
@@ -386,7 +387,33 @@ class _LoginScreenState extends State<LoginScreen> {
 
           if (status == 200 && message == 'Login successful') {
             final prefs = await SharedPreferences.getInstance();
-            final bool hasExistingData = prefs.containsKey('user_id');
+
+            // Extract user data from response
+            final userData = responseData['user_data'];
+
+            // Check if user has previously provided an address
+            bool hasAddress = false;
+            if (userData != null) {
+              final lat = userData['lat']?.toString();
+              final lng = userData['lng']?.toString();
+              final addressLine1 = userData['address_line_1']?.toString();
+              final city = userData['city']?.toString();
+
+              if ((lat != null &&
+                      lat.isNotEmpty &&
+                      lng != null &&
+                      lng.isNotEmpty) ||
+                  (addressLine1 != null && addressLine1.isNotEmpty) ||
+                  (city != null && city.isNotEmpty)) {
+                hasAddress = true;
+              }
+            } else {
+              // Fallback to checking local prefs if user_data isn't in the response
+              hasAddress =
+                  prefs.containsKey('lat') ||
+                  prefs.containsKey('address_line_1') ||
+                  prefs.containsKey('city');
+            }
 
             // Store tokens
             if (responseData['access_token'] != null) {
@@ -397,12 +424,12 @@ class _LoginScreenState extends State<LoginScreen> {
             }
 
             // Store user data
-            if (responseData['user_data'] != null) {
-              await _storeUserData(responseData['user_data']);
+            if (userData != null) {
+              await _storeUserData(userData);
             }
 
-            // Navigate based on whether the user already exists
-            if (hasExistingData) {
+            // Navigate based on whether the user already has an address
+            if (hasAddress) {
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (_) => const StoreSelectionScreen()),

@@ -34,6 +34,12 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
   late DateTime _startDate;
   late DateTime _endDate;
 
+  // Ledger Filter State
+  String _transactionSearchQuery = '';
+  String _selectedVoucherType = 'All Voucher Types';
+  String _selectedSort = 'Sort by Date';
+  bool _isSortAscending = false; // Default Newest First
+
   // Design tokens
   final Color primaryColor = const Color(0xFF2563EB);
 
@@ -347,7 +353,7 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
           ),
           const SizedBox(height: 16),
           Text(
-            _formatCurrency(data['total_outstanding']),
+            "${_formatCurrency((double.tryParse(data['total_outstanding'].toString()) ?? 0.0).abs())}${(double.tryParse(data['total_outstanding'].toString()) ?? 0.0) == 0 ? '' : ((double.tryParse(data['total_outstanding'].toString()) ?? 0.0) > 0 ? ' Cr' : ' Dr')}",
             style: const TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w800,
@@ -561,7 +567,63 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
       ];
     }
 
+    // Filter Transactions Logic
+    List transactions = List.from(_ledgerReport!['transactions'] ?? []);
+
+    // 1. Search Query
+    if (_transactionSearchQuery.isNotEmpty) {
+      final q = _transactionSearchQuery.toLowerCase();
+      transactions = transactions.where((txn) {
+        final vNo = (txn['voucher_number'] ?? '').toString().toLowerCase();
+        final type = (txn['voucher_type'] ?? '').toString().toLowerCase();
+        final amount = (txn['credit'] != '0.00' ? txn['credit'] : txn['debit'])
+            .toString()
+            .toLowerCase();
+        return vNo.contains(q) || type.contains(q) || amount.contains(q);
+      }).toList();
+    }
+
+    // 2. Voucher Type
+    if (_selectedVoucherType != 'All Voucher Types') {
+      transactions = transactions.where((txn) {
+        return (txn['voucher_type'] ?? '').toString().toUpperCase() ==
+            _selectedVoucherType.toUpperCase();
+      }).toList();
+    }
+
+    // 3. Sorting
+    transactions.sort((a, b) {
+      if (_selectedSort == 'Sort by Date') {
+        final dateA = DateTime.tryParse(a['date'] ?? '') ?? DateTime(1970);
+        final dateB = DateTime.tryParse(b['date'] ?? '') ?? DateTime(1970);
+        return _isSortAscending
+            ? dateA.compareTo(dateB)
+            : dateB.compareTo(dateA);
+      } else if (_selectedSort == 'Sort by Amount') {
+        final amtA =
+            double.tryParse(
+              (a['credit'] != '0.00' ? a['credit'] : a['debit']).toString(),
+            ) ??
+            0.0;
+        final amtB =
+            double.tryParse(
+              (b['credit'] != '0.00' ? b['credit'] : b['debit']).toString(),
+            ) ??
+            0.0;
+        return _isSortAscending ? amtA.compareTo(amtB) : amtB.compareTo(amtA);
+      }
+      return 0;
+    });
+
     return [
+      // 0. Filter Bar
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: _buildLedgerFilterBar(isDesktop),
+        ),
+      ),
+
       // 1. Ledger Summary Stats (Opening, Debit, Credit, Closing)
       SliverToBoxAdapter(
         child: Padding(
@@ -572,7 +634,7 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
               final tiles = [
                 _buildSummaryTile(
                   "Opening Balance",
-                  _formatCurrency(_ledgerReport!['opening_balance']),
+                  "${_formatCurrency((double.tryParse(_ledgerReport!['opening_balance'].toString()) ?? 0.0).abs())}${(double.tryParse(_ledgerReport!['opening_balance'].toString()) ?? 0.0) == 0 ? '' : ((double.tryParse(_ledgerReport!['opening_balance'].toString()) ?? 0.0) > 0 ? ' Cr' : ' Dr')}",
                   isBold: true,
                 ),
                 _buildSummaryTile(
@@ -589,7 +651,7 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
                 ),
                 _buildSummaryTile(
                   "Closing Balance",
-                  _formatCurrency(_ledgerReport!['closing_balance']),
+                  "${_formatCurrency((double.tryParse(_ledgerReport!['closing_balance'].toString()) ?? 0.0).abs())}${(double.tryParse(_ledgerReport!['closing_balance'].toString()) ?? 0.0) == 0 ? '' : ((double.tryParse(_ledgerReport!['closing_balance'].toString()) ?? 0.0) > 0 ? ' Cr' : ' Dr')}",
                   isBold: true,
                 ),
               ];
@@ -637,20 +699,177 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: _buildDesktopLedgerTable(_ledgerReport!['transactions']),
+            child: _buildDesktopLedgerTable(transactions),
           ),
         )
       else
         SliverList(
           delegate: SliverChildBuilderDelegate((context, index) {
-            final txns = _ledgerReport!['transactions'] as List;
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildMobileTransactionCard(txns[index]),
+              child: _buildMobileTransactionCard(transactions[index]),
             );
-          }, childCount: (_ledgerReport!['transactions'] as List).length),
+          }, childCount: transactions.length),
         ),
     ];
+  }
+
+  Widget _buildLedgerFilterBar(bool isDesktop) {
+    final searchField = TextField(
+      onChanged: (val) {
+        setState(() {
+          _transactionSearchQuery = val;
+        });
+      },
+      decoration: InputDecoration(
+        hintText: 'Search transactions...',
+        prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[400]),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[200]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[200]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.blue),
+        ),
+      ),
+    );
+
+    final typeDropdown = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedVoucherType,
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.grey[400],
+          ),
+          items:
+              [
+                'All Voucher Types',
+                'PURCHASE',
+                'PAYMENT',
+                'SALES',
+                'RECEIPT',
+                'CONTRA',
+              ].map((e) {
+                return DropdownMenuItem(
+                  value: e,
+                  child: Text(
+                    e,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                );
+              }).toList(),
+          onChanged: (val) {
+            if (val != null) setState(() => _selectedVoucherType = val);
+          },
+          isExpanded: true,
+        ),
+      ),
+    );
+
+    final sortDropdown = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedSort,
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.grey[400],
+          ),
+          items: ['Sort by Date', 'Sort by Amount'].map((e) {
+            return DropdownMenuItem(
+              value: e,
+              child: Text(
+                e,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B)),
+              ),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null) setState(() => _selectedSort = val);
+          },
+          isExpanded: true,
+        ),
+      ),
+    );
+
+    final sortToggle = InkWell(
+      onTap: () {
+        setState(() {
+          _isSortAscending = !_isSortAscending;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 48,
+        width: 48,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Icon(
+          _isSortAscending
+              ? Icons.arrow_upward_rounded
+              : Icons.arrow_downward_rounded,
+          color: Colors.grey[600],
+          size: 20,
+        ),
+      ),
+    );
+
+    if (isDesktop) {
+      return Row(
+        children: [
+          Expanded(flex: 3, child: searchField),
+          const SizedBox(width: 12),
+          Expanded(flex: 2, child: typeDropdown),
+          const SizedBox(width: 12),
+          Expanded(flex: 2, child: sortDropdown),
+          const SizedBox(width: 12),
+          sortToggle,
+        ],
+      );
+    }
+
+    // Mobile Layout: Stacked
+    return Column(
+      children: [
+        searchField,
+        const SizedBox(height: 12),
+        Row(children: [Expanded(child: typeDropdown)]),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: sortDropdown),
+            const SizedBox(width: 12),
+            sortToggle,
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _buildSummaryTile(
@@ -800,6 +1019,8 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
     final isCredit = txn['credit'] != "0.00";
     final amount = isCredit ? txn['credit'] : txn['debit'];
     final color = isCredit ? Colors.green : Colors.red;
+    final typeLabel = isCredit ? "Credit" : "Debit";
+    final typeSuffix = isCredit ? "Cr" : "Dr";
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -831,6 +1052,7 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
                     "Voucher No",
                     style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     txn['voucher_number'] ?? '-',
                     style: const TextStyle(fontWeight: FontWeight.w500),
@@ -842,11 +1064,12 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    "Amount",
+                    typeLabel,
                     style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    _formatCurrency(amount),
+                    "${_formatCurrency(amount)} $typeSuffix",
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: color,
@@ -858,6 +1081,7 @@ class _SupplierReportScreenState extends State<SupplierReportScreen>
                     "Balance",
                     style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     _formatCurrency(txn['running_balance']),
                     style: const TextStyle(

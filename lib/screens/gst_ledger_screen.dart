@@ -941,6 +941,7 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
                 _buildHeaderCell('Taxable', 2, alignRight: true),
                 _buildHeaderCell('CGST', 1, alignRight: true),
                 _buildHeaderCell('SGST', 1, alignRight: true),
+                _buildHeaderCell('IGST', 1, alignRight: true),
                 _buildHeaderCell('Total', 2, alignRight: true),
               ],
             ),
@@ -1075,6 +1076,14 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
                       flex: 1,
                       child: Text(
                         _formatTax(entry.sgstAmountDouble),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: Text(
+                        _formatTax(entry.igstAmountDouble),
                         textAlign: TextAlign.right,
                         style: TextStyle(fontSize: 11, color: Colors.grey[700]),
                       ),
@@ -1362,53 +1371,74 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
                     ),
                   const SizedBox(height: 12),
                   const Divider(),
+                  const Divider(height: 24),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Taxable",
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                          Text(
-                            '₹${entry.taxableValueDouble.toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const Text(
-                            "Tax",
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                          Text(
-                            '₹${(entry.cgstAmountDouble + entry.sgstAmountDouble + entry.igstAmountDouble).toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text(
-                            "Total",
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                          Text(
-                            '₹${_calculateTotal(entry).toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: _primaryColor,
-                              fontSize: 15,
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Taxable",
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            Text(
+                              '₹${entry.taxableValueDouble.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              "Total Amt",
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '₹${_calculateTotal(entry).toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: _primaryColor,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[100]!),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildTaxColumn("CGST", entry.cgstAmountDouble),
+                        _buildTaxColumn("SGST", entry.sgstAmountDouble),
+                        _buildTaxColumn("IGST", entry.igstAmountDouble),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1424,6 +1454,20 @@ class _GstLedgerScreenState extends State<GstLedgerScreen>
       e.cgstAmountDouble +
       e.sgstAmountDouble +
       e.igstAmountDouble;
+
+  Widget _buildTaxColumn(String title, double amount) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+        const SizedBox(height: 4),
+        Text(
+          _formatTax(amount),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+      ],
+    );
+  }
 
   // -- Summary Cards --
   Widget _buildGstCardSection(

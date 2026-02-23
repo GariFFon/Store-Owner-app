@@ -579,7 +579,7 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
 
     final outstandingCard = _buildStatBox(
       "Total Outstanding",
-      _formatCurrency(_totalOutstanding),
+      "${_formatCurrency(_totalOutstanding.abs())}${_totalOutstanding == 0 ? '' : (_totalOutstanding > 0 ? ' Cr' : ' Dr')}",
       Icons.account_balance_wallet_rounded,
       Colors.orange,
       isCurrency: true,
@@ -748,7 +748,7 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFF1F5F9),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
           border: Border(
             top: BorderSide(color: Colors.grey[200]!),
@@ -878,38 +878,105 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Text(
+                      ((party['gstin'] ?? party['supplier_gst_in']) != null &&
+                              (party['gstin'] ?? party['supplier_gst_in'])
+                                  .toString()
+                                  .isNotEmpty)
+                          ? (party['gstin'] ?? party['supplier_gst_in'])
+                                .toString()
+                          : 'N/A',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color:
+                            ((party['gstin'] ?? party['supplier_gst_in']) !=
+                                    null &&
+                                (party['gstin'] ?? party['supplier_gst_in'])
+                                    .toString()
+                                    .isNotEmpty)
+                            ? Colors.grey[600]
+                            : Colors.grey[400],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
             // Phone
             Expanded(
               flex: 3,
-              child: Text(
-                phone.toString(),
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    phone.toString(),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (party['email'] != null &&
+                      party['email'].toString().isNotEmpty)
+                    Text(
+                      party['email'],
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[400],
+                        fontWeight: FontWeight.normal,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
               ),
             ),
             // Location
             Expanded(
               flex: 2,
-              child: Text(
-                city.toString(),
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    city.toString(),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (party['state'] != null &&
+                      party['state'].toString().isNotEmpty)
+                    Text(
+                      party['state'],
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[400],
+                        fontWeight: FontWeight.normal,
+                      ),
+                    ),
+                ],
               ),
             ),
             // Outstanding
             Expanded(
               flex: 3,
               child: Text(
-                _formatCurrency(outstanding),
+                "${_formatCurrency(outstanding.abs())}${outstanding == 0 ? '' : (outstanding > 0 ? ' Cr' : ' Dr')}",
                 textAlign: TextAlign.right,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
@@ -1016,7 +1083,7 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
                         ),
                         if (city != null)
                           Text(
-                            city.toString(),
+                            "$city${party['state'] != null ? ', ${party['state']}' : ''}",
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[500],
@@ -1032,55 +1099,147 @@ class _SuppliersListScreenState extends State<SuppliersListScreen> {
               Divider(height: 1, color: Colors.grey[100]),
               const SizedBox(height: 16),
 
-              // Row 2: Details
+              // Row 2: Contact Info
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "PHONE",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          phone?.toString() ?? "-",
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (party['email'] != null &&
+                      party['email'].toString().isNotEmpty)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            "EMAIL",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            party['email'],
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Row 3: Financials & Tax (GSTIN left, Outstanding Right)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "PHONE",
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[400],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "GSTIN",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[400],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        phone?.toString() ?? "-",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[700],
-                          fontWeight: FontWeight.w500,
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Text(
+                            ((party['gstin'] ?? party['supplier_gst_in']) !=
+                                        null &&
+                                    (party['gstin'] ?? party['supplier_gst_in'])
+                                        .toString()
+                                        .isNotEmpty)
+                                ? (party['gstin'] ?? party['supplier_gst_in'])
+                                      .toString()
+                                : 'N/A',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  ((party['gstin'] ??
+                                              party['supplier_gst_in']) !=
+                                          null &&
+                                      (party['gstin'] ??
+                                              party['supplier_gst_in'])
+                                          .toString()
+                                          .isNotEmpty)
+                                  ? Colors.grey[700]
+                                  : Colors.grey[400],
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        "OUTSTANDING",
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[400],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          "OUTSTANDING",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[400],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatCurrency(outstanding),
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: outstanding != 0 ? Colors.red : Colors.green,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
+                        const SizedBox(height: 4),
+                        Text(
+                          "${_formatCurrency(outstanding.abs())}${outstanding == 0 ? '' : (outstanding > 0 ? ' Cr' : ' Dr')}",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: outstanding != 0 ? Colors.red : Colors.green,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),

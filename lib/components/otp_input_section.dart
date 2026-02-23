@@ -4,11 +4,13 @@ import 'package:flutter/services.dart';
 class OTPInputSection extends StatefulWidget {
   final String otpCode;
   final ValueChanged<String> onChanged;
+  final MainAxisAlignment mainAxisAlignment;
 
   const OTPInputSection({
     super.key,
     required this.otpCode,
     required this.onChanged,
+    this.mainAxisAlignment = MainAxisAlignment.center,
   });
 
   @override
@@ -93,7 +95,7 @@ class _OTPInputSectionState extends State<OTPInputSection> {
             SystemChannels.textInput.invokeMethod('TextInput.show');
           },
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: widget.mainAxisAlignment,
             children: List.generate(4, (index) {
               final digit = index < widget.otpCode.length
                   ? widget.otpCode[index]

@@ -29,12 +29,44 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
     _checkAndSearchSupplier();
   }
 
+  /// Safely parse supplier_already_exists which may be bool, String, or int.
+  bool _parseBool(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is String) return value.toLowerCase() == 'true';
+    if (value is int) return value != 0;
+    return false;
+  }
+
+  /// Extract store ID from a map trying multiple common key names.
+  String? _extractStoreId(Map<String, dynamic> data) {
+    final candidates = [
+      'store_id',
+      'id',
+      'supplier_store_id',
+      'new_store_id',
+      'registered_store_id',
+    ];
+    for (final key in candidates) {
+      final val = data[key];
+      if (val != null && val.toString().isNotEmpty) {
+        return val.toString();
+      }
+    }
+    return null;
+  }
+
   Future<void> _checkAndSearchSupplier() async {
     final response = widget.data['response'] ?? {};
     final supplierDetails = response['supplier_details'] ?? {};
-    final bool supplierExists =
-        supplierDetails['supplier_already_exists'] ?? false;
-    final gstIn = supplierDetails['supplier_gst_in'] ?? '';
+    final bool supplierExists = _parseBool(
+      supplierDetails['supplier_already_exists'],
+    );
+    final gstIn = supplierDetails['supplier_gst_in']?.toString() ?? '';
+
+    debugPrint(
+      'Supplier check: exists=$supplierExists, gstIn=$gstIn, raw_exists=${supplierDetails['supplier_already_exists']}',
+    );
 
     if (supplierExists && gstIn.isNotEmpty) {
       setState(() {
@@ -43,17 +75,19 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
 
       try {
         final stores = await StoreOwnerApiService.searchStore(gstIn);
+        debugPrint('Search store results count: ${stores.length}');
         if (stores.isNotEmpty && mounted) {
           final storeData = stores[0];
           debugPrint('Supplier search result: $storeData');
           setState(() {
-            _supplierStoreId =
-                storeData['store_id']?.toString() ??
-                storeData['id']?.toString();
+            _supplierStoreId = _extractStoreId(storeData);
             _isSearchingSupplier = false;
           });
           debugPrint('Found supplier store ID: $_supplierStoreId');
         } else {
+          debugPrint(
+            'No stores found for GST: $gstIn — supplier needs to be created',
+          );
           setState(() {
             _isSearchingSupplier = false;
           });
@@ -74,23 +108,22 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
     final supplierDetails = response['supplier_details'] ?? {};
     final addressDetails = supplierDetails['supplier_address_details'] ?? {};
 
-    final supplierName = supplierDetails['supplier_name'] ?? '';
+    final supplierName = supplierDetails['supplier_name']?.toString() ?? '';
     final legalName =
-        supplierDetails['supplier_legal_business_name'] ?? supplierName;
-    final gstIn = supplierDetails['supplier_gst_in'] ?? '';
+        supplierDetails['supplier_legal_business_name']?.toString() ??
+        supplierName;
+    final gstIn = supplierDetails['supplier_gst_in']?.toString() ?? '';
     final gstRegistrationType =
         supplierDetails['supplier_gst_registration_type']
             ?.toString()
             .toLowerCase() ??
         'regular';
-    final city = addressDetails['supplier_city'] ?? '';
-    final state = addressDetails['supplier_state'] ?? '';
+    final city = addressDetails['supplier_city']?.toString() ?? '';
+    final state = addressDetails['supplier_state']?.toString() ?? '';
     final pincode =
         int.tryParse(addressDetails['supplier_pincode']?.toString() ?? '0') ??
         0;
-    final area = addressDetails['supplier_locality'] ?? '';
-    // ignore: unused_local_variable
-    final phone = supplierDetails['supplier_phone_number'] ?? 0;
+    final area = addressDetails['supplier_locality']?.toString() ?? '';
 
     setState(() {
       _isCreatingSupplier = true;
@@ -111,19 +144,37 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
         area: area,
       );
 
+      debugPrint('Register store full result: $result');
+
       if (mounted) {
         if (result.isNotEmpty && result['status'] == 200) {
-          final resultData = result['data'] ?? {};
-          debugPrint('Create supplier result data: $resultData');
-          final newStoreId =
-              resultData['store_id']?.toString() ??
-              resultData['id']?.toString();
+          // Look for store ID in multiple possible response locations
+          String? newStoreId;
+
+          // Try result['response'] first (most common API pattern)
+          if (result['response'] is Map) {
+            newStoreId = _extractStoreId(
+              Map<String, dynamic>.from(result['response'] as Map),
+            );
+          }
+          // Try result['data'] next
+          if (newStoreId == null && result['data'] is Map) {
+            newStoreId = _extractStoreId(
+              Map<String, dynamic>.from(result['data'] as Map),
+            );
+          }
+          // Try the result root level
+          if (newStoreId == null) {
+            newStoreId = _extractStoreId(result);
+          }
+
+          debugPrint('Extracted new supplier store ID: $newStoreId');
+
           setState(() {
             _supplierStoreId = newStoreId;
             _supplierCreated = true;
             _isCreatingSupplier = false;
           });
-          debugPrint('Created supplier store ID: $_supplierStoreId');
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -131,6 +182,14 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
               backgroundColor: Colors.green,
             ),
           );
+
+          // Auto-continue to products after successful creation
+          if (_supplierStoreId != null && _supplierStoreId!.isNotEmpty) {
+            Navigator.pop(context, {
+              'continue': true,
+              'supplierStoreId': _supplierStoreId,
+            });
+          }
         } else {
           setState(() {
             _isCreatingSupplier = false;
@@ -146,6 +205,7 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
         }
       }
     } catch (e) {
+      debugPrint('Error creating supplier: $e');
       if (mounted) {
         setState(() {
           _isCreatingSupplier = false;
@@ -165,8 +225,6 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
     final addressDetails = supplierDetails['supplier_address_details'] ?? {};
     final bankDetails = supplierDetails['supplier_bank_details'] ?? {};
 
-    final bool supplierExists =
-        supplierDetails['supplier_already_exists'] ?? false;
     final supplierName = supplierDetails['supplier_name'] ?? 'Unknown Supplier';
     final legalName = supplierDetails['supplier_legal_business_name'] ?? 'N/A';
     final gstIn = supplierDetails['supplier_gst_in'] ?? 'N/A';
@@ -222,9 +280,13 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                       builder: (context, constraints) {
                         final isWide = constraints.maxWidth > 800;
 
-                        // Status Card using local logic for exists
+                        // Status Card: show "found" only if we have a store ID,
+                        // show "needs creation" if AI says exists but not in our DB
+                        final bool supplierInSystem =
+                            _supplierStoreId != null &&
+                            _supplierStoreId!.isNotEmpty;
                         final statusCard = _buildStatusCard(
-                          supplierExists || _supplierCreated,
+                          supplierInSystem || _supplierCreated,
                         );
 
                         // Supplier Basic Info
@@ -395,7 +457,10 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
         ),
         bottomSheet: _buildBottomBar(
           context,
-          supplierExists || _supplierCreated,
+          // Only show "Continue" if the supplier actually has a store ID
+          // in our system. If AI said exists but search found nothing,
+          // show "Create Supplier" instead.
+          _supplierStoreId != null && _supplierStoreId!.isNotEmpty,
         ),
       ),
     );

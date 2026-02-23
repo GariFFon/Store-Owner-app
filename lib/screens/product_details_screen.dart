@@ -768,7 +768,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
           setState(() {
             _linkedProducts[index] = true;
             _linkedProductIds[index] =
-                product['product_id'] ?? product['id'] ?? '';
+                product['products_combination_template_id']?.toString() ??
+                product['product_id']?.toString() ??
+                product['id']?.toString() ??
+                '';
             _linkedProductNames[index] =
                 product['product_name'] ??
                 product['product_combination_template_name'] ??
@@ -784,6 +787,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
             }
             if (product['barcode'] != null) {
               _barcodeControllers[index]?.text = product['barcode'].toString();
+            }
+
+            // Auto-fill HSN code from linked product's gst_data
+            final gstData = product['gst_data'] as Map<String, dynamic>?;
+            if (gstData != null && gstData['hsn_code'] != null) {
+              _linkedProductHsnCodes[index] = gstData['hsn_code'].toString();
+              _hsnControllers[index]?.text = gstData['hsn_code'].toString();
             }
           });
           Navigator.pop(context);
@@ -1309,6 +1319,34 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
       ),
       child: GestureDetector(
         onTap: () {
+          // Validate all products are linked before proceeding
+          final response = widget.data['response'] ?? {};
+          final productsList = List<dynamic>.from(
+            response['product_data'] ?? [],
+          );
+          final unlinkedProducts = <String>[];
+          for (int i = 0; i < productsList.length; i++) {
+            if (!_linkedProducts.containsKey(i) || _linkedProducts[i] != true) {
+              final product = Map<String, dynamic>.from(productsList[i]);
+              unlinkedProducts.add(
+                product['product_name']?.toString() ?? 'Item ${i + 1}',
+              );
+            }
+          }
+
+          if (unlinkedProducts.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Please link all products before continuing. Unlinked: ${unlinkedProducts.join(", ")}',
+                ),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+            return;
+          }
+
           final updatedData = _getUpdatedData();
           Navigator.push(
             context,

@@ -302,9 +302,35 @@ class _SimpleOTPVerificationScreenState
             print('✅ Login successful - checking existing data...');
 
             final prefs = await SharedPreferences.getInstance();
-            // Check if user has previously stored data (using user_id as proxy)
-            final bool hasExistingData = prefs.containsKey('user_id');
-            print('📂 Existing user data found: $hasExistingData');
+
+            // Extract user data from response
+            final userData = responseData['user_data'];
+
+            // Check if user has previously provided an address
+            bool hasAddress = false;
+            if (userData != null) {
+              final lat = userData['lat']?.toString();
+              final lng = userData['lng']?.toString();
+              final addressLine1 = userData['address_line_1']?.toString();
+              final city = userData['city']?.toString();
+
+              if ((lat != null &&
+                      lat.isNotEmpty &&
+                      lng != null &&
+                      lng.isNotEmpty) ||
+                  (addressLine1 != null && addressLine1.isNotEmpty) ||
+                  (city != null && city.isNotEmpty)) {
+                hasAddress = true;
+              }
+            } else {
+              // Fallback to checking local prefs if user_data isn't in the response
+              hasAddress =
+                  prefs.containsKey('lat') ||
+                  prefs.containsKey('address_line_1') ||
+                  prefs.containsKey('city');
+            }
+
+            print('📂 Existing user address found: $hasAddress');
 
             // Store/Update access token
             if (responseData['access_token'] != null) {
@@ -317,11 +343,11 @@ class _SimpleOTPVerificationScreenState
             }
 
             // Store/Update user data
-            if (responseData['user_data'] != null) {
-              await _storeUserData(responseData['user_data']);
+            if (userData != null) {
+              await _storeUserData(userData);
             }
 
-            if (hasExistingData) {
+            if (hasAddress) {
               print('🎉 Existing user - navigating to StoreSelectionScreen');
               Navigator.pushAndRemoveUntil(
                 context,
