@@ -7,6 +7,7 @@ import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:exanor/services/api_service.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:exanor/utils/event_bus.dart';
 
 /// Notification Service for handling in-app notifications
 class NotificationService {
@@ -213,6 +214,9 @@ class NotificationService {
       '🔔 NotificationService: Showing in-app notification',
       name: 'Notification',
     );
+
+    // Auto-refresh orders screen
+    EventBus().fire(OrderPlacedEvent());
 
     // 1. Play Haptic Feedback (Graceful handling, runs in parallel)
     Future(() async {

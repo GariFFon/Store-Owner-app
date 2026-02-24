@@ -570,9 +570,10 @@ class StoreOwnerApiService {
         // Assuming success if status code is OK.
         // Also check inner status if available
         final data = response['data'];
-        if (data != null && (data['status'] == 200 || data['status'] == 201)) {
-          return true;
+        if (data is Map<String, dynamic> && data.containsKey('status')) {
+          return data['status'] == 200 || data['status'] == 201;
         }
+        return true;
       }
       return false;
     } catch (e) {
@@ -635,11 +636,12 @@ class StoreOwnerApiService {
         useBearerToken: true,
       );
 
-      if (response['statusCode'] == 200) {
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
         final data = response['data'];
-        if (data != null && data['status'] == 200) {
-          return true;
+        if (data is Map<String, dynamic> && data.containsKey('status')) {
+          return data['status'] == 200 || data['status'] == 201;
         }
+        return true;
       }
       return false;
     } catch (e) {

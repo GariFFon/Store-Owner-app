@@ -1,0 +1,55 @@
+﻿Analyzing store_owner_pos_screen.dart...                        
+
+warning - Unused import: 'package:exanor/services/invoice_print_service.dart' - lib\screens\store_owner_pos_screen.dart:13:8 - unused_import
+warning - The value of the field '_cartItemsUnavailable' isn't used - lib\screens\store_owner_pos_screen.dart:66:30 - unused_field
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:1316:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:1532:53 - deprecated_member_use
+   info - 'partialResults' is deprecated and shouldn't be used. Use SpeechListenOptions.partialResults instead - lib\screens\store_owner_pos_screen.dart:1912:9 - deprecated_member_use
+warning - The declaration '_logout' isn't referenced - lib\screens\store_owner_pos_screen.dart:1939:16 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2061:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2068:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2424:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2593:39 - deprecated_member_use
+warning - The declaration '_buildTopBanner' isn't referenced - lib\screens\store_owner_pos_screen.dart:2809:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2819:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2837:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2918:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2921:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2980:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:2990:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3045:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3107:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3391:37 - deprecated_member_use
+warning - The declaration '_syncCategories' isn't referenced - lib\screens\store_owner_pos_screen.dart:3403:16 - unused_element
+warning - The declaration '_buildCategoriesSidebar' isn't referenced - lib\screens\store_owner_pos_screen.dart:3459:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3498:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3506:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3515:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3556:48 - deprecated_member_use
+warning - The declaration '_buildProductsGrid' isn't referenced - lib\screens\store_owner_pos_screen.dart:3667:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3850:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3853:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3890:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3924:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:3929:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4109:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4254:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4344:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4367:68 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4517:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4532:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4665:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4738:80 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4762:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4848:33 - deprecated_member_use
+  error - The named parameter 'imgUrl' is required, but there's no corresponding argument - lib\screens\store_owner_pos_screen.dart:4866:27 - missing_required_argument
+  error - The named parameter 'imageUrl' isn't defined - lib\screens\store_owner_pos_screen.dart:4867:29 - undefined_named_parameter
+  error - The named parameter 'placeholder' isn't defined - lib\screens\store_owner_pos_screen.dart:4869:29 - undefined_named_parameter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4973:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:4994:52 - deprecated_member_use
+  error - The named parameter 'imgUrl' is required, but there's no corresponding argument - lib\screens\store_owner_pos_screen.dart:5085:44 - missing_required_argument
+  error - The named parameter 'imageUrl' isn't defined - lib\screens\store_owner_pos_screen.dart:5085:69 - undefined_named_parameter
+warning - The value of the field '_productCombinationId' isn't used - lib\screens\store_owner_pos_screen.dart:5207:11 - unused_field
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:5429:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\store_owner_pos_screen.dart:5464:41 - deprecated_member_use
+
