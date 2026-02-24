@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import 'dart:math' as math;
 
 import 'package:exanor/components/store_main_drawer.dart';
+import 'package:exanor/utils/event_bus.dart';
+import 'dart:async';
 
 class OrdersListScreen extends StatefulWidget {
   final String? storeId;
@@ -42,6 +44,8 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
   // Date Filter State
   DateTimeRange? _selectedDateRange;
 
+  StreamSubscription? _orderPlacedSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -49,10 +53,19 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _init();
     });
+
+    _orderPlacedSubscription = EventBus().on<OrderPlacedEvent>().listen((
+      event,
+    ) {
+      if (mounted) {
+        _fetchOrders();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _orderPlacedSubscription?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();

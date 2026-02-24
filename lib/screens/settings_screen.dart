@@ -2630,8 +2630,6 @@ class _SettingsScreenState extends State<SettingsScreen>
                               );
 
                         if (success && mounted) {
-                          Navigator.pop(context);
-                          _fetchPayoutAccounts();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
@@ -2641,6 +2639,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                               ),
                             ),
                           );
+                          Navigator.pop(context);
+                          _fetchPayoutAccounts();
                         } else if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
