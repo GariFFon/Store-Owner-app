@@ -1209,12 +1209,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Widget _buildQtyBtn(IconData icon, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
+    return Material(
+      color: const Color(0xFF3B82F6),
       borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Icon(icon, size: 16, color: Theme.of(context).primaryColor),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        splashColor: Colors.white.withOpacity(0.3),
+        highlightColor: Colors.white.withOpacity(0.15),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Icon(icon, size: 16, color: Colors.white),
+        ),
       ),
     );
   }
