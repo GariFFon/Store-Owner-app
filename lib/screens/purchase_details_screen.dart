@@ -828,8 +828,6 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
                   fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
                   color: valueColor ?? theme.colorScheme.onSurface,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
