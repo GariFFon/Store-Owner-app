@@ -1300,6 +1300,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
   }
 
   Widget _buildBottomBar(BuildContext context) {
+    // Check if all products are linked
+    final response = widget.data['response'] ?? {};
+    final productsList = List<dynamic>.from(response['product_data'] ?? []);
+    bool allLinked = true;
+    for (int i = 0; i < productsList.length; i++) {
+      if (!_linkedProducts.containsKey(i) || _linkedProducts[i] != true) {
+        allLinked = false;
+        break;
+      }
+    }
+
     return Container(
       padding: EdgeInsets.fromLTRB(
         20,
@@ -1318,78 +1329,84 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
         ],
       ),
       child: GestureDetector(
-        onTap: () {
-          // Validate all products are linked before proceeding
-          final response = widget.data['response'] ?? {};
-          final productsList = List<dynamic>.from(
-            response['product_data'] ?? [],
-          );
-          final unlinkedProducts = <String>[];
-          for (int i = 0; i < productsList.length; i++) {
-            if (!_linkedProducts.containsKey(i) || _linkedProducts[i] != true) {
-              final product = Map<String, dynamic>.from(productsList[i]);
-              unlinkedProducts.add(
-                product['product_name']?.toString() ?? 'Item ${i + 1}',
-              );
-            }
-          }
+        onTap: allLinked
+            ? () {
+                final updatedData = _getUpdatedData();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PaymentInformationScreen(
+                      data: updatedData,
+                      storeId: widget.storeId,
+                      supplierStoreId: widget.supplierStoreId,
+                    ),
+                  ),
+                );
+              }
+            : () {
+                final unlinkedProducts = <String>[];
+                for (int i = 0; i < productsList.length; i++) {
+                  if (!_linkedProducts.containsKey(i) ||
+                      _linkedProducts[i] != true) {
+                    final product = Map<String, dynamic>.from(productsList[i]);
+                    unlinkedProducts.add(
+                      product['product_name']?.toString() ?? 'Item ${i + 1}',
+                    );
+                  }
+                }
 
-          if (unlinkedProducts.isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Please link all products before continuing. Unlinked: ${unlinkedProducts.join(", ")}',
-                ),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-            return;
-          }
-
-          final updatedData = _getUpdatedData();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PaymentInformationScreen(
-                data: updatedData,
-                storeId: widget.storeId,
-                supplierStoreId: widget.supplierStoreId,
-              ),
-            ),
-          );
-        },
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Please link all products before continuing. Unlinked: ${unlinkedProducts.join(", ")}',
+                    ),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              },
         child: Container(
           height: 48,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
+            gradient: allLinked
+                ? const LinearGradient(
+                    colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  )
+                : null,
+            color: allLinked ? null : Colors.grey[300],
             borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF3B82F6).withOpacity(0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            boxShadow: allLinked
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF3B82F6).withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Continue to Payment',
+                allLinked ? 'Continue to Payment' : 'Link all the products',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: allLinked ? Colors.white : Colors.grey[600],
                   letterSpacing: 0.2,
                 ),
               ),
-              SizedBox(width: 8),
-              Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Icon(
+                allLinked
+                    ? Icons.arrow_forward_rounded
+                    : Icons.link_off_rounded,
+                color: allLinked ? Colors.white : Colors.grey[600],
+                size: 20,
+              ),
             ],
           ),
         ),
