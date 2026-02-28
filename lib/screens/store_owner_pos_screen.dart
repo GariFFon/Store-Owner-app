@@ -10,6 +10,10 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:exanor/screens/review_order_screen.dart';
+import 'package:exanor/services/invoice_print_service.dart';
+import 'package:exanor/components/pos_print_options_dialog.dart';
+import 'package:exanor/screens/order_details_screen.dart';
+import 'package:exanor/utils/event_bus.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -1125,14 +1129,52 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           // Close the Summary Popup
           if (mounted) Navigator.pop(context);
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: TranslatedText('Order placed successfully!'),
-                backgroundColor: Colors.green,
+          String? createdOrderId;
+          if (data['response'] is Map) {
+            createdOrderId =
+                data['response']['id']?.toString() ??
+                data['response']['order_id']?.toString() ??
+                data['response']['execute_order_data']?['order_id']?.toString();
+          }
+
+          if (mounted && createdOrderId != null) {
+            EventBus().fire(OrderPlacedEvent());
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => PosPrintOptionsDialog(
+                orderId: createdOrderId!,
+                title: 'Order Placed Successfully!',
+                onViewOrder: () {
+                  Navigator.pop(ctx);
+                  _initLocationAndCart();
+                  _fetchProductsByCategory(
+                    _selectedCategoryId ?? 'all',
+                    isRefresh: true,
+                  );
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => OrderDetailsScreen(
+                        orderId: createdOrderId!,
+                        storeId: widget.storeId,
+                      ),
+                    ),
+                  );
+                },
+                onNewOrder: () {
+                  Navigator.pop(ctx);
+                  _initLocationAndCart();
+                  _fetchProductsByCategory(
+                    _selectedCategoryId ?? 'all',
+                    isRefresh: true,
+                  );
+                },
               ),
             );
-            // Refresh
+          } else if (mounted) {
+            EventBus().fire(OrderPlacedEvent());
+            // Fallback refresh if createdOrderId is null
             _initLocationAndCart();
             _fetchProductsByCategory(
               _selectedCategoryId ?? 'all',
