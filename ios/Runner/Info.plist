@@ -6,7 +6,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Exanor</string>
+    <string>Exanor Store Partner</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -14,7 +14,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Exanor</string>
+    <string>Exanor Store Partner</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -72,7 +72,6 @@
     <!-- 🔥 AdMob (REQUIRED) -->
     <key>GADApplicationIdentifier</key>
     <string>ca-app-pub-6018213289392959~5368020865</string>
-
     <!-- 🔥 Google Maps (REQUIRED) -->
     <key>GMSApiKey</key>
     <string>AIzaSyCP4Kqp_KQ35KbqG3lUHPltBA6W6b_aorg</string>

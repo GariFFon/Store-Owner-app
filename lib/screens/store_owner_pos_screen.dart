@@ -2520,17 +2520,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 children: [
                   _buildModernTopBanner(),
                   if (!isTablet) _buildModernCategoriesHorizontal(),
-                  Expanded(
-                    child: _buildModernProductsGrid(),
-                  ),
+                  Expanded(child: _buildModernProductsGrid()),
                 ],
               ),
             ),
             if (isLargeDesktop)
-              SizedBox(
-                width: 380,
-                child: _buildModernCartSidebar(),
-              ),
+              SizedBox(width: 380, child: _buildModernCartSidebar()),
           ],
         ),
       ),
@@ -2542,11 +2537,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 onPressed: _showCartBottomSheet,
                 backgroundColor: const Color(0xFF3254F4),
                 elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                icon: const Icon(
+                  Icons.shopping_cart_outlined,
+                  color: Colors.white,
+                ),
                 label: Text(
                   '$_totalProductsInCart Items  •  ₹${_grandTotal.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.white),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             )
@@ -4517,7 +4521,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             color: Colors.black.withOpacity(0.02),
             blurRadius: 15,
             offset: const Offset(0, 5),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -4532,7 +4536,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     color: const Color(0xFF3254F4).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.restaurant_menu_rounded, color: Color(0xFF3254F4)),
+                  child: const Icon(
+                    Icons.restaurant_menu_rounded,
+                    color: Color(0xFF3254F4),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -4557,21 +4564,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       final category = _categories[index];
                       final isSelected = _selectedCategoryId == category['id'];
                       IconData categoryIcon = Icons.fastfood_outlined;
-                      
+
                       return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 6,
+                        ),
                         child: InkWell(
                           onTap: () {
-                            setState(() => _selectedCategoryId = category['id']);
+                            setState(
+                              () => _selectedCategoryId = category['id'],
+                            );
                             _fetchProductsByCategory(category['id']!);
                           },
                           borderRadius: BorderRadius.circular(18),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
                             curve: Curves.easeOut,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
                             decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFF3254F4) : Colors.transparent,
+                              color: isSelected
+                                  ? const Color(0xFF3254F4)
+                                  : Colors.transparent,
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: Row(
@@ -4579,16 +4596,22 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                 Icon(
                                   categoryIcon,
                                   size: 20,
-                                  color: isSelected ? Colors.white : Colors.grey[500]!,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.grey[500]!,
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Text(
                                     category['category_name'] ?? 'Unnamed',
                                     style: TextStyle(
-                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
                                       fontSize: 15,
-                                      color: isSelected ? Colors.white : Colors.grey[700]!,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.grey[700]!,
                                       letterSpacing: 0.2,
                                     ),
                                     maxLines: 1,
@@ -4609,7 +4632,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Widget _buildModernCategoriesHorizontal() {
-    if (_isCategoriesLoading) return const SizedBox(height: 60, child: Center(child: CircularProgressIndicator()));
+    if (_isCategoriesLoading)
+      return const SizedBox(
+        height: 60,
+        child: Center(child: CircularProgressIndicator()),
+      );
     return Container(
       height: 70,
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -4642,7 +4669,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey[200]!, width: 1.5),
+                side: BorderSide(
+                  color: isSelected ? Colors.transparent : Colors.grey[200]!,
+                  width: 1.5,
+                ),
               ),
               elevation: isSelected ? 4 : 0,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -4665,7 +4695,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             color: Colors.black.withOpacity(0.015),
             blurRadius: 20,
             offset: const Offset(0, 8),
-          )
+          ),
         ],
       ),
       child: Row(
@@ -4678,18 +4708,30 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                   children: [
                     Text(
                       'Welcome, ',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 16, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     Text(
                       _ownerName ?? 'Store Owner',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black87),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   _storeName ?? 'My Store',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 14, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -4709,10 +4751,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 style: const TextStyle(fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
                   hintText: 'Search menus...',
-                  hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14, fontWeight: FontWeight.w500),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF3254F4)),
+                  hintStyle: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF3254F4),
+                  ),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear, size: 20),
@@ -4735,7 +4787,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _isListening ? Colors.red[50] : const Color(0xFF3254F4).withOpacity(0.08),
+                color: _isListening
+                    ? Colors.red[50]
+                    : const Color(0xFF3254F4).withOpacity(0.08),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
@@ -4760,12 +4814,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                   CircleAvatar(
                     radius: 14,
                     backgroundColor: const Color(0xFF3254F4).withOpacity(0.1),
-                    child: const Icon(Icons.person, size: 16, color: Color(0xFF3254F4)),
+                    child: const Icon(
+                      Icons.person,
+                      size: 16,
+                      color: Color(0xFF3254F4),
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    _currentCustomer != null ? (_currentCustomer!['first_name'] ?? 'Customer') : 'Add Customer',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    _currentCustomer != null
+                        ? (_currentCustomer!['first_name'] ?? 'Customer')
+                        : 'Add Customer',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -4787,7 +4850,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           children: [
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
-            Text(_productsError!, style: TextStyle(color: Colors.grey[800], fontSize: 16)),
+            Text(
+              _productsError!,
+              style: TextStyle(color: Colors.grey[800], fontSize: 16),
+            ),
           ],
         ),
       );
@@ -4799,7 +4865,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           children: [
             Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            const Text('No products found', style: TextStyle(color: Colors.grey, fontSize: 18, fontWeight: FontWeight.w700)),
+            const Text(
+              'No products found',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       );
@@ -4807,9 +4880,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        int crossAxisCount = constraints.maxWidth > 800 ? 5 : (constraints.maxWidth > 550 ? 4 : 2);
-        if (constraints.maxWidth > 1200) crossAxisCount = 4; // Since we have giant cart
-        
+        int crossAxisCount = constraints.maxWidth > 800
+            ? 5
+            : (constraints.maxWidth > 550 ? 4 : 2);
+        if (constraints.maxWidth > 1200)
+          crossAxisCount = 4; // Since we have giant cart
+
         return GridView.builder(
           controller: _scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -4821,7 +4897,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           ),
           itemCount: _products.length + (_isLoadingMore ? 1 : 0),
           itemBuilder: (context, index) {
-            if (index == _products.length) return const Center(child: CircularProgressIndicator());
+            if (index == _products.length)
+              return const Center(child: CircularProgressIndicator());
             return _buildModernProductCard(_products[index]);
           },
         );
@@ -4830,12 +4907,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Widget _buildModernProductCard(Map<String, dynamic> product) {
-    final hasVariations = product['has_variation'] == true || (product['variations'] != null && product['variations'].toString() != '[]');
+    final hasVariations =
+        product['has_variation'] == true ||
+        (product['variations'] != null &&
+            product['variations'].toString() != '[]');
     double price = 0.0;
     try {
       price = double.parse(product['price'].toString());
     } catch (_) {}
-    
+
     final image = product['image_url'] ?? product['image'];
     int qtyInCart = _getProductQuantityInCart(product);
 
@@ -4848,7 +4928,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             color: Colors.black.withOpacity(0.015),
             blurRadius: 10,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Stack(
@@ -4864,12 +4944,24 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     borderRadius: BorderRadius.circular(16),
                     child: image != null
                         ? CustomCachedNetworkImage(
-                            imageUrl: image,
+                            imgUrl: image,
                             fit: BoxFit.cover,
-                            placeholder: Container(color: Colors.grey[100]),
-                            errorWidget: Container(color: Colors.grey[100], child: const Icon(Icons.fastfood, color: Colors.grey)),
+                            placeholderColor: Colors.grey[100],
+                            errorWidget: Container(
+                              color: Colors.grey[100],
+                              child: const Icon(
+                                Icons.fastfood,
+                                color: Colors.grey,
+                              ),
+                            ),
                           )
-                        : Container(color: Colors.grey[100], child: const Icon(Icons.fastfood, color: Colors.grey)),
+                        : Container(
+                            color: Colors.grey[100],
+                            child: const Icon(
+                              Icons.fastfood,
+                              color: Colors.grey,
+                            ),
+                          ),
                   ),
                 ),
               ),
@@ -4883,7 +4975,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     children: [
                       Text(
                         product['name'] ?? 'Product',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.black87),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: Colors.black87,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -4892,7 +4988,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         children: [
                           Text(
                             '₹${price.toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF3254F4)),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                              color: Color(0xFF3254F4),
+                            ),
                           ),
                           if (qtyInCart == 0)
                             InkWell(
@@ -4904,7 +5004,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                   color: const Color(0xFF3254F4),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Icon(Icons.add, color: Colors.white, size: 18),
+                                child: const Icon(
+                                  Icons.add,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                               ),
                             )
                           else
@@ -4914,33 +5018,75 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.grey[200]!),
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 4,
+                              ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   InkWell(
                                     onTap: () {
-                                      if (hasVariations) _showVariantsBottomSheet(product, product['variations'] ?? []);
-                                      else _decrementCartItem(product['id'].toString(), product['id'].toString());
+                                      if (hasVariations)
+                                        _showVariantsBottomSheet(
+                                          product,
+                                          product['variations'] ?? [],
+                                        );
+                                      else
+                                        _decrementCartItem(
+                                          product['id'].toString(),
+                                          product['id'].toString(),
+                                        );
                                     },
-                                    child: const Padding(padding: EdgeInsets.all(4.0), child: Icon(Icons.remove, size: 16, color: Colors.black87)),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(4.0),
+                                      child: Icon(
+                                        Icons.remove,
+                                        size: 16,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                                    child: Text('$qtyInCart', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF3254F4))),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                    ),
+                                    child: Text(
+                                      '$qtyInCart',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                        color: Color(0xFF3254F4),
+                                      ),
+                                    ),
                                   ),
                                   InkWell(
                                     onTap: () {
-                                      if (hasVariations) _showVariantsBottomSheet(product, product['variations'] ?? []);
-                                      else _incrementCartItem(product['id'].toString(), product['id'].toString());
+                                      if (hasVariations)
+                                        _showVariantsBottomSheet(
+                                          product,
+                                          product['variations'] ?? [],
+                                        );
+                                      else
+                                        _incrementCartItem(
+                                          product['id'].toString(),
+                                          product['id'].toString(),
+                                        );
                                     },
-                                    child: const Padding(padding: EdgeInsets.all(4.0), child: Icon(Icons.add, size: 16, color: Colors.black87)),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(4.0),
+                                      child: Icon(
+                                        Icons.add,
+                                        size: 16,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            )
+                            ),
                         ],
-                      )
+                      ),
                     ],
                   ),
                 ),
@@ -4953,8 +5099,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               right: 12,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFF3254F4), borderRadius: BorderRadius.circular(10)),
-                child: Text('$qtyInCart', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3254F4),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$qtyInCart',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ),
         ],
@@ -4973,7 +5129,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             color: Colors.black.withOpacity(0.02),
             blurRadius: 15,
             offset: const Offset(0, 5),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -4986,24 +5142,37 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               children: [
                 const Text(
                   'Order Summary',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Colors.black87),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 20,
+                    color: Colors.black87,
+                  ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF3254F4).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    _cartData?['order_id']?.toString() != null ? '#${_cartData!['order_id']!.toString().substring(0, 6)}' : 'NEW',
-                    style: const TextStyle(color: Color(0xFF3254F4), fontWeight: FontWeight.bold, fontSize: 13),
+                    _cartData?['order_id']?.toString() != null
+                        ? '#${_cartData!['order_id']!.toString().substring(0, 6)}'
+                        : 'NEW',
+                    style: const TextStyle(
+                      color: Color(0xFF3254F4),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
-                )
+                ),
               ],
             ),
           ),
           const Divider(height: 1, color: Color(0xFFF0F0F0)),
-          
+
           // Order Type Selector
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -5011,7 +5180,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               onTap: _showOrderMethodSelection,
               borderRadius: BorderRadius.circular(16),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8F9FB),
                   borderRadius: BorderRadius.circular(16),
@@ -5025,18 +5197,32 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(Icons.room_service, color: Colors.grey[700], size: 20),
+                      child: Icon(
+                        Icons.room_service,
+                        color: Colors.grey[700],
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Order Type', style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
+                          const Text(
+                            'Order Type',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                           const SizedBox(height: 2),
                           Text(
                             _selectedOrderMethod?['name'] ?? 'Select Type',
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
                           ),
                         ],
                       ),
@@ -5047,7 +5233,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               ),
             ),
           ),
-          
+
           // Items
           Expanded(
             child: _cartItemsAvailable.isEmpty
@@ -5055,102 +5241,202 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.shopping_basket_outlined, size: 60, color: Colors.grey[300]),
+                        Icon(
+                          Icons.shopping_basket_outlined,
+                          size: 60,
+                          color: Colors.grey[300],
+                        ),
                         const SizedBox(height: 16),
-                        const Text('Your cart is empty', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w700, fontSize: 15)),
+                        const Text(
+                          'Your cart is empty',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
                       ],
                     ),
                   )
                 : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     itemCount: _cartItemsAvailable.length,
-                    separatorBuilder: (_, __) => const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1, color: Color(0xFFF0F0F0))),
+                    separatorBuilder: (_, __) => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Divider(height: 1, color: Color(0xFFF0F0F0)),
+                    ),
                     itemBuilder: (context, index) {
                       final item = _cartItemsAvailable[index];
-                      final qty = item['enquired_quantity'] ?? item['quantity'] ?? 0;
+                      final qty =
+                          item['enquired_quantity'] ?? item['quantity'] ?? 0;
                       final price = item['pricing_details']?['amount'] ?? 0.0;
-                      final productImg = item['product_image'] ?? item['image'] ?? item['img_url'];
+                      final productImg =
+                          item['product_image'] ??
+                          item['image'] ??
+                          item['img_url'];
                       return Row(
                         children: [
                           Container(
                             width: 54,
                             height: 54,
                             decoration: BoxDecoration(
-                               color: Colors.grey[100],
-                               borderRadius: BorderRadius.circular(14),
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(14),
                             ),
                             child: productImg != null
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(14),
-                                    child: CustomCachedNetworkImage(imageUrl: productImg, fit: BoxFit.cover),
+                                    child: CustomCachedNetworkImage(
+                                      imgUrl: productImg,
+                                      fit: BoxFit.cover,
+                                    ),
                                   )
-                                : const Icon(Icons.fastfood, color: Colors.grey),
+                                : const Icon(
+                                    Icons.fastfood,
+                                    color: Colors.grey,
+                                  ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('${item['product_name']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                Text(
+                                  '${item['product_name']}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 const SizedBox(height: 6),
-                                Text('₹${price.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF3254F4), fontWeight: FontWeight.w900, fontSize: 14)),
+                                Text(
+                                  '₹${price.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    color: Color(0xFF3254F4),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 14,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                           Container(
                             decoration: BoxDecoration(
-                               color: const Color(0xFFF8F9FB),
-                               borderRadius: BorderRadius.circular(12),
-                               border: Border.all(color: Colors.grey[200]!),
+                              color: const Color(0xFFF8F9FB),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[200]!),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 4,
+                            ),
                             child: Row(
                               children: [
                                 InkWell(
-                                  onTap: () => _decrementCartItem(item['product_combination_id'] ?? item['id'].toString(), item['product_id'].toString()),
-                                  child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.remove, size: 16)),
+                                  onTap: () => _decrementCartItem(
+                                    item['product_combination_id'] ??
+                                        item['id'].toString(),
+                                    item['product_id'].toString(),
+                                  ),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(4),
+                                    child: Icon(Icons.remove, size: 16),
+                                  ),
                                 ),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                                  child: Text('$qty', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF3254F4))),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                  ),
+                                  child: Text(
+                                    '$qty',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                      color: Color(0xFF3254F4),
+                                    ),
+                                  ),
                                 ),
                                 InkWell(
-                                  onTap: () => _incrementCartItem(item['product_combination_id'] ?? item['id'].toString(), item['product_id'].toString()),
-                                  child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.add, size: 16)),
+                                  onTap: () => _incrementCartItem(
+                                    item['product_combination_id'] ??
+                                        item['id'].toString(),
+                                    item['product_id'].toString(),
+                                  ),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(4),
+                                    child: Icon(Icons.add, size: 16),
+                                  ),
                                 ),
                               ],
                             ),
-                          )
+                          ),
                         ],
                       );
                     },
                   ),
           ),
-          
+
           // Totals & Checkout
           if (_cartItemsAvailable.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-                border: Border(top: BorderSide(color: Colors.grey[100]!, width: 2)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(24),
+                ),
+                border: Border(
+                  top: BorderSide(color: Colors.grey[100]!, width: 2),
+                ),
               ),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Subtotal', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600, fontSize: 15)),
-                      Text('₹${_grandTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                      const Text(
+                        'Subtotal',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      Text(
+                        '₹${_grandTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total Amount', style: TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.w900)),
-                      Text('₹${_grandTotal.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF3254F4), fontSize: 24, fontWeight: FontWeight.w900)),
+                      const Text(
+                        'Total Amount',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        '₹${_grandTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: Color(0xFF3254F4),
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -5161,15 +5447,25 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       onPressed: _reviewOrder,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF3254F4),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         elevation: 0,
                       ),
-                      child: const Text('Place Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5)),
+                      child: const Text(
+                        'Place Order',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                     ),
-                  )
+                  ),
                 ],
               ),
-            )
+            ),
         ],
       ),
     );

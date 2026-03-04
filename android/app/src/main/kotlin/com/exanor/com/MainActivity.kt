@@ -1,4 +1,4 @@
-package com.exanor.com
+package com.exanor.store
 
 import io.flutter.embedding.android.FlutterActivity
 
