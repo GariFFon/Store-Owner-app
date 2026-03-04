@@ -2347,7 +2347,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   const SizedBox(height: 24),
 
                   _buildDropdownInput(
-                    label: "Account Type *",
+                    label: "Account Type",
                     value: selectedAccountType,
                     items: _accountTypes,
                     onChanged: (val) =>
@@ -2359,14 +2359,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                     children: [
                       Expanded(
                         child: _buildBottomSheetInput(
-                          label: "Bank Name **",
+                          label: "Bank Name",
                           controller: bankNameController,
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildBottomSheetInput(
-                          label: "Account Number **",
+                          label: "Account Number",
                           controller: accountNumberController,
                         ),
                       ),
@@ -2379,14 +2379,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                     children: [
                       Expanded(
                         child: _buildBottomSheetInput(
-                          label: "IFSC Code **",
+                          label: "IFSC Code",
                           controller: ifscCodeController,
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildBottomSheetInput(
-                          label: "Account Holder Name **",
+                          label: "Account Holder Name",
                           controller: holderNameController,
                         ),
                       ),
@@ -2401,7 +2401,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     children: [
                       Expanded(
                         child: _buildDropdownInput(
-                          label: "Holder Type *",
+                          label: "Holder Type",
                           value: selectedHolderType,
                           items: _holderTypes,
                           onChanged: (val) =>
@@ -2411,7 +2411,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildBottomSheetInput(
-                          label: "City **",
+                          label: "City",
                           controller: cityController,
                         ),
                       ),
@@ -2473,7 +2473,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
                   const SizedBox(height: 16),
                   _buildBottomSheetInput(
-                    label: "Address **",
+                    label: "Address",
                     controller: addressController,
                   ),
 
@@ -2482,14 +2482,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                     children: [
                       Expanded(
                         child: _buildBottomSheetInput(
-                          label: "State **",
+                          label: "State",
                           controller: stateController,
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: _buildBottomSheetInput(
-                          label: "Country **",
+                          label: "Country",
                           controller: countryController,
                         ),
                       ),

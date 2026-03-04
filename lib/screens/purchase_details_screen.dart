@@ -811,24 +811,26 @@ class _PurchaseDetailsScreenState extends State<PurchaseDetailsScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TranslatedText(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
-                fontSize: 11,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TranslatedText(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  fontSize: 11,
+                ),
               ),
-            ),
-            Text(
-              value,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-                color: valueColor ?? theme.colorScheme.onSurface,
+              Text(
+                value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+                  color: valueColor ?? theme.colorScheme.onSurface,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
