@@ -344,10 +344,10 @@ class _SplashScreenState extends State<SplashScreen>
                             child: Opacity(
                               opacity: logoO,
                               child: SizedBox(
-                                width: 150,
-                                height: 150,
+                                width: 250,
+                                height: 250,
                                 child: Image.asset(
-                                  'assets/icon/exanor_blue.png',
+                                  'assets/icon/exanor_store_partner_logo_512x512px.png',
                                   fit: BoxFit.contain,
                                 ),
                               ),
