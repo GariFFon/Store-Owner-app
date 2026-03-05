@@ -1761,10 +1761,10 @@ packages:
     dependency: "direct main"
     description:
       name: webview_flutter_wkwebview
-      sha256: "0412b657a2828fb301e73509909e6ec02b77cd2b441ae9f77125d482b3ddf0e7"
+      sha256: fc0af89d403e1c053f03d023d97550412fa79f35332e2939514c82e6fe633198
       url: "https://pub.dev"
     source: hosted
-    version: "3.23.6"
+    version: "3.23.8"
   win32:
     dependency: transitive
     description:
