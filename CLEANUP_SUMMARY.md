@@ -1,7 +1,7 @@
 # App Cleanup Summary
 
 ## Package Name Change
-✅ Successfully changed package name to: **com.exanor.com**
+✅ Successfully changed package name to: **com.exanor.store**
 - Android: Updated `build.gradle.kts` and `MainActivity.kt`
 - iOS: Already configured correctly
 - macOS: Updated `AppInfo.xcconfig`
