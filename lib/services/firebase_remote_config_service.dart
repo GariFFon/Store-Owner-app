@@ -19,9 +19,9 @@ class FirebaseRemoteConfigService {
   static const String _searchOrderByKey = 'searchOrderBy';
 
   // Onboarding screen image URLs
-  static const String _onboardingImg1Key = 'onboardingScreenImgUrl1';
-  static const String _onboardingImg2Key = 'onboardingScreenImgUrl2';
-  static const String _onboardingImg3Key = 'onboardingScreenImgUrl3';
+  static const String _onboardingImg1Key = 'onboardingScreenImgUrl1_store';
+  static const String _onboardingImg2Key = 'onboardingScreenImgUrl2_store';
+  static const String _onboardingImg3Key = 'onboardingScreenImgUrl3_store';
 
   // Support page URLs
   static const String _privacyPolicyKey = 'privacyPolicy';

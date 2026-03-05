@@ -553,7 +553,7 @@ class StoreOwnerApiService {
       };
 
       if (financialYearId != null) {
-        body['financial_year'] = financialYearId;
+        body['financial_year_id'] = financialYearId;
       }
       if (openingBalance != null) {
         body['opening_balance'] = openingBalance;
@@ -624,7 +624,7 @@ class StoreOwnerApiService {
       };
 
       if (financialYearId != null) {
-        body['financial_year'] = financialYearId;
+        body['financial_year_id'] = financialYearId;
       }
       if (openingBalance != null) {
         body['opening_balance'] = openingBalance;

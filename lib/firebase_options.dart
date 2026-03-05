@@ -85,5 +85,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'exanor-user-app.firebasestorage.app',
     measurementId: 'G-F1PZS3WLN0',
   );
-
 }
