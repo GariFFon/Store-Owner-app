@@ -1,1 +1,41 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"exanor-user-app","appId":"1:908434646252:android:9c0f306b82fd31297eb1c9","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"exanor-user-app","appId":"1:908434646252:ios:c3e5b0a42f7bcf7e7eb1c9","uploadDebugSymbols":true,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"exanor-user-app","appId":"1:908434646252:ios:c3e5b0a42f7bcf7e7eb1c9","uploadDebugSymbols":true,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"exanor-user-app","configurations":{"android":"1:908434646252:android:9c0f306b82fd31297eb1c9","ios":"1:908434646252:ios:c3e5b0a42f7bcf7e7eb1c9","macos":"1:908434646252:ios:c3e5b0a42f7bcf7e7eb1c9","web":"1:908434646252:web:ff1f7f30f48d744f7eb1c9","windows":"1:908434646252:web:01fe6493a2714ee17eb1c9"}}}}}}
+{
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "exanor-user-app",
+                    "appId": "1:908434646252:android:dba7c9467cc3e74c7eb1c9",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "ios": {
+                "default": {
+                    "projectId": "exanor-user-app",
+                    "appId": "1:908434646252:ios:b060dbb68781fe8b7eb1c9",
+                    "uploadDebugSymbols": true,
+                    "fileOutput": "ios/Runner/GoogleService-Info.plist"
+                }
+            },
+            "macos": {
+                "default": {
+                    "projectId": "exanor-user-app",
+                    "appId": "1:908434646252:ios:b060dbb68781fe8b7eb1c9",
+                    "uploadDebugSymbols": true,
+                    "fileOutput": "macos/Runner/GoogleService-Info.plist"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "exanor-user-app",
+                    "configurations": {
+                        "android": "1:908434646252:android:dba7c9467cc3e74c7eb1c9",
+                        "ios": "1:908434646252:ios:b060dbb68781fe8b7eb1c9",
+                        "macos": "1:908434646252:ios:b060dbb68781fe8b7eb1c9",
+                        "web": "1:908434646252:web:ff1f7f30f48d744f7eb1c9",
+                        "windows": "1:908434646252:web:01fe6493a2714ee17eb1c9"
+                    }
+                }
+            }
+        }
+    }
+}

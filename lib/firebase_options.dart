@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyC65jNDCzPsPEmnIa-TQ3Kp7WUIytzFdUE',
-    appId: '1:908434646252:android:9c0f306b82fd31297eb1c9',
+    appId: '1:908434646252:android:dba7c9467cc3e74c7eb1c9',
     messagingSenderId: '908434646252',
     projectId: 'exanor-user-app',
     storageBucket: 'exanor-user-app.firebasestorage.app',
@@ -60,7 +60,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDhR0TPNMw9K3wWdgGTYpkocQS7yrac0j8',
-    appId: '1:908434646252:ios:c3e5b0a42f7bcf7e7eb1c9',
+    appId: '1:908434646252:ios:b060dbb68781fe8b7eb1c9',
     messagingSenderId: '908434646252',
     projectId: 'exanor-user-app',
     storageBucket: 'exanor-user-app.firebasestorage.app',
@@ -69,7 +69,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyDhR0TPNMw9K3wWdgGTYpkocQS7yrac0j8',
-    appId: '1:908434646252:ios:c3e5b0a42f7bcf7e7eb1c9',
+    appId: '1:908434646252:ios:b060dbb68781fe8b7eb1c9',
     messagingSenderId: '908434646252',
     projectId: 'exanor-user-app',
     storageBucket: 'exanor-user-app.firebasestorage.app',
@@ -85,5 +85,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'exanor-user-app.firebasestorage.app',
     measurementId: 'G-F1PZS3WLN0',
   );
-
 }
