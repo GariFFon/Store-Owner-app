@@ -1246,11 +1246,19 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 },
                 onNewOrder: () {
                   Navigator.pop(ctx);
+                  // Reset customer state for a fresh session
+                  setState(() {
+                    customer_user_id = null;
+                    _currentCustomer = null;
+                    selected_address_id = null;
+                  });
                   _initLocationAndCart();
                   _fetchProductsByCategory(
                     _selectedCategoryId ?? 'all',
                     isRefresh: true,
                   );
+                  // Show the Link Customer bottom sheet for the new order
+                  _showCustomerPhoneDialog();
                 },
               ),
             );
