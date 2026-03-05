@@ -930,9 +930,40 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       return;
     }
 
-    if (customer_user_id == null) {
+    if (customer_user_id == null || customer_user_id!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: TranslatedText('Please select a customer')),
+      );
+      return;
+    }
+
+    // Validate order method is selected
+    final orderMethodId = _selectedOrderMethod?['id']?.toString();
+    if (orderMethodId == null || orderMethodId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: TranslatedText('Please select an order method'),
+        ),
+      );
+      return;
+    }
+
+    // Validate address is selected
+    if (selected_address_id == null || selected_address_id!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: TranslatedText('Please select a delivery address'),
+        ),
+      );
+      return;
+    }
+
+    // Validate payment method is selected
+    if (_selectedPaymentMethodId == null || _selectedPaymentMethodId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: TranslatedText('Please select a payment method'),
+        ),
       );
       return;
     }
@@ -951,11 +982,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           "customer_user_id": customer_user_id,
           "lat": _lat,
           "lng": _lng,
-          "order_method_id": _selectedOrderMethod?['id'],
+          "order_method_id": orderMethodId,
           "payment_method_id": _selectedPaymentMethodId,
           "store_access": true,
           "store_id": widget.storeId,
           "user_address_id": selected_address_id,
+          "coupon_code": "",
         },
         useBearerToken: true,
       );
@@ -987,9 +1019,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           }
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(data['message'] ?? 'Review failed')),
-            );
+            // Show backend's user-friendly message if available
+            final respData = data['response'];
+            final errorMsg = (respData is Map)
+                ? (respData['message_for_user'] ??
+                      respData['message'] ??
+                      data['message'] ??
+                      'Review failed')
+                : (data['message'] ?? 'Review failed');
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(errorMsg)));
           }
         }
       } else {
@@ -1053,6 +1093,28 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Future<void> _confirmPlaceOrder() async {
+    // Validate required fields before placing order
+    final orderMethodId = _selectedOrderMethod?['id']?.toString();
+    if (orderMethodId == null ||
+        orderMethodId.isEmpty ||
+        selected_address_id == null ||
+        selected_address_id!.isEmpty ||
+        _selectedPaymentMethodId == null ||
+        _selectedPaymentMethodId!.isEmpty ||
+        customer_user_id == null ||
+        customer_user_id!.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: TranslatedText(
+              'Missing required order details. Please go back and verify.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     // Show loading
     showDialog(
       context: context,
@@ -1072,7 +1134,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             "customer_user_id": customer_user_id,
             "lat": _lat,
             "lng": _lng,
-            "order_method_id": _selectedOrderMethod?['id'],
+            "order_method_id": orderMethodId,
             "payment_method_id": _selectedPaymentMethodId,
             "store_access": true,
             "store_id": widget.storeId,
@@ -1108,7 +1170,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             "customer_user_id": customer_user_id,
             "lat": _lat,
             "lng": _lng,
-            "order_method_id": _selectedOrderMethod?['id'],
+            "order_method_id": orderMethodId,
             "payment_method_id": _selectedPaymentMethodId,
             "store_access": true,
             "store_id": widget.storeId,
@@ -1128,6 +1190,26 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         if (data['status'] == 200) {
           // Close the Summary Popup
           if (mounted) Navigator.pop(context);
+
+          // Instantly clear cart state so UI reflects empty cart immediately
+          if (mounted) {
+            setState(() {
+              _cartItemsAvailable = [];
+              _cartItemsUnavailable = [];
+              _totalProductsInCart = 0;
+              _grandTotal = 0.0;
+              _cartData = null;
+              _multiModeValues = {};
+              _selectedPaymentMode = 'UNPAID';
+              // Reset all product quantities to 0
+              for (int i = 0; i < _products.length; i++) {
+                if ((_products[i]['quantity'] as num?)?.toInt() != 0) {
+                  _products[i] = Map<String, dynamic>.from(_products[i]);
+                  _products[i]['quantity'] = 0;
+                }
+              }
+            });
+          }
 
           String? createdOrderId;
           if (data['response'] is Map) {
