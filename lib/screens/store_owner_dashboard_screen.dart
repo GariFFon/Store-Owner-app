@@ -10,7 +10,9 @@ import 'package:exanor/screens/assistant_screen.dart';
 
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'package:exanor/services/notification_service.dart';
+import 'package:exanor/utils/keyboard_shortcuts.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class StoreOwnerDashboardScreen extends StatefulWidget {
   final String storeId;
@@ -31,9 +33,13 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
     with TickerProviderStateMixin {
   int _currentIndex = 0;
   bool _isAssistantOpen = false;
+  bool _isShortcutOverlayVisible = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final GlobalKey<AssistantScreenState> _assistantKey =
       GlobalKey<AssistantScreenState>();
+  final DesktopActionController _posActionController =
+      DesktopActionController();
+  final FocusNode _dashboardFocusNode = FocusNode();
   List<Map<String, dynamic>> _tabs = [];
 
   // Animation controllers for the Assistant tab icon
@@ -49,6 +55,12 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
     super.initState();
     _initAnimations();
     _loadTabs();
+
+    _posActionController.restoreFocus = () {
+      if (mounted) {
+        _dashboardFocusNode.requestFocus();
+      }
+    };
 
     // Create notification token after authentication
     NotificationService.createNotificationToken();
@@ -171,6 +183,7 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
     _pulseController.dispose();
     _rotateController.dispose();
     _glowController.dispose();
+    _dashboardFocusNode.dispose();
     super.dispose();
   }
 
@@ -178,6 +191,10 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    return _buildWithShortcuts(context, theme);
+  }
+
+  Widget _buildWithShortcuts(BuildContext context, ThemeData theme) {
     Widget child;
 
     // If no tabs configured, fallback to just POS screen
@@ -186,6 +203,7 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
         storeId: widget.storeId,
         storeName: widget.storeName,
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        desktopActionController: _posActionController,
       );
     } else {
       // Build the screens based on tabs
@@ -197,6 +215,7 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
             storeId: widget.storeId,
             storeName: widget.storeName,
             onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            desktopActionController: _posActionController,
           );
         } else if (id == 'orders') {
           return OrdersListScreen(
@@ -268,7 +287,7 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
       );
     }
 
-    return WillPopScope(
+    final wrappedChild = WillPopScope(
       onWillPop: () async {
         final shouldPop = await showDialog<bool>(
           context: context,
@@ -305,7 +324,75 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
         );
         return shouldPop ?? false;
       },
-      child: child,
+      child: Stack(
+        children: [
+          child,
+          // Keyboard shortcuts overlay
+          if (_isShortcutOverlayVisible)
+            KeyboardShortcutsOverlay(
+              onClose: () => setState(() => _isShortcutOverlayVisible = false),
+            ),
+        ],
+      ),
+    );
+
+    // Wrap with desktop keyboard shortcuts
+    return DesktopShortcutWrapper(
+      focusNode: _dashboardFocusNode,
+      callbacks: ShortcutCallbacks(
+        onSearch: () {
+          // Switch to POS tab and focus search
+          final posIndex = _tabs.indexWhere((t) => t['id'] == 'pos');
+          if (posIndex != -1) {
+            setState(() {
+              _currentIndex = posIndex;
+              _isAssistantOpen = false;
+            });
+          }
+          _posActionController.focusSearch?.call();
+        },
+        onRefresh: () {
+          _posActionController.refreshProducts?.call();
+        },
+        onOpenMenu: () {
+          _scaffoldKey.currentState?.openDrawer();
+        },
+        onSwitchTab: (index) {
+          if (index < _tabs.length) {
+            final tabId = _tabs[index]['id'];
+            if (tabId == 'assistant') {
+              setState(() => _isAssistantOpen = true);
+            } else {
+              setState(() {
+                _currentIndex = index;
+                _isAssistantOpen = false;
+              });
+            }
+          }
+        },
+        onOpenAssistant: () {
+          setState(() => _isAssistantOpen = true);
+        },
+        onEscape: () {
+          if (_isShortcutOverlayVisible) {
+            setState(() => _isShortcutOverlayVisible = false);
+          } else if (_isAssistantOpen) {
+            setState(() => _isAssistantOpen = false);
+            _assistantKey.currentState?.stopAssistant();
+          }
+        },
+      ),
+      child: CallbackShortcuts(
+        bindings: {
+          // Ctrl+/ → Show shortcut overlay
+          const SingleActivator(LogicalKeyboardKey.slash, control: true): () {
+            setState(
+              () => _isShortcutOverlayVisible = !_isShortcutOverlayVisible,
+            );
+          },
+        },
+        child: wrappedChild,
+      ),
     );
   }
 

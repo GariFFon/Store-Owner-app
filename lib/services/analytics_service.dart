@@ -1,18 +1,35 @@
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:exanor/utils/platform_helper.dart';
+
+// Firebase Analytics is only supported on mobile
+import 'package:firebase_analytics/firebase_analytics.dart'
+    if (dart.library.io) 'package:firebase_analytics/firebase_analytics.dart';
 
 class AnalyticsService {
   static final AnalyticsService _instance = AnalyticsService._internal();
   factory AnalyticsService() => _instance;
   AnalyticsService._internal();
 
-  late final FirebaseAnalytics _analytics;
-  late final FirebaseAnalyticsObserver _observer;
+  FirebaseAnalytics? _analytics;
+  FirebaseAnalyticsObserver? _observer;
+  bool _isInitialized = false;
 
   // Initialize the analytics service
   void initialize() {
+    if (!PlatformHelper.isFirebaseSupported) {
+      _isInitialized = false;
+      if (kDebugMode) {
+        print(
+          '⚠️ Analytics not supported on ${defaultTargetPlatform.name} - using no-op',
+        );
+      }
+      return;
+    }
+
     _analytics = FirebaseAnalytics.instance;
-    _observer = FirebaseAnalyticsObserver(analytics: _analytics);
+    _observer = FirebaseAnalyticsObserver(analytics: _analytics!);
+    _isInitialized = true;
 
     // Set default event parameters
     _setDefaultEventParameters();
@@ -22,16 +39,20 @@ class AnalyticsService {
     }
   }
 
-  // Getters for external access
-  FirebaseAnalytics get analytics => _analytics;
-  FirebaseAnalyticsObserver get observer => _observer;
+  // Getters for external access - return no-op observer on unsupported platforms
+  FirebaseAnalytics? get analytics => _analytics;
+  NavigatorObserver get observer =>
+      _observer ??
+      NavigatorObserver(); // Return plain NavigatorObserver as fallback
 
   // Set default event parameters
   Future<void> _setDefaultEventParameters() async {
+    if (!_isInitialized || _analytics == null) return;
+
     try {
       if (!kIsWeb) {
-        await _analytics.setDefaultEventParameters(<String, dynamic>{
-          'app_version': '1.0.0', // Replace with actual app version
+        await _analytics!.setDefaultEventParameters(<String, dynamic>{
+          'app_version': '1.0.0',
           'platform': 'flutter',
           'debug_mode': kDebugMode,
         });
@@ -45,8 +66,10 @@ class AnalyticsService {
 
   // Set user properties
   Future<void> setUserId(String userId) async {
+    if (!_isInitialized || _analytics == null) return;
+
     try {
-      await _analytics.setUserId(id: userId);
+      await _analytics!.setUserId(id: userId);
       if (kDebugMode) {
         print('📊 User ID set: $userId');
       }
@@ -58,8 +81,10 @@ class AnalyticsService {
   }
 
   Future<void> setUserProperty(String name, String? value) async {
+    if (!_isInitialized || _analytics == null) return;
+
     try {
-      await _analytics.setUserProperty(name: name, value: value);
+      await _analytics!.setUserProperty(name: name, value: value);
       if (kDebugMode) {
         print('📊 User property set: $name = $value');
       }
@@ -76,8 +101,10 @@ class AnalyticsService {
     String? screenClass,
     Map<String, dynamic>? parameters,
   }) async {
+    if (!_isInitialized || _analytics == null) return;
+
     try {
-      await _analytics.logScreenView(
+      await _analytics!.logScreenView(
         screenName: screenName,
         screenClass: screenClass,
         parameters: _cleanParameters(parameters),
@@ -111,8 +138,15 @@ class AnalyticsService {
     required String eventName,
     Map<String, dynamic>? parameters,
   }) async {
+    if (!_isInitialized || _analytics == null) {
+      if (kDebugMode && PlatformHelper.isDesktop) {
+        print('📊 [Desktop No-Op] Event: $eventName');
+      }
+      return;
+    }
+
     try {
-      await _analytics.logEvent(
+      await _analytics!.logEvent(
         name: eventName,
         parameters: _cleanParameters(parameters),
       );
@@ -263,7 +297,7 @@ class AnalyticsService {
 
   // Business events
   Future<void> logSubscriptionEvent({
-    required String action, // 'viewed', 'started', 'completed', 'cancelled'
+    required String action,
     String? planType,
     double? price,
     String? currency,
@@ -366,8 +400,10 @@ class AnalyticsService {
 
   // Disable analytics (for GDPR compliance)
   Future<void> disableAnalytics() async {
+    if (!_isInitialized || _analytics == null) return;
+
     try {
-      await _analytics.setAnalyticsCollectionEnabled(false);
+      await _analytics!.setAnalyticsCollectionEnabled(false);
       if (kDebugMode) {
         print('🚫 Analytics disabled');
       }
@@ -380,8 +416,10 @@ class AnalyticsService {
 
   // Enable analytics
   Future<void> enableAnalytics() async {
+    if (!_isInitialized || _analytics == null) return;
+
     try {
-      await _analytics.setAnalyticsCollectionEnabled(true);
+      await _analytics!.setAnalyticsCollectionEnabled(true);
       if (kDebugMode) {
         print('✅ Analytics enabled');
       }
@@ -394,8 +432,10 @@ class AnalyticsService {
 
   // Reset analytics data
   Future<void> resetAnalyticsData() async {
+    if (!_isInitialized || _analytics == null) return;
+
     try {
-      await _analytics.resetAnalyticsData();
+      await _analytics!.resetAnalyticsData();
       if (kDebugMode) {
         print('🔄 Analytics data reset');
       }

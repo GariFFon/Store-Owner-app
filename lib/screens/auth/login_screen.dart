@@ -57,7 +57,14 @@ class _LoginScreenState extends State<LoginScreen> {
         subtitle: _isOtpSent
             ? 'Enter the OTP sent to your mobile'
             : 'Login / Sign up to your account',
-        // onBack removed - relying on System Back button via PopScope
+        onBack: _isOtpSent
+            ? () {
+                setState(() {
+                  _isOtpSent = false;
+                  _otpCode = '';
+                });
+              }
+            : null,
         child: Form(
           key: _formKey,
           child: AnimatedSwitcher(
@@ -126,6 +133,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.length != 10) return null;
                     return null;
                   },
+                  onFieldSubmitted: (_) {
+                    if (!_isLoading) _submitPhoneNumber();
+                  },
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -191,6 +201,9 @@ class _LoginScreenState extends State<LoginScreen> {
             setState(() {
               _otpCode = code;
             });
+          },
+          onSubmitted: () {
+            if (!_isLoading && _otpCode.length == 4) _verifyOtp();
           },
         ),
         const SizedBox(height: 12),

@@ -1,6 +1,8 @@
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:developer' as developer;
 import 'dart:convert';
+import 'package:exanor/utils/platform_helper.dart';
 
 class FirebaseRemoteConfigService {
   static FirebaseRemoteConfig? _remoteConfig;
@@ -298,6 +300,14 @@ class FirebaseRemoteConfigService {
 
   /// Initialize Firebase Remote Config
   static Future<void> initialize() async {
+    if (!PlatformHelper.isFirebaseSupported) {
+      developer.log(
+        '⚠️ FirebaseRemoteConfig: Not supported on ${defaultTargetPlatform.name} - using defaults',
+        name: 'RemoteConfig',
+      );
+      return;
+    }
+
     try {
       developer.log(
         '🔧 FirebaseRemoteConfig: Starting initialization...',

@@ -14,17 +14,22 @@ import 'package:exanor/services/invoice_print_service.dart';
 import 'package:exanor/components/pos_print_options_dialog.dart';
 import 'package:exanor/screens/order_details_screen.dart';
 import 'package:exanor/utils/event_bus.dart';
+import 'package:exanor/utils/keyboard_shortcuts.dart';
+import 'package:exanor/utils/platform_helper.dart';
+import 'package:exanor/utils/fuzzy_search.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
   final String storeName;
   final VoidCallback? onMenuPressed;
+  final DesktopActionController? desktopActionController;
 
   const StoreOwnerPOSScreen({
     super.key,
     required this.storeId,
     required this.storeName,
     this.onMenuPressed,
+    this.desktopActionController,
   });
 
   @override
@@ -33,6 +38,32 @@ class StoreOwnerPOSScreen extends StatefulWidget {
 
 class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// Public: Expand and focus the search bar (called via Ctrl+S / Ctrl+F)
+  void focusSearch() {
+    if (mounted) {
+      if (PlatformHelper.isDesktop) {
+        setState(() {
+          _isDesktopSearchOverlayVisible = true;
+        });
+        Future.delayed(const Duration(milliseconds: 50), () {
+          _desktopSearchFocusNode.requestFocus();
+        });
+      } else {
+        setState(() {
+          _isSearchExpanded = true;
+        });
+      }
+    }
+  }
+
+  /// Public: Refresh products in the current category (called via Ctrl+R / F5)
+  void refreshProducts() {
+    if (_selectedCategoryId != null) {
+      _fetchProductsByCategory(_selectedCategoryId!, isRefresh: true);
+    }
+  }
+
   // Categories
   List<Map<String, dynamic>> _categories = [];
   String? _selectedCategoryId;
@@ -54,6 +85,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   bool _isSearchExpanded = false;
+
+  // Local product cache for fuzzy search (all products loaded across categories)
+  final List<Map<String, dynamic>> _allProductsCache = [];
+
+  // Desktop Search Overlay
+  bool _isDesktopSearchOverlayVisible = false;
+  final FocusNode _desktopSearchFocusNode = FocusNode();
 
   // Voice Search
   late stt.SpeechToText _speech;
@@ -98,6 +136,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   @override
   void initState() {
     super.initState();
+    widget.desktopActionController?.focusSearch = focusSearch;
+    widget.desktopActionController?.refreshProducts = refreshProducts;
     _fetchOwnerName();
     _initializeSpeech();
     _setupScrollListener();
@@ -116,6 +156,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _desktopSearchFocusNode.dispose();
     _searchDebounce?.cancel();
     _speech.stop();
     _scrollController.dispose();
@@ -364,6 +405,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             // Use API's has_next field for accurate pagination
             _hasMoreProducts = hasNextFromApi;
           });
+
+          // Cache products for fuzzy local search
+          _cacheProducts(newProducts);
         } else {
           setState(() {
             _products = [];
@@ -458,6 +502,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
         if (data['status'] == 200 && data['response'] != null) {
           final newProducts = List<Map<String, dynamic>>.from(data['response']);
+
+          // Cache for fuzzy search
+          _cacheProducts(newProducts);
 
           // Use pagination info from API response
           final pagination = data['pagination'];
@@ -1320,6 +1367,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      constraints: const BoxConstraints(maxWidth: 600),
       builder: (context) {
         bool showDetails = false;
         return StatefulBuilder(
@@ -1873,6 +1921,73 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     );
   }
 
+  /// Cache products for local fuzzy search.
+  /// Avoids duplicates by checking product IDs.
+  void _cacheProducts(List<Map<String, dynamic>> products) {
+    final existingIds = _allProductsCache
+        .map((p) => p['id']?.toString() ?? '')
+        .toSet();
+    for (final product in products) {
+      final id = product['id']?.toString() ?? '';
+      if (id.isNotEmpty && !existingIds.contains(id)) {
+        _allProductsCache.add(product);
+        existingIds.add(id);
+      }
+    }
+    print('📦 Product cache size: ${_allProductsCache.length}');
+  }
+
+  /// Perform local fuzzy search on cached products.
+  List<Map<String, dynamic>> _fuzzySearchLocal(String query) {
+    if (query.trim().isEmpty || _allProductsCache.isEmpty) return [];
+
+    return FuzzySearch.search<Map<String, dynamic>>(
+      items: _allProductsCache,
+      query: query,
+      getSearchableStrings: (product) {
+        final strings = <String>[];
+        if (product['product_name'] != null) {
+          strings.add(product['product_name'].toString());
+        }
+        if (product['description'] != null &&
+            product['description'] != 'undefined') {
+          strings.add(product['description'].toString());
+        }
+        if (product['child_category'] != null) {
+          strings.add(product['child_category'].toString());
+        }
+        if (product['product_code'] != null) {
+          strings.add(product['product_code'].toString());
+        }
+        if (product['barcode'] != null) {
+          strings.add(product['barcode'].toString());
+        }
+        return strings;
+      },
+      minScore: 0.3,
+    );
+  }
+
+  /// Merge server results with local fuzzy results, prioritizing server results.
+  List<Map<String, dynamic>> _mergeSearchResults(
+    List<Map<String, dynamic>> serverResults,
+    List<Map<String, dynamic>> localResults,
+  ) {
+    final serverIds = serverResults
+        .map((p) => p['id']?.toString() ?? '')
+        .toSet();
+
+    // Add local results that aren't already in server results
+    final merged = List<Map<String, dynamic>>.from(serverResults);
+    for (final localProduct in localResults) {
+      final id = localProduct['id']?.toString() ?? '';
+      if (id.isNotEmpty && !serverIds.contains(id)) {
+        merged.add(localProduct);
+      }
+    }
+    return merged;
+  }
+
   Future<void> _searchProducts(String query) async {
     if (query.isEmpty) {
       // If search is empty, fetch products by selected category
@@ -1882,9 +1997,23 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       return;
     }
 
+    // Step 1: Show instant local fuzzy results first
+    final localResults = _fuzzySearchLocal(query);
+    if (localResults.isNotEmpty) {
+      setState(() {
+        _products = localResults;
+        _productsError = null;
+        _hasMoreProducts = false;
+      });
+    }
+
+    // Step 2: Also run server search in background
     try {
       setState(() {
-        _isProductsLoading = true;
+        // Only show loading if no local results
+        if (localResults.isEmpty) {
+          _isProductsLoading = true;
+        }
         _productsError = null;
         _currentPage = 1;
       });
@@ -1908,33 +2037,63 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
         final data = response['data'];
 
         if (data['status'] == 200 && data['response'] != null) {
-          final newProducts = List<Map<String, dynamic>>.from(data['response']);
+          final serverProducts = List<Map<String, dynamic>>.from(
+            data['response'],
+          );
+
+          // Cache server results too
+          _cacheProducts(serverProducts);
+
+          // Merge server + local fuzzy results
+          final merged = _mergeSearchResults(serverProducts, localResults);
+
           setState(() {
-            _products = newProducts;
+            _products = merged;
             _isProductsLoading = false;
             _hasMoreProducts = data['has_next'] ?? false;
           });
         } else {
+          // Server returned no results — keep local fuzzy results if available
+          if (localResults.isEmpty) {
+            setState(() {
+              _products = [];
+              _productsError = 'No products found for "$query"';
+              _isProductsLoading = false;
+              _hasMoreProducts = false;
+            });
+          } else {
+            setState(() {
+              _isProductsLoading = false;
+            });
+          }
+        }
+      } else {
+        // API error — keep local results if available
+        if (localResults.isEmpty) {
           setState(() {
-            _products = [];
-            _productsError = 'No products found for "$query"';
+            _productsError = 'Search failed';
             _isProductsLoading = false;
             _hasMoreProducts = false;
           });
+        } else {
+          setState(() {
+            _isProductsLoading = false;
+          });
         }
-      } else {
+      }
+    } catch (e) {
+      // Network error — keep local results if available
+      if (localResults.isEmpty) {
         setState(() {
-          _productsError = 'Search failed';
+          _productsError = 'Search error: $e';
           _isProductsLoading = false;
           _hasMoreProducts = false;
         });
+      } else {
+        setState(() {
+          _isProductsLoading = false;
+        });
       }
-    } catch (e) {
-      setState(() {
-        _productsError = 'Search error: $e';
-        _isProductsLoading = false;
-        _hasMoreProducts = false;
-      });
     }
   }
 
@@ -1981,6 +2140,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   void _onSearchChanged(String value) {
+    // Immediately show local fuzzy results for instant feedback
+    if (value.isNotEmpty) {
+      final localResults = _fuzzySearchLocal(value);
+      if (localResults.isNotEmpty) {
+        setState(() {
+          _products = localResults;
+          _productsError = null;
+        });
+      }
+    }
+
+    // Debounce server search for network efficiency
     if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 500), () {
       _searchProducts(value);
@@ -2598,7 +2769,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     final theme = Theme.of(context);
 
     // Use a lighter/white background for modern look
-    return Scaffold(
+    final scaffold = Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.grey[50], // Lighter background
       body: LayoutBuilder(
@@ -2642,6 +2813,178 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               ),
             )
           : null,
+    );
+
+    return Stack(
+      children: [
+        scaffold,
+        if (_isDesktopSearchOverlayVisible) _buildDesktopSearchOverlay(theme),
+      ],
+    );
+  }
+
+  void _hideDesktopSearchOverlay() {
+    setState(() => _isDesktopSearchOverlayVisible = false);
+    widget.desktopActionController?.restoreFocus?.call();
+  }
+
+  Widget _buildDesktopSearchOverlay(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: _hideDesktopSearchOverlay,
+      child: Stack(
+        children: [
+          // Semi-transparent background (no blur)
+          Container(color: isDark ? Colors.black87 : Colors.black54),
+          // Search box centering
+          Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              margin: EdgeInsets.only(
+                top: math.max(100, MediaQuery.of(context).size.height * 0.15),
+              ),
+              child: GestureDetector(
+                onTap: () {}, // Prevent taps inside the box from dismissing
+                child: Container(
+                  width: math.min(700, MediaQuery.of(context).size.width * 0.8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 30,
+                        offset: const Offset(0, 15),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: _searchController,
+                        focusNode: _desktopSearchFocusNode,
+                        onChanged: _onSearchChanged,
+                        onSubmitted: (_) => _hideDesktopSearchOverlay(),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'Search products by name or code...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey.withOpacity(0.5),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          border: InputBorder.none,
+                          icon: Icon(
+                            Icons.search_rounded,
+                            size: 32,
+                            color: theme.primaryColor,
+                          ),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 24),
+                            color: Colors.grey,
+                            padding: EdgeInsets.zero,
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                              _hideDesktopSearchOverlay();
+                            },
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.only(top: 12),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            top: BorderSide(
+                              color: Colors.grey.withOpacity(0.2),
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Press ',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white10
+                                    : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'ESC',
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              ' to close • Press ',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white10
+                                    : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'ENTER',
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              ' to search',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3377,9 +3720,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   Widget _buildSearchBoxContent() {
     return InkWell(
       onTap: () {
-        setState(() {
-          _isSearchExpanded = true;
-        });
+        focusSearch();
       },
       borderRadius: BorderRadius.circular(12),
       child: _buildActionBox(

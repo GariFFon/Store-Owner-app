@@ -5,12 +5,14 @@ class OTPInputSection extends StatefulWidget {
   final String otpCode;
   final ValueChanged<String> onChanged;
   final MainAxisAlignment mainAxisAlignment;
+  final VoidCallback? onSubmitted;
 
   const OTPInputSection({
     super.key,
     required this.otpCode,
     required this.onChanged,
     this.mainAxisAlignment = MainAxisAlignment.center,
+    this.onSubmitted,
   });
 
   @override
@@ -83,6 +85,11 @@ class _OTPInputSectionState extends State<OTPInputSection> {
               contentPadding: EdgeInsets.zero,
               counterText: '',
             ),
+            onSubmitted: (_) {
+              if (widget.onSubmitted != null) {
+                widget.onSubmitted!();
+              }
+            },
           ),
         ),
 

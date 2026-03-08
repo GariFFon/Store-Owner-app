@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:exanor/utils/platform_helper.dart';
 
 class RewardedAdsService {
   static final RewardedAdsService _instance = RewardedAdsService._internal();
@@ -30,6 +31,13 @@ class RewardedAdsService {
 
   /// Initialize the Mobile Ads SDK
   static Future<void> initialize() async {
+    if (!PlatformHelper.isAdsSupported) {
+      print(
+        '⚠️ RewardedAdsService: Ads not supported on ${defaultTargetPlatform.name}',
+      );
+      return;
+    }
+
     try {
       await MobileAds.instance.initialize();
       print('✅ RewardedAdsService: Mobile Ads SDK initialized successfully');

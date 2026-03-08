@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:exanor/utils/platform_helper.dart';
 
 /// Firebase Cloud Messaging Service
 /// Handles FCM token management, message receiving, and notifications
@@ -22,6 +23,13 @@ class FirebaseMessagingService {
     Function(String)? onTokenRefresh,
   }) async {
     try {
+      if (!PlatformHelper.isPushNotificationSupported) {
+        _log(
+          '⚠️ FirebaseMessagingService: Push notifications not supported on ${defaultTargetPlatform.name}',
+        );
+        return;
+      }
+
       _log('🔔 FirebaseMessagingService: Starting initialization...');
 
       // Store callbacks

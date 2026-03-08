@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/services/performance_service.dart';
+import 'package:exanor/utils/platform_helper.dart';
 
 class TranslationService {
   static TranslationService? _instance;
@@ -223,6 +224,16 @@ class TranslationService {
 
   /// Initialize the translation service
   Future<void> initialize() async {
+    if (!PlatformHelper.isMLKitSupported) {
+      if (kDebugMode) {
+        print(
+          '⚠️ TranslationService: ML Kit not supported on ${defaultTargetPlatform.name} - English only mode',
+        );
+      }
+      await _loadSavedLanguage();
+      return;
+    }
+
     await _performanceService.traceOperation(
       'translation_service_init',
       () async {
@@ -241,6 +252,8 @@ class TranslationService {
 
   /// Perform diagnostics to check if translation service is working
   Future<void> _performDiagnostics() async {
+    if (!PlatformHelper.isMLKitSupported) return;
+
     try {
       if (kDebugMode) {
         print('🔍 Running Translation Service diagnostics...');
@@ -556,6 +569,10 @@ class TranslationService {
       return text; // No translation needed
     }
 
+    if (!PlatformHelper.isMLKitSupported) {
+      return text; // On desktop, return original text
+    }
+
     return await translateText(text, 'en', _currentLanguageCode);
   }
 
@@ -575,6 +592,11 @@ class TranslationService {
     String toLanguage,
   ) async {
     if (text.trim().isEmpty || fromLanguage == toLanguage) {
+      return text;
+    }
+
+    // On desktop, ML Kit is not available - return original text
+    if (!PlatformHelper.isMLKitSupported) {
       return text;
     }
 
