@@ -1774,8 +1774,13 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                       );
                                     },
                                   ).toList(),
-                                  onChanged: (v) =>
-                                      setState(() => item['godown_id'] = v),
+                                  onChanged: (v) {
+                                    setState(() {
+                                      item['godown_id'] = v;
+                                      // Reset rack selection when godown changes
+                                      item['rack_id'] = null;
+                                    });
+                                  },
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -1783,14 +1788,19 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                 child: _buildModernDropdown(
                                   label: 'Rack',
                                   value: item['rack_id']?.toString(),
-                                  items: _racks.map<DropdownMenuItem<String>>((
-                                    r,
-                                  ) {
-                                    return DropdownMenuItem(
-                                      value: r['id'].toString(),
-                                      child: Text(r['name']),
-                                    );
-                                  }).toList(),
+                                  items: _racks
+                                      .where(
+                                        (r) =>
+                                            r['godown']?.toString() ==
+                                            item['godown_id']?.toString(),
+                                      )
+                                      .map<DropdownMenuItem<String>>((r) {
+                                        return DropdownMenuItem(
+                                          value: r['id'].toString(),
+                                          child: Text(r['name']),
+                                        );
+                                      })
+                                      .toList(),
                                   onChanged: (v) =>
                                       setState(() => item['rack_id'] = v),
                                 ),

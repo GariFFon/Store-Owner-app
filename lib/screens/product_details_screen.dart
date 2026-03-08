@@ -181,8 +181,15 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
             if (!_selectedGodowns.containsKey(i) && _godowns.isNotEmpty) {
               _selectedGodowns[i] = _godowns[0]['id'].toString();
             }
-            if (!_selectedRacks.containsKey(i) && _racks.isNotEmpty) {
-              _selectedRacks[i] = _racks[0]['id'].toString();
+            if (!_selectedRacks.containsKey(i) &&
+                _racks.isNotEmpty &&
+                _selectedGodowns.containsKey(i)) {
+              final godownRacks = _racks
+                  .where((r) => r['godown']?.toString() == _selectedGodowns[i])
+                  .toList();
+              if (godownRacks.isNotEmpty) {
+                _selectedRacks[i] = godownRacks[0]['id'].toString();
+              }
             }
           }
         });
@@ -722,11 +729,29 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                     'Godown',
                     _godowns,
                     _selectedGodowns,
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedGodowns[index] = val;
+                        // Reset rack selection when godown changes
+                        _selectedRacks.remove(index);
+                      });
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildDropdown(index, 'Rack', _racks, _selectedRacks),
+                  child: _buildDropdown(
+                    index,
+                    'Rack',
+                    _racks
+                        .where(
+                          (r) =>
+                              r['godown']?.toString() ==
+                              _selectedGodowns[index],
+                        )
+                        .toList(),
+                    _selectedRacks,
+                  ),
                 ),
               ],
             ),
@@ -1062,8 +1087,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
     int index,
     String label,
     List<Map<String, dynamic>> items,
-    Map<int, String> selectionMap,
-  ) {
+    Map<int, String> selectionMap, {
+    void Function(String)? onChanged,
+  }) {
     final selectedValue = selectionMap[index];
 
     return Column(
@@ -1116,9 +1142,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
               }).toList(),
               onChanged: (val) {
                 if (val != null) {
-                  setState(() {
-                    selectionMap[index] = val;
-                  });
+                  if (onChanged != null) {
+                    onChanged(val);
+                  } else {
+                    setState(() {
+                      selectionMap[index] = val;
+                    });
+                  }
                 }
               },
             ),
