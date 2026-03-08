@@ -8,6 +8,7 @@ import 'dart:developer' as developer;
 import 'package:exanor/services/api_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:exanor/utils/event_bus.dart';
+import 'package:exanor/utils/platform_helper.dart';
 
 /// Notification Service for handling in-app notifications
 class NotificationService {
@@ -129,6 +130,15 @@ class NotificationService {
     if (_tokenSentThisSession) {
       developer.log(
         '📤 NotificationService: Token already sent this session, skipping',
+        name: 'Notification',
+      );
+      return;
+    }
+
+    // Skip on platforms that don't support FCM
+    if (!PlatformHelper.isPushNotificationSupported) {
+      developer.log(
+        '⚠️ NotificationService: FCM not supported on ${defaultTargetPlatform.name}',
         name: 'Notification',
       );
       return;

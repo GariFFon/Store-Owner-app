@@ -1,21 +1,35 @@
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:developer' as developer;
+import 'package:exanor/utils/platform_helper.dart';
+
+// Conditionally import firebase_crashlytics only on supported platforms
+// On unsupported platforms, all methods become no-ops
+import 'package:firebase_crashlytics/firebase_crashlytics.dart'
+    if (dart.library.io) 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 /// A comprehensive service for Firebase Crashlytics integration
-/// Provides easy access to all Crashlytics features throughout the app
+/// Provides easy access to all Crashlytics features throughout the app.
+/// On unsupported platforms (Windows, Linux), all methods are no-ops.
 class CrashlyticsService {
   static final CrashlyticsService _instance = CrashlyticsService._internal();
   static CrashlyticsService get instance => _instance;
 
   CrashlyticsService._internal();
 
-  /// Whether Crashlytics is enabled (only in release mode)
-  bool get isEnabled => !kDebugMode;
+  /// Whether Crashlytics is enabled (only in release mode AND on supported platforms)
+  bool get isEnabled => !kDebugMode && PlatformHelper.isFirebaseSupported;
 
   /// Initialize the Crashlytics service
   /// This should be called after Firebase Core initialization
   Future<void> initialize() async {
+    if (!PlatformHelper.isFirebaseSupported) {
+      developer.log(
+        '⚠️ Crashlytics not supported on ${defaultTargetPlatform.name} - skipping initialization',
+        name: 'CrashlyticsService',
+      );
+      return;
+    }
+
     try {
       // Enable crashlytics collection in release mode, disable in debug mode
       await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
@@ -36,7 +50,7 @@ class CrashlyticsService {
 
   /// Set user identifier for crash reports
   Future<void> setUserIdentifier(String identifier) async {
-    if (!isEnabled) return;
+    if (!isEnabled || !PlatformHelper.isFirebaseSupported) return;
 
     try {
       await FirebaseCrashlytics.instance.setUserIdentifier(identifier);
@@ -54,7 +68,7 @@ class CrashlyticsService {
 
   /// Set custom key-value pairs for crash reports
   Future<void> setCustomKey(String key, dynamic value) async {
-    if (!isEnabled) return;
+    if (!isEnabled || !PlatformHelper.isFirebaseSupported) return;
 
     try {
       if (value is String) {
@@ -82,7 +96,7 @@ class CrashlyticsService {
 
   /// Set multiple custom keys at once
   Future<void> setCustomKeys(Map<String, dynamic> keyValuePairs) async {
-    if (!isEnabled) return;
+    if (!isEnabled || !PlatformHelper.isFirebaseSupported) return;
 
     for (final entry in keyValuePairs.entries) {
       await setCustomKey(entry.key, entry.value);
@@ -91,7 +105,7 @@ class CrashlyticsService {
 
   /// Log a custom message that will appear in crash reports
   Future<void> log(String message) async {
-    if (!isEnabled) return;
+    if (!isEnabled || !PlatformHelper.isFirebaseSupported) return;
 
     try {
       await FirebaseCrashlytics.instance.log(message);
@@ -109,7 +123,14 @@ class CrashlyticsService {
     bool fatal = false,
     Iterable<Object> information = const [],
   }) async {
-    if (!isEnabled) return;
+    if (!isEnabled || !PlatformHelper.isFirebaseSupported) {
+      // On desktop, just log the error
+      developer.log(
+        '💥 Error (desktop, not sent to Crashlytics): $exception',
+        name: 'CrashlyticsService',
+      );
+      return;
+    }
 
     try {
       await FirebaseCrashlytics.instance.recordError(
@@ -130,7 +151,13 @@ class CrashlyticsService {
 
   /// Record a Flutter error
   Future<void> recordFlutterError(FlutterErrorDetails errorDetails) async {
-    if (!isEnabled) return;
+    if (!isEnabled || !PlatformHelper.isFirebaseSupported) {
+      developer.log(
+        '💥 Flutter error (desktop): ${errorDetails.exception}',
+        name: 'CrashlyticsService',
+      );
+      return;
+    }
 
     try {
       await FirebaseCrashlytics.instance.recordFlutterError(errorDetails);
@@ -148,7 +175,13 @@ class CrashlyticsService {
 
   /// Record a fatal Flutter error
   Future<void> recordFlutterFatalError(FlutterErrorDetails errorDetails) async {
-    if (!isEnabled) return;
+    if (!isEnabled || !PlatformHelper.isFirebaseSupported) {
+      developer.log(
+        '💥 Fatal Flutter error (desktop): ${errorDetails.exception}',
+        name: 'CrashlyticsService',
+      );
+      return;
+    }
 
     try {
       await FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
@@ -166,6 +199,8 @@ class CrashlyticsService {
 
   /// Check if crash reporting is enabled
   bool isCrashlyticsCollectionEnabled() {
+    if (!PlatformHelper.isFirebaseSupported) return false;
+
     try {
       return FirebaseCrashlytics.instance.isCrashlyticsCollectionEnabled;
     } catch (e) {
@@ -179,6 +214,14 @@ class CrashlyticsService {
 
   /// Force a crash for testing purposes (only in debug mode)
   void forceCrash() {
+    if (!PlatformHelper.isFirebaseSupported) {
+      developer.log(
+        '⚠️ Force crash not supported on desktop',
+        name: 'CrashlyticsService',
+      );
+      return;
+    }
+
     if (kDebugMode) {
       developer.log('💥 Forcing crash for testing', name: 'CrashlyticsService');
       FirebaseCrashlytics.instance.crash();

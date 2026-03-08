@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:exanor/utils/platform_helper.dart';
 
 class InterstitialAdsService {
   static final InterstitialAdsService _instance =
@@ -31,6 +32,13 @@ class InterstitialAdsService {
 
   /// Initialize the Mobile Ads SDK (shared with rewarded ads)
   static Future<void> initialize() async {
+    if (!PlatformHelper.isAdsSupported) {
+      print(
+        '⚠️ InterstitialAdsService: Ads not supported on ${defaultTargetPlatform.name}',
+      );
+      return;
+    }
+
     try {
       await MobileAds.instance.initialize();
       print(

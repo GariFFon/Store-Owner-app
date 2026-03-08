@@ -4,6 +4,7 @@ import 'package:exanor/screens/onboarding_screen.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/services/in_app_update_service.dart';
 import 'package:exanor/services/firebase_remote_config_service.dart';
+import 'package:exanor/utils/platform_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
@@ -56,12 +57,12 @@ class _SplashScreenState extends State<SplashScreen>
       name: 'SplashScreen',
     );
 
-    final configLineColor = _hexToColor(
-      FirebaseRemoteConfigService.getSplashScreenLineColor(),
-    );
-    final configBlastColor = _hexToColor(
-      FirebaseRemoteConfigService.getSplashScreenColor(),
-    );
+    final configLineColor = PlatformHelper.isFirebaseSupported
+        ? _hexToColor(FirebaseRemoteConfigService.getSplashScreenLineColor())
+        : const Color(0xFF2962FF);
+    final configBlastColor = PlatformHelper.isFirebaseSupported
+        ? _hexToColor(FirebaseRemoteConfigService.getSplashScreenColor())
+        : const Color(0xFF2962FF);
 
     _generateStars();
 
@@ -173,7 +174,7 @@ class _SplashScreenState extends State<SplashScreen>
     await configFuture;
     _isLoggedIn = await userCheckFuture;
 
-    if (mounted) {
+    if (mounted && PlatformHelper.isInAppUpdateSupported) {
       try {
         await InAppUpdateService.instance.checkForCriticalUpdates(context);
       } catch (e) {

@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:exanor/utils/platform_helper.dart';
+
+// Conditionally import Firebase packages
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'package:exanor/services/firebase_messaging_service.dart';
 import 'package:exanor/services/notification_service.dart';
@@ -21,7 +24,7 @@ import 'package:exanor/screens/remote_config_debug_screen.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
 import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/screens/suppliers_list_screen.dart';
-// REMOVED: Deleted screens (chat, subscription, profiles, refer & earn, feed, taxi)I wan
+// REMOVED: Deleted screens (chat, subscription, profiles, refer & earn, feed, taxi)
 
 import 'package:exanor/config/theme_config.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -33,6 +36,7 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'dart:developer' as developer;
+// Only import firebase_messaging on mobile platforms
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:exanor/services/enhanced_translation_service.dart';
 import 'package:exanor/services/rewarded_ads_service.dart';
@@ -46,6 +50,8 @@ import 'package:exanor/components/navigation_performance_tracker.dart';
 /// This must be a top-level function, not a class method
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (!PlatformHelper.isFirebaseSupported) return;
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   developer.log(
@@ -125,8 +131,16 @@ Future<void> _initializeServices() async {
   }
 }
 
-/// Initialize Mobile Ads SDK
+/// Initialize Mobile Ads SDK (only on mobile platforms)
 Future<void> _initializeMobileAds() async {
+  if (!PlatformHelper.isAdsSupported) {
+    developer.log(
+      '⚠️ Mobile Ads not supported on ${defaultTargetPlatform.name} - skipping',
+      name: 'Main',
+    );
+    return;
+  }
+
   try {
     await RewardedAdsService.initialize();
     await InterstitialAdsService.initialize();
@@ -146,6 +160,9 @@ Future<void> _initializeMobileAds() async {
 void main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Log platform info
+  PlatformHelper.logPlatformInfo();
 
   developer.log(
     '🚀 main() started - beginning app initialization',
@@ -209,92 +226,105 @@ void main() async {
     });
   });
 
-  // Initialize Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  developer.log('✅ Firebase Core initialized successfully', name: 'Main');
+  // Initialize Firebase (only on supported platforms)
+  if (PlatformHelper.isFirebaseSupported) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    developer.log('✅ Firebase Core initialized successfully', name: 'Main');
 
-  // Set up Firebase Messaging background handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  developer.log('✅ Firebase Messaging background handler set', name: 'Main');
+    // Set up Firebase Messaging background handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    developer.log('✅ Firebase Messaging background handler set', name: 'Main');
 
-  // NOW we can safely start performance tracing after Firebase is initialized
-  developer.log('📊 Starting app startup performance trace...', name: 'Main');
-  try {
-    await PerformanceService.instance.initialize();
-    await PerformanceService.instance.traceAppStartup();
-    developer.log('✅ Performance tracing started successfully', name: 'Main');
-  } catch (e) {
-    developer.log('❌ Performance tracing failed: $e', name: 'Main');
-  }
+    // NOW we can safely start performance tracing after Firebase is initialized
+    developer.log('📊 Starting app startup performance trace...', name: 'Main');
+    try {
+      await PerformanceService.instance.initialize();
+      await PerformanceService.instance.traceAppStartup();
+      developer.log('✅ Performance tracing started successfully', name: 'Main');
+    } catch (e) {
+      developer.log('❌ Performance tracing failed: $e', name: 'Main');
+    }
 
-  // Initialize Firebase Crashlytics
-  developer.log('💥 Initializing Firebase Crashlytics...', name: 'Main');
-  try {
-    // Initialize the Crashlytics service
-    await CrashlyticsService.instance.initialize();
+    // Initialize Firebase Crashlytics
+    developer.log('💥 Initializing Firebase Crashlytics...', name: 'Main');
+    try {
+      // Initialize the Crashlytics service
+      await CrashlyticsService.instance.initialize();
 
-    // Pass all uncaught "fatal" errors from the framework to Crashlytics
-    FlutterError.onError = (errorDetails) {
+      // Pass all uncaught "fatal" errors from the framework to Crashlytics
+      FlutterError.onError = (errorDetails) {
+        developer.log(
+          '💥 Flutter Error caught: ${errorDetails.exception}',
+          name: 'Crashlytics',
+        );
+        CrashlyticsService.instance.recordFlutterFatalError(errorDetails);
+      };
+
+      // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
+      PlatformDispatcher.instance.onError = (error, stack) {
+        developer.log('💥 Platform Error caught: $error', name: 'Crashlytics');
+        CrashlyticsService.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+
       developer.log(
-        '💥 Flutter Error caught: ${errorDetails.exception}',
-        name: 'Crashlytics',
+        '✅ Firebase Crashlytics initialized successfully',
+        name: 'Main',
       );
-      CrashlyticsService.instance.recordFlutterFatalError(errorDetails);
-    };
+    } catch (e) {
+      developer.log(
+        '❌ Firebase Crashlytics initialization failed: $e',
+        name: 'Main',
+      );
+      developer.log('📝 Will continue without crash reporting', name: 'Main');
+    }
 
-    // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
-    PlatformDispatcher.instance.onError = (error, stack) {
-      developer.log('💥 Platform Error caught: $error', name: 'Crashlytics');
-      CrashlyticsService.instance.recordError(error, stack, fatal: true);
-      return true;
-    };
-
+    // Firebase Performance is already initialized above, just log success
     developer.log(
-      '✅ Firebase Crashlytics initialized successfully',
-      name: 'Main',
-    );
-  } catch (e) {
-    developer.log(
-      '❌ Firebase Crashlytics initialization failed: $e',
-      name: 'Main',
-    );
-    developer.log('📝 Will continue without crash reporting', name: 'Main');
-  }
-
-  // Firebase Performance is already initialized above, just log success
-  developer.log(
-    '✅ Firebase Performance initialized successfully',
-    name: 'Main',
-  );
-
-  // Initialize Firebase Remote Config
-  developer.log('🔧 Initializing Firebase Remote Config...', name: 'Main');
-  try {
-    await FirebaseRemoteConfigService.initialize();
-    developer.log(
-      '✅ Firebase Remote Config initialized successfully',
+      '✅ Firebase Performance initialized successfully',
       name: 'Main',
     );
 
-    // IMPORTANT: Refresh API Service configuration after Remote Config loads
-    developer.log(
-      '🔄 Refreshing API Service with Remote Config values...',
-      name: 'Main',
-    );
-    await ApiService.refreshConfiguration();
-    developer.log(
-      '✅ API Service refreshed with Remote Config values',
-      name: 'Main',
-    );
+    // Initialize Firebase Remote Config
+    developer.log('🔧 Initializing Firebase Remote Config...', name: 'Main');
+    try {
+      await FirebaseRemoteConfigService.initialize();
+      developer.log(
+        '✅ Firebase Remote Config initialized successfully',
+        name: 'Main',
+      );
 
-    // Log updated configuration
-    ApiService.logCurrentConfiguration();
-  } catch (e) {
+      // IMPORTANT: Refresh API Service configuration after Remote Config loads
+      developer.log(
+        '🔄 Refreshing API Service with Remote Config values...',
+        name: 'Main',
+      );
+      await ApiService.refreshConfiguration();
+      developer.log(
+        '✅ API Service refreshed with Remote Config values',
+        name: 'Main',
+      );
+
+      // Log updated configuration
+      ApiService.logCurrentConfiguration();
+    } catch (e) {
+      developer.log(
+        '❌ Firebase Remote Config initialization failed: $e',
+        name: 'Main',
+      );
+      developer.log('📝 Will continue with default values', name: 'Main');
+    }
+  } else {
     developer.log(
-      '❌ Firebase Remote Config initialization failed: $e',
+      '⚠️ Firebase not supported on ${defaultTargetPlatform.name} - skipping Firebase initialization',
       name: 'Main',
     );
-    developer.log('📝 Will continue with default values', name: 'Main');
+    developer.log(
+      '📝 Running in desktop mode with API-only services',
+      name: 'Main',
+    );
   }
 
   // Initialize Translation Service (run in parallel with other non-critical services)
@@ -313,7 +343,7 @@ void main() async {
         developer.log('📝 Will continue with English only', name: 'Main');
       });
 
-  // Initialize Mobile Ads SDK (run in parallel)
+  // Initialize Mobile Ads SDK (run in parallel, only on mobile)
   final adsFuture = _initializeMobileAds()
       .then((_) {
         developer.log(
@@ -372,11 +402,13 @@ void main() async {
   developer.log('🎯 main() completed - starting Flutter app', name: 'Main');
 
   // Complete app startup performance trace
-  try {
-    await PerformanceService.instance.completeAppStartupTrace();
-    developer.log('✅ App startup trace completed', name: 'Main');
-  } catch (e) {
-    developer.log('❌ Failed to complete startup trace: $e', name: 'Main');
+  if (PlatformHelper.isFirebaseSupported) {
+    try {
+      await PerformanceService.instance.completeAppStartupTrace();
+      developer.log('✅ App startup trace completed', name: 'Main');
+    } catch (e) {
+      developer.log('❌ Failed to complete startup trace: $e', name: 'Main');
+    }
   }
 
   // Performance monitoring is now active for production use
@@ -412,11 +444,24 @@ class _MyAppState extends State<MyApp> {
     NotificationService.initialize(ApiService.navigatorKey);
 
     // Set up Firebase Messaging listeners according to official documentation
-    _setupFirebaseMessaging();
+    // Only on platforms that support it
+    if (PlatformHelper.isPushNotificationSupported) {
+      _setupFirebaseMessaging();
+    } else {
+      developer.log(
+        '⚠️ Push notifications not supported on ${defaultTargetPlatform.name}',
+        name: 'FCM',
+      );
+      setState(() {
+        _resolved = true;
+      });
+    }
   }
 
   /// Set up Firebase Messaging listeners following official documentation pattern
   void _setupFirebaseMessaging() async {
+    if (!PlatformHelper.isPushNotificationSupported) return;
+
     try {
       developer.log(
         '🔔 Setting up Firebase Messaging listeners...',

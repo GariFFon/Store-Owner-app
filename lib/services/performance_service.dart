@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
+import 'package:exanor/utils/platform_helper.dart';
 
 /// Service to manage Firebase Performance monitoring
 class PerformanceService {
@@ -99,6 +100,15 @@ class PerformanceService {
   /// Initialize the service (safe to call multiple times)
   Future<void> initialize() async {
     if (_isInitialized) return;
+
+    // Skip on unsupported platforms
+    if (!PlatformHelper.isFirebaseSupported) {
+      developer.log(
+        '⚠️ Firebase Performance not supported on ${defaultTargetPlatform.name} - using no-op mode',
+        name: 'PerformanceService',
+      );
+      return;
+    }
 
     try {
       // Ensure Firebase is initialized
