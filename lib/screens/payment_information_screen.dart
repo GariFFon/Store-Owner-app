@@ -25,6 +25,9 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
   final TextEditingController _transactionIdController =
       TextEditingController();
   final TextEditingController _dueDateController = TextEditingController();
+  final TextEditingController _amountPaidController = TextEditingController();
+
+  double _amountDue = 0.0;
 
   String _selectedPaymentStatus = 'Unpaid';
   final List<String> _paymentStatusOptions = [
@@ -40,6 +43,15 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
   void initState() {
     super.initState();
     _calculateOrderSummary();
+    _amountDue = _totalAmount;
+    _amountPaidController.addListener(_onAmountPaidChanged);
+  }
+
+  void _onAmountPaidChanged() {
+    final paid = double.tryParse(_amountPaidController.text) ?? 0.0;
+    setState(() {
+      _amountDue = (_totalAmount - paid).clamp(0.0, _totalAmount);
+    });
   }
 
   void _calculateOrderSummary() {
@@ -59,8 +71,10 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
 
   @override
   void dispose() {
+    _amountPaidController.removeListener(_onAmountPaidChanged);
     _transactionIdController.dispose();
     _dueDateController.dispose();
+    _amountPaidController.dispose();
     super.dispose();
   }
 
@@ -243,6 +257,14 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
                                     onChanged: (value) {
                                       setState(() {
                                         _selectedPaymentStatus = value!;
+                                        if (_selectedPaymentStatus == 'Paid') {
+                                          _amountPaidController.text =
+                                              _totalAmount.toStringAsFixed(2);
+                                        } else if (_selectedPaymentStatus ==
+                                            'Unpaid') {
+                                          _amountPaidController.text = '';
+                                          _amountDue = _totalAmount;
+                                        }
                                       });
                                     },
                                   ),
@@ -353,6 +375,139 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
                                   ),
                                 ),
                               ),
+
+                              // Amount Paid & Amount Due (visible for Partially Paid and Paid)
+                              if (_selectedPaymentStatus == 'Partially Paid' ||
+                                  _selectedPaymentStatus == 'Paid') ...[
+                                const SizedBox(height: 20),
+
+                                // Amount Paid
+                                const Text(
+                                  'Amount Paid',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _amountPaidController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  readOnly: _selectedPaymentStatus == 'Paid',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Enter amount paid',
+                                    prefixText: '₹ ',
+                                    prefixStyle: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    filled: true,
+                                    fillColor: _selectedPaymentStatus == 'Paid'
+                                        ? const Color(0xFFECFDF5)
+                                        : const Color(0xFFF8FAFC),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey.withOpacity(0.2),
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: _selectedPaymentStatus == 'Paid'
+                                            ? const Color(
+                                                0xFF16A34A,
+                                              ).withOpacity(0.3)
+                                            : Colors.grey.withOpacity(0.2),
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF3B82F6),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 20),
+
+                                // Amount Due
+                                const Text(
+                                  'Amount Due',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _amountDue > 0
+                                        ? const Color(0xFFFEF2F2)
+                                        : const Color(0xFFECFDF5),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _amountDue > 0
+                                          ? const Color(
+                                              0xFFEF4444,
+                                            ).withOpacity(0.3)
+                                          : const Color(
+                                              0xFF16A34A,
+                                            ).withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _amountDue > 0
+                                            ? Icons.warning_amber_rounded
+                                            : Icons.check_circle_rounded,
+                                        size: 18,
+                                        color: _amountDue > 0
+                                            ? const Color(0xFFEF4444)
+                                            : const Color(0xFF16A34A),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        '₹ ${_amountDue.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: _amountDue > 0
+                                              ? const Color(0xFFEF4444)
+                                              : const Color(0xFF16A34A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         );
@@ -721,6 +876,7 @@ class _PaymentInformationScreenState extends State<PaymentInformationScreen> {
                 transactionId: _transactionIdController.text,
                 dueDate: _dueDateController.text,
                 supplierStoreId: widget.supplierStoreId,
+                amountPaid: double.tryParse(_amountPaidController.text) ?? 0.0,
               ),
             ),
           );

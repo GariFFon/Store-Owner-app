@@ -11,6 +11,7 @@ class ReviewConfirmScreen extends StatefulWidget {
   final String? dueDate;
   final String storeId;
   final String? supplierStoreId;
+  final double amountPaid;
 
   const ReviewConfirmScreen({
     super.key,
@@ -20,6 +21,7 @@ class ReviewConfirmScreen extends StatefulWidget {
     this.transactionId,
     this.dueDate,
     this.supplierStoreId,
+    this.amountPaid = 0.0,
   });
 
   @override
@@ -141,7 +143,7 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
         date: invoiceDate,
         items: items,
         paymentStatus: apiPaymentStatus,
-        amountPaid: apiPaymentStatus == 'PAID' ? _totalAmount : 0,
+        amountPaid: widget.amountPaid,
       );
 
       if (mounted) {
