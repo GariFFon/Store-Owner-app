@@ -4339,7 +4339,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32).withOpacity(0.1),
+                      color: isPriceAvailable
+                          ? const Color(0xFF2E7D32).withOpacity(0.1)
+                          : Colors.grey.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -4347,7 +4349,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                       style: TextStyle(
                         color: isPriceAvailable
                             ? const Color(0xFF2E7D32)
-                            : Colors.red,
+                            : Colors.grey[600],
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -4388,7 +4390,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _handleAddToCart(product),
+          onTap: isPriceAvailable ? () => _handleAddToCart(product) : null,
           borderRadius: BorderRadius.circular(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4404,11 +4406,45 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         top: Radius.circular(12),
                       ),
                       child: productImage != null
-                          ? CustomCachedNetworkImage(
-                              imgUrl: productImage,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                            )
+                          ? (isPriceAvailable
+                                ? CustomCachedNetworkImage(
+                                    imgUrl: productImage,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                  )
+                                : ColorFiltered(
+                                    colorFilter:
+                                        const ColorFilter.matrix(<double>[
+                                          0.2126,
+                                          0.7152,
+                                          0.0722,
+                                          0,
+                                          0,
+                                          0.2126,
+                                          0.7152,
+                                          0.0722,
+                                          0,
+                                          0,
+                                          0.2126,
+                                          0.7152,
+                                          0.0722,
+                                          0,
+                                          0,
+                                          0,
+                                          0,
+                                          0,
+                                          1,
+                                          0,
+                                        ]),
+                                    child: Opacity(
+                                      opacity: 0.6,
+                                      child: CustomCachedNetworkImage(
+                                        imgUrl: productImage,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                      ),
+                                    ),
+                                  ))
                           : Container(
                               color: Colors.grey[100],
                               child: Icon(
@@ -4419,35 +4455,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                             ),
                     ),
                     // Price Tag Overlay
-                    Positioned(
-                      bottom: 4,
-                      left: 4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isPriceAvailable
-                              ? const Color(0xFF2E7D32)
-                              : Colors
-                                    .red, // Green if available, Red if unavailable
-                          borderRadius: BorderRadius.circular(
-                            8,
-                          ), // Rounded shape
-                        ),
-                        child: TranslatedText(
-                          isPriceAvailable ? '₹$productPrice' : 'Unavailable',
-                          style: TextStyle(
-                            color: isPriceAvailable
-                                ? Colors.white
-                                : Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                    if (isPriceAvailable)
+                      Positioned(
+                        bottom: 4,
+                        left: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2E7D32),
+                            borderRadius: BorderRadius.circular(
+                              8,
+                            ), // Rounded shape
+                          ),
+                          child: TranslatedText(
+                            '₹$productPrice',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -4496,10 +4528,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                         productName,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 12, // Slightly larger font
-                          color: Colors.black87,
+                          color: isPriceAvailable
+                              ? Colors.black87
+                              : Colors.grey[600],
                           height: 1.2,
                         ),
                       ),
@@ -4522,6 +4556,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Widget _buildProductAction(ThemeData theme, Map<String, dynamic> product) {
+    final dynamic rawPrice =
+        product['lowest_available_price'] ?? product['price_starts_from'];
+    final bool isPriceAvailable = rawPrice != null;
+
+    if (!isPriceAvailable) {
+      return SizedBox(
+        height: 32,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[400],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: const TranslatedText(
+            'Not Available',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+    }
+
     final qty = _getProductQuantityInCart(product);
 
     // If not in cart, show Add button
