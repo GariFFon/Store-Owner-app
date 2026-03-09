@@ -32,7 +32,7 @@ class _SalesScreenState extends State<SalesScreen> {
   double _totalTax = 0.0;
   int _postedCount = 0;
   int _currentOffset = 0;
-  int _limit = 50;
+  int _limit = 200; // Load more upfront to fill large screens
   bool _hasMoreData = true;
 
   // Filters & Sort
@@ -70,6 +70,19 @@ class _SalesScreenState extends State<SalesScreen> {
     }
   }
 
+  /// After data loads, check if content fills the viewport.
+  /// If not and there's more data, auto-load the next page.
+  void _loadUntilScrollable() {
+    if (!mounted || !_hasMoreData || _isLoadingMore || _isLoading) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      if (position.maxScrollExtent <= 0 && _hasMoreData && !_isLoadingMore) {
+        _loadMoreSales();
+      }
+    });
+  }
+
   Future<void> _fetchSales({bool isLoadMore = false}) async {
     if (!isLoadMore) {
       setState(() {
@@ -103,6 +116,7 @@ class _SalesScreenState extends State<SalesScreen> {
           _isLoading = false;
           _isLoadingMore = false;
         });
+        _loadUntilScrollable();
       }
     } catch (e) {
       if (mounted) {

@@ -38,6 +38,21 @@ class _CouponsScreenState extends State<CouponsScreen> {
     _scrollController.addListener(_loadMore);
   }
 
+  /// After data loads, check if content fills the viewport.
+  /// If not and there's more data, auto-load the next page.
+  void _loadUntilScrollable() {
+    if (!mounted || !_hasNextPage || _isLoadMoreRunning || _isLoading) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      if (position.maxScrollExtent <= 0 &&
+          _hasNextPage &&
+          !_isLoadMoreRunning) {
+        _loadMore();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _scrollController.removeListener(_loadMore);
@@ -72,6 +87,7 @@ class _CouponsScreenState extends State<CouponsScreen> {
         _isLoading = false;
         _currentPage = 1;
       });
+      _loadUntilScrollable();
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -123,6 +139,7 @@ class _CouponsScreenState extends State<CouponsScreen> {
           _currentPage = nextPage;
           _isLoadMoreRunning = false;
         });
+        _loadUntilScrollable();
       } catch (e) {
         setState(() {
           _isLoadMoreRunning = false;

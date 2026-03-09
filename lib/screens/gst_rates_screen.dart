@@ -19,7 +19,7 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
   List<GstRate> _rates = [];
   bool _isSearchExpanded = false;
   int _totalCount = 0;
-  final int _limit = 50;
+  final int _limit = 200; // Load more upfront to fill large screens
   int _offset = 0;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -47,6 +47,19 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
         _loadMoreRates();
       }
     }
+  }
+
+  /// After data loads, check if content fills the viewport.
+  /// If not and there's more data, auto-load the next page.
+  void _loadUntilScrollable() {
+    if (!mounted || !_hasMore || _isLoadingMore || _isLoading) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      if (position.maxScrollExtent <= 0 && _hasMore && !_isLoadingMore) {
+        _loadMoreRates();
+      }
+    });
   }
 
   @override
@@ -84,6 +97,7 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
             _hasMore = false;
           }
         });
+        _loadUntilScrollable();
       }
     } catch (e) {
       if (mounted) {
@@ -121,6 +135,7 @@ class _GstRatesScreenState extends State<GstRatesScreen> {
           }
           _isLoadingMore = false;
         });
+        _loadUntilScrollable();
       }
     } catch (e) {
       if (mounted) {
