@@ -211,6 +211,22 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     });
   }
 
+  /// After data loads, check if content fills the viewport.
+  /// If not and there's more data, auto-load the next page.
+  void _loadProductsUntilScrollable() {
+    if (!mounted || !_hasMoreProducts || _isLoadingMore || _isProductsLoading)
+      return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      if (position.maxScrollExtent <= 0 &&
+          _hasMoreProducts &&
+          !_isLoadingMore) {
+        _loadMoreProducts();
+      }
+    });
+  }
+
   void _initializeSpeech() async {
     _speech = stt.SpeechToText();
     await _speech.initialize(
@@ -378,7 +394,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           'store_id': widget.storeId,
           'query': queryParam,
           'page': _currentPage,
-          'page_size': 24,
+          'page_size':
+              500, // Load all products at once for instant POS experience
           'store_access': true,
           'customer_user_id': customer_user_id ?? '',
         },
@@ -405,6 +422,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             // Use API's has_next field for accurate pagination
             _hasMoreProducts = hasNextFromApi;
           });
+          _loadProductsUntilScrollable();
 
           // Cache products for fuzzy local search
           _cacheProducts(newProducts);
@@ -487,7 +505,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             'store_id': widget.storeId,
             'query': queryParam,
             'page': _currentPage,
-            'page_size': 24,
+            'page_size':
+                500, // Load all products at once for instant POS experience
             'store_access': true,
             'customer_user_id': customer_user_id ?? '',
           },
@@ -525,6 +544,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             }
             print('📊 hasMoreProducts now: $_hasMoreProducts');
           });
+          _loadProductsUntilScrollable();
         } else {
           print('❌ No data in response or status != 200');
           setState(() {

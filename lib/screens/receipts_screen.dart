@@ -67,6 +67,19 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
     }
   }
 
+  /// After data loads, check if content fills the viewport.
+  /// If not and there's more data, auto-load the next page.
+  void _loadUntilScrollable() {
+    if (!mounted || !_hasNextPage || _isLoadingMore || _isLoading) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      if (position.maxScrollExtent <= 0 && _hasNextPage && !_isLoadingMore) {
+        _fetchReceipts(isLoadMore: true);
+      }
+    });
+  }
+
   Future<void> _fetchReceipts({bool isLoadMore = false}) async {
     if (isLoadMore) {
       if (_isLoadingMore) return;
@@ -102,6 +115,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
           _isLoadingMore = false;
           _errorMessage = null;
         });
+        _loadUntilScrollable();
       }
     } catch (e) {
       if (mounted) {

@@ -34,7 +34,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   bool _isLoading = true;
   bool _isLoadingMore = false;
   bool _hasNextPage = false;
-  int _limit = 50;
+  int _limit = 200; // Load more upfront to fill large screens
   int _offset = 0;
   int _count = 0;
 
@@ -74,6 +74,19 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         _hasNextPage) {
       _fetchPurchases(isLoadMore: true);
     }
+  }
+
+  /// After data loads, check if content fills the viewport.
+  /// If not and there's more data, auto-load the next page.
+  void _loadUntilScrollable() {
+    if (!mounted || !_hasNextPage || _isLoadingMore || _isLoading) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      if (position.maxScrollExtent <= 0 && _hasNextPage && !_isLoadingMore) {
+        _fetchPurchases(isLoadMore: true);
+      }
+    });
   }
 
   Future<void> _fetchPurchases({bool isLoadMore = false}) async {
@@ -122,6 +135,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           _isLoadingMore = false;
           _errorMessage = null;
         });
+        _loadUntilScrollable();
       }
     } catch (e) {
       print('Error fetching purchases: $e');
