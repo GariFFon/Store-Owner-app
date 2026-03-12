@@ -45,6 +45,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
   DateTimeRange? _selectedDateRange;
 
   StreamSubscription? _orderPlacedSubscription;
+  StreamSubscription? _orderStatusSubscription;
 
   @override
   void initState() {
@@ -61,11 +62,20 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
         _fetchOrders();
       }
     });
+
+    _orderStatusSubscription = EventBus().on<OrderStatusUpdatedEvent>().listen((
+      event,
+    ) {
+      if (mounted) {
+        _fetchOrders();
+      }
+    });
   }
 
   @override
   void dispose() {
     _orderPlacedSubscription?.cancel();
+    _orderStatusSubscription?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -875,7 +885,10 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     var items = [];
     final totalItems = order['total_items'] ?? 0;
 
-    if (order['product_names'] != null) {
+    // Prefer ordered_products (has images) over product_names string
+    if (order['ordered_products'] != null && (order['ordered_products'] as List).isNotEmpty) {
+      items = order['ordered_products'] as List;
+    } else if (order['product_names'] != null) {
       final names = order['product_names'].toString().split(',');
       items = names.where((n) => n.trim().isNotEmpty).map((name) {
         final trimmedName = name.trim();
@@ -1085,19 +1098,40 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   ...items.take(2).map<Widget>((item) {
+                                    final String? itemImgUrl = item['img_url'] ?? item['image_url'];
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 2,
                                       ),
                                       child: Row(
                                         children: [
-                                          Container(
-                                            width: 4,
-                                            height: 4,
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[400],
-                                              shape: BoxShape.circle,
-                                            ),
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(5),
+                                            child: itemImgUrl != null && itemImgUrl.isNotEmpty
+                                                ? Image.network(
+                                                    itemImgUrl,
+                                                    width: 28,
+                                                    height: 28,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (ctx, err, st) => Container(
+                                                      width: 28,
+                                                      height: 28,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.grey[100],
+                                                        borderRadius: BorderRadius.circular(5),
+                                                      ),
+                                                      child: Icon(Icons.inventory_2_outlined, size: 14, color: Colors.grey[400]),
+                                                    ),
+                                                  )
+                                                : Container(
+                                                    width: 28,
+                                                    height: 28,
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.grey[100],
+                                                      borderRadius: BorderRadius.circular(5),
+                                                    ),
+                                                    child: Icon(Icons.inventory_2_outlined, size: 14, color: Colors.grey[400]),
+                                                  ),
                                           ),
                                           const SizedBox(width: 8),
                                           Expanded(
@@ -1149,21 +1183,42 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                         child: Column(
                           children: [
                             ...items.take(3).map<Widget>((item) {
+                              final String? itemImgUrl = item['img_url'] ?? item['image_url'];
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 4,
                                 ),
                                 child: Row(
                                   children: [
-                                    Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[300],
-                                        shape: BoxShape.circle,
-                                      ),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: itemImgUrl != null && itemImgUrl.isNotEmpty
+                                          ? Image.network(
+                                              itemImgUrl,
+                                              width: 32,
+                                              height: 32,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (ctx, err, st) => Container(
+                                                width: 32,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[100],
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Icon(Icons.inventory_2_outlined, size: 16, color: Colors.grey[400]),
+                                              ),
+                                            )
+                                          : Container(
+                                              width: 32,
+                                              height: 32,
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[100],
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(Icons.inventory_2_outlined, size: 16, color: Colors.grey[400]),
+                                            ),
                                     ),
-                                    const SizedBox(width: 12),
+                                    const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
                                         item['product_name'] ??

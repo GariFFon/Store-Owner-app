@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:exanor/services/invoice_print_service.dart';
 import 'package:exanor/components/pos_print_options_dialog.dart';
+import 'package:exanor/utils/event_bus.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final String orderId;
@@ -178,6 +179,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: TranslatedText('Order status updated')),
           );
+          EventBus().fire(OrderStatusUpdatedEvent());
           _fetchOrderDetails(); // Refresh details
           _fetchOrderStatuses(); // Refresh timeline
         }
@@ -233,6 +235,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                   [];
               _isLoadingStatusOptions = false;
               _isLoadingOrder = false;
+
+              // Fallback: if products haven't loaded, use ordered_products from order data
+              if (_products.isEmpty && _orderData!['ordered_products'] != null) {
+                _products = _orderData!['ordered_products'] as List;
+                _isLoadingProducts = false;
+              }
             });
           }
           print("✅ Order details fetched successfully");
@@ -282,19 +290,33 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         if (mounted) {
           setState(() {
             _products = response['data']['response'] as List? ?? [];
+            // Fallback to ordered_products if API returned empty
+            if (_products.isEmpty && _orderData != null && _orderData!['ordered_products'] != null) {
+              _products = _orderData!['ordered_products'] as List;
+            }
             _isLoadingProducts = false;
           });
         }
         print("✅ Order products fetched: ${_products.length} items");
       } else {
-        setState(() {
-          _isLoadingProducts = false;
-        });
+        if (mounted) {
+          setState(() {
+            // Fallback to ordered_products from order data
+            if (_orderData != null && _orderData!['ordered_products'] != null) {
+              _products = _orderData!['ordered_products'] as List;
+            }
+            _isLoadingProducts = false;
+          });
+        }
       }
     } catch (e) {
       print("❌ Error fetching order products: $e");
       if (mounted) {
         setState(() {
+          // Fallback to ordered_products from order data
+          if (_orderData != null && _orderData!['ordered_products'] != null) {
+            _products = _orderData!['ordered_products'] as List;
+          }
           _isLoadingProducts = false;
         });
       }
@@ -1515,6 +1537,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             _buildProductsSection(theme),
                             const SizedBox(height: 16),
                             _buildPriceBreakdownCard(theme),
+                            if (_orderData!['transaction_history'] != null &&
+                                (_orderData!['transaction_history'] as List).isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              _buildTransactionHistoryCard(theme),
+                            ],
                           ],
                         ),
                       ),
@@ -1548,6 +1575,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       _buildPaymentDetailsCard(theme),
                     const SizedBox(height: 16),
                     _buildPriceBreakdownCard(theme),
+                    if (_orderData!['transaction_history'] != null &&
+                        (_orderData!['transaction_history'] as List).isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _buildTransactionHistoryCard(theme),
+                    ],
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -1766,6 +1798,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         double.tryParse(product['amount_excluding_tax']?.toString() ?? '0') ??
         0.0;
 
+    final String? imageUrl = product['img_url'] ?? product['image_url'] ?? product['product_image'];
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -1775,112 +1809,119 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         border: Border.all(color: theme.colorScheme.outline.withOpacity(0.08)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15), // Matte shadow
-            blurRadius: 6,
-            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(0.04), // Lighter, modern shadow
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Product Name - Prominent at top
-          Text(
-            productName,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Rate per unit - Subtle info row
+          // Row with Image, Details and Total Price
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.sell_outlined,
-                size: 14,
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '₹${unitPrice.toStringAsFixed(2)} each',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Quantity and Total - Two equal columns
-          Row(
-            children: [
-              // Quantity Column
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'QTY',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.primary.withOpacity(0.7),
-                          letterSpacing: 0.5,
+              // Product Image
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.inventory_2_outlined,
+                            color: theme.colorScheme.primary.withOpacity(0.4),
+                            size: 20,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          color: theme.colorScheme.primary.withOpacity(0.4),
+                          size: 20,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${quantity % 1 == 0 ? quantity.toInt() : quantity}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+              ),
+              const SizedBox(width: 12),
+              // Product Name, Qty & Unit Price
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      productName,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: theme.colorScheme.onSurface,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    // Per piece price
+                    Text(
+                      '₹${unitPrice.toStringAsFixed(2)} each',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Quantity
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.1)),
+                      ),
+                      child: Text(
+                        'Qty: ${quantity % 1 == 0 ? quantity.toInt() : quantity}',
+                        style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              // Total Column
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
+              const SizedBox(width: 8),
+              // Total Price
+              Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '₹${calculatedItemTotal.toStringAsFixed(2)}',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      color: const Color(0xFF1E293B), // Dark slate
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'TOTAL',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green.shade700.withOpacity(0.7),
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '₹${calculatedItemTotal.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                ],
               ),
             ],
           ),
@@ -2244,6 +2285,213 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionHistoryCard(ThemeData theme) {
+    final history = _orderData!['transaction_history'] as List;
+    final amountDue = double.tryParse(_orderData!['amount_due']?.toString() ?? '0') ?? 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.withOpacity(0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TranslatedText(
+                        'Transaction History',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          letterSpacing: -0.5,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Amount due pill
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: amountDue > 0 ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: amountDue > 0 ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TranslatedText(
+                      amountDue > 0 ? 'Due: ' : 'Paid',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: amountDue > 0 ? Colors.red[700] : Colors.green[700],
+                      ),
+                    ),
+                    if (amountDue > 0)
+                      TranslatedText(
+                        ' ₹${amountDue.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red[700],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Timeline of transactions
+          ...history.asMap().entries.map((entry) {
+            final index = entry.key;
+            final txn = entry.value;
+            final bool isLast = index == history.length - 1;
+            
+            final isReceipt = txn['voucher_type'] == 'RECEIPT' || txn['voucher_label']?.toString().toLowerCase().contains('received') == true;
+            final color = isReceipt ? Colors.green[600]! : Colors.blue[600]!;
+            final icon = isReceipt ? Icons.download_rounded : Icons.receipt_long_rounded;
+            final netAmount = double.tryParse(txn['net_amount']?.toString() ?? '0') ?? 0.0;
+            final dateStr = txn['date'] ?? '';
+
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Timeline line & node
+                  SizedBox(
+                    width: 32,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: color.withOpacity(0.3)),
+                          ),
+                          child: Icon(icon, size: 16, color: color),
+                        ),
+                        if (!isLast)
+                          Expanded(
+                            child: Container(
+                              width: 2,
+                              color: Colors.grey.withOpacity(0.2),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Content
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: TranslatedText(
+                                  txn['voucher_label'] ?? txn['voucher_type'] ?? 'Transaction',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                              TranslatedText(
+                                '₹${netAmount.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: color,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          // ID and date
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              TranslatedText(
+                                'Ref: ${txn['voucher_number'] ?? 'N/A'}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              TranslatedText(
+                                dateStr,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          // Narration
+                          if (txn['narration'] != null && txn['narration'].toString().isNotEmpty)
+                            TranslatedText(
+                              txn['narration'],
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[700],
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

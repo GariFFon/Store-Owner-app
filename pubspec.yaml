@@ -35,7 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
-  http: ^1.4.0
+  http: ^1.6.0
   # speech_to_text: ^6.3.0  # Temporarily disabled due to Kotlin compilation issues
   google_maps_flutter: ^2.14.0
   flutter_dotenv: ^5.2.1
@@ -86,6 +86,7 @@ dependencies:
   printing: ^5.14.2
   pdf: ^3.11.3
   blue_thermal_printer: ^1.2.3
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

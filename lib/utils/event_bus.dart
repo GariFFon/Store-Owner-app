@@ -17,3 +17,5 @@ class EventBus {
 }
 
 class OrderPlacedEvent {}
+
+class OrderStatusUpdatedEvent {}
