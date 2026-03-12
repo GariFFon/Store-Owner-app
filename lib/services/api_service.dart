@@ -28,8 +28,20 @@ class ApiService {
   static int? _cachedTimeoutSeconds;
   static bool _isConfigurationCached = false;
 
+  // Dev mode tracking
+  static bool _isDevMode = false;
+  static bool _devModeFallbackActivated = false;
+  static String? _cachedBaseUrlDev;
+  static String? _cachedBareBaseUrlDev;
+  static Function()? _devModeFallbackCallback;
+
   // Secure storage instance
   static const _secureStorage = FlutterSecureStorage();
+
+  /// Set callback to be called when dev mode fallback is activated
+  static void setDevModeFallbackCallback(Function() callback) {
+    _devModeFallbackCallback = callback;
+  }
 
   /// Initialize API configuration (call once during app startup)
   static Future<void> initializeConfiguration() async {
@@ -43,10 +55,24 @@ class ApiService {
         _cachedBareBaseUrl = FirebaseRemoteConfigService.getBareBaseUrl();
         _cachedTimeoutSeconds = FirebaseRemoteConfigService.getApiTimeout();
 
+        // Read dev mode configuration
+        _isDevMode = FirebaseRemoteConfigService.isDevModeEnabled();
+        if (_isDevMode) {
+          _cachedBaseUrlDev = FirebaseRemoteConfigService.getBaseUrlDev();
+          _cachedBareBaseUrlDev = FirebaseRemoteConfigService.getBareBaseUrlDev();
+          _log('🔧 Dev mode enabled!');
+          _log('   📍 Dev Base URL: $_cachedBaseUrlDev');
+          _log('   📍 Dev Bare Base URL: $_cachedBareBaseUrlDev');
+        } else {
+          _log('📦 Dev mode disabled, using production URLs');
+        }
+        _devModeFallbackActivated = false;
+
         _log('📍 Firebase Remote Config values:');
         _log('   📍 Base URL: $_cachedBaseUrl');
         _log('   📍 Bare Base URL: $_cachedBareBaseUrl');
         _log('   ⏰ Timeout: ${_cachedTimeoutSeconds}s');
+        _log('   🔧 Dev Mode: $_isDevMode');
       } else {
         _log('⚠️ Firebase Remote Config not initialized, using default values');
         _cachedBaseUrl = _defaultBaseUrl;
@@ -101,6 +127,12 @@ class ApiService {
       _initializeFallback();
       return _defaultBaseUrl;
     }
+
+    // If dev mode is enabled and fallback not activated, use dev URL
+    if (_isDevMode && !_devModeFallbackActivated) {
+      return _cachedBaseUrlDev ?? _defaultBaseUrl;
+    }
+
     return _cachedBaseUrl ?? _defaultBaseUrl;
   }
 
@@ -114,6 +146,12 @@ class ApiService {
       _initializeFallback();
       return _defaultBareBaseUrl;
     }
+
+    // If dev mode is enabled and fallback not activated, use dev URL
+    if (_isDevMode && !_devModeFallbackActivated) {
+      return _cachedBareBaseUrlDev ?? _defaultBareBaseUrl;
+    }
+
     return _cachedBareBaseUrl ?? _defaultBareBaseUrl;
   }
 
@@ -343,6 +381,44 @@ class ApiService {
       _log(
         '❌ API REQUEST ERROR:\n📍 URL: $fullUrl\n🔧 Method: ${method.name.toUpperCase()}\n💥 Error: ${e.toString()}\n---',
       );
+
+      // Check if this is a connection error and we're in dev mode
+      final isConnectionError =
+          e is SocketException ||
+          e is TimeoutException ||
+          e is http.ClientException ||
+          e.toString().contains('SocketException') ||
+          e.toString().contains('ClientException') ||
+          e.toString().contains('Connection') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Failed host lookup') ||
+          e.toString().contains('Network is unreachable');
+
+      // If dev mode is enabled and not in fallback mode and it's a connection error
+      if (_isDevMode && !_devModeFallbackActivated && isConnectionError) {
+        _log('🔄 Dev server unreachable, falling back to production URLs...');
+        _devModeFallbackActivated = true;
+        performanceMetric.putAttribute('dev_fallback_activated', 'true');
+
+        // Notify UI about fallback activation
+        _devModeFallbackCallback?.call();
+
+        // Complete the current performance metric
+        await performanceMetric.stop();
+
+        _log(
+          '🔁 Retrying request with production URLs:\n   📍 Base URL: $_baseUrl\n   📍 Bare Base URL: $_bareBaseUrl',
+        );
+
+        // Retry the request with production URLs
+        return await makeRequest(
+          endpoint: endpoint,
+          method: method,
+          body: body,
+          headers: headers,
+          useBearerToken: useBearerToken,
+        );
+      }
 
       // Complete performance metric with error
       await performanceMetric.stop();
@@ -768,11 +844,49 @@ class ApiService {
       // Add error information to performance metric
       performanceMetric.putAttribute('error', e.runtimeType.toString());
       performanceMetric.putAttribute('error_message', e.toString());
-      await performanceMetric.stop();
 
       _log(
         '❌ FILE UPLOAD ERROR:\n📍 URL: $fullUrl\n🔧 Method: PUT\n💥 Error: ${e.toString()}\n---',
       );
+
+      // Check if this is a connection error and we're in dev mode
+      final isConnectionError =
+          e is SocketException ||
+          e is TimeoutException ||
+          e is http.ClientException ||
+          e.toString().contains('SocketException') ||
+          e.toString().contains('ClientException') ||
+          e.toString().contains('Connection') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Failed host lookup') ||
+          e.toString().contains('Network is unreachable');
+
+      // If dev mode is enabled and not in fallback mode and it's a connection error
+      if (_isDevMode && !_devModeFallbackActivated && isConnectionError) {
+        _log('🔄 Dev server unreachable, falling back to production URLs...');
+        _devModeFallbackActivated = true;
+        performanceMetric.putAttribute('dev_fallback_activated', 'true');
+
+        // Notify UI about fallback activation
+        _devModeFallbackCallback?.call();
+
+        await performanceMetric.stop();
+
+        _log(
+          '🔁 Retrying file upload with production URLs:\n   📍 Base URL: $_baseUrl',
+        );
+
+        // Retry the upload with production URLs
+        return await uploadFile(
+          endpoint,
+          file: file,
+          fieldName: fieldName,
+          additionalFields: additionalFields,
+          useBearerToken: useBearerToken,
+        );
+      }
+
+      await performanceMetric.stop();
       throw ApiException('File upload error: ${e.toString()}');
     }
   }
@@ -908,11 +1022,49 @@ class ApiService {
       // Add error information to performance metric
       performanceMetric.putAttribute('error', e.runtimeType.toString());
       performanceMetric.putAttribute('error_message', e.toString());
-      await performanceMetric.stop();
 
       _log(
         '❌ IMAGE UPLOAD ERROR:\n📍 URL: $fullUrl\n🔧 Method: POST\n💥 Error: ${e.toString()}\n---',
       );
+
+      // Check if this is a connection error and we're in dev mode
+      final isConnectionError =
+          e is SocketException ||
+          e is TimeoutException ||
+          e is http.ClientException ||
+          e.toString().contains('SocketException') ||
+          e.toString().contains('ClientException') ||
+          e.toString().contains('Connection') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Failed host lookup') ||
+          e.toString().contains('Network is unreachable');
+
+      // If dev mode is enabled and not in fallback mode and it's a connection error
+      if (_isDevMode && !_devModeFallbackActivated && isConnectionError) {
+        _log('🔄 Dev server unreachable, falling back to production URLs...');
+        _devModeFallbackActivated = true;
+        performanceMetric.putAttribute('dev_fallback_activated', 'true');
+
+        // Notify UI about fallback activation
+        _devModeFallbackCallback?.call();
+
+        await performanceMetric.stop();
+
+        _log(
+          '🔁 Retrying image upload with production URLs:\n   📍 Base URL: $_baseUrl',
+        );
+
+        // Retry the upload with production URLs
+        return await uploadImage(
+          endpoint,
+          imageFile: imageFile,
+          fieldName: fieldName,
+          additionalFields: additionalFields,
+          useBearerToken: useBearerToken,
+        );
+      }
+
+      await performanceMetric.stop();
       throw ApiException('Image upload error: ${e.toString()}');
     }
   }
@@ -1346,6 +1498,10 @@ class ApiService {
       'cachedBaseUrl': _cachedBaseUrl,
       'cachedBareBaseUrl': _cachedBareBaseUrl,
       'cachedTimeoutSeconds': _cachedTimeoutSeconds,
+      'isDevMode': _isDevMode,
+      'devModeFallbackActivated': _devModeFallbackActivated,
+      'cachedBaseUrlDev': _cachedBaseUrlDev,
+      'cachedBareBaseUrlDev': _cachedBareBaseUrlDev,
     };
   }
 
@@ -1357,11 +1513,17 @@ class ApiService {
     _log('📍 Bare Base URL: ${config['bareBaseUrl']}');
     _log('⏰ Timeout: ${config['timeout']}s');
     _log('💾 Configuration Cached: ${config['isConfigurationCached']}');
+    _log('🔧 Dev Mode: ${config['isDevMode']}');
+    _log('🔄 Dev Mode Fallback Activated: ${config['devModeFallbackActivated']}');
     if (_isConfigurationCached) {
       _log('📦 Cached Values:');
       _log('   📍 Base URL: ${config['cachedBaseUrl']}');
       _log('   📍 Bare Base URL: ${config['cachedBareBaseUrl']}');
       _log('   ⏰ Timeout: ${config['cachedTimeoutSeconds']}s');
+      if (_isDevMode) {
+        _log('   📍 Dev Base URL: ${config['cachedBaseUrlDev']}');
+        _log('   📍 Dev Bare Base URL: ${config['cachedBareBaseUrlDev']}');
+      }
     }
     _log('---');
   }

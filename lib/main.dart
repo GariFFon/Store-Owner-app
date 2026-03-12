@@ -45,6 +45,7 @@ import 'package:exanor/services/analytics_service.dart';
 import 'package:exanor/services/crashlytics_service.dart';
 import 'package:exanor/services/performance_service.dart';
 import 'package:exanor/components/navigation_performance_tracker.dart';
+import 'package:exanor/services/bluetooth_print_service.dart';
 
 /// Top-level function to handle background messages
 /// This must be a top-level function, not a class method
@@ -412,6 +413,12 @@ void main() async {
   }
 
   // Performance monitoring is now active for production use
+
+  // Clear saved Bluetooth printer so user is prompted to choose each app session.
+  // Once chosen, it persists until app is closed and reopened.
+  try {
+    await BluetoothPrintService.clearDefaultPrinter();
+  } catch (_) {}
 
   // Run the app within a zone to catch all async errors
   runZonedGuarded<Future<void>>(

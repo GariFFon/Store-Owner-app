@@ -61,6 +61,11 @@ class FirebaseRemoteConfigService {
   // Refer & Earn Data
   static const String _referAndEarnDataKey = 'refer_and_earn_screen_data';
 
+  // Dev Mode Configuration
+  static const String _devModeKey = 'dev_mode';
+  static const String _baseUrlDevKey = 'baseUrl_dev';
+  static const String _bareBaseUrlDevKey = 'bareBaseUrl_dev';
+
   // Theme Gradient Configuration
   static const String _themeGradientLightStartKey = 'themeGradientLightStart';
   static const String _themeGradientLightEndKey = 'themeGradientLightEnd';
@@ -236,6 +241,11 @@ class FirebaseRemoteConfigService {
 
     // Refer & Earn Data Default (Empty JSON, parser handles defaults)
     _referAndEarnDataKey: '{}',
+
+    // Dev Mode defaults
+    _devModeKey: false,
+    _baseUrlDevKey: '',
+    _bareBaseUrlDevKey: '',
   };
 
   /// Get Theme Gradient Light Start Color
@@ -1222,6 +1232,84 @@ class FirebaseRemoteConfigService {
 
   /// Get the Remote Config instance (for advanced usage)
   static FirebaseRemoteConfig? get instance => _remoteConfig;
+
+  /// Check if dev mode is enabled from Remote Config
+  static bool isDevModeEnabled() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        developer.log(
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default dev_mode: false',
+          name: 'RemoteConfig',
+        );
+        return _defaults[_devModeKey] as bool;
+      }
+
+      final value = _remoteConfig!.getBool(_devModeKey);
+      developer.log(
+        '🔧 FirebaseRemoteConfig: Retrieved dev_mode: $value',
+        name: 'RemoteConfig',
+      );
+      return value;
+    } catch (e) {
+      developer.log(
+        '❌ FirebaseRemoteConfig: Error getting dev_mode: $e, returning default',
+        name: 'RemoteConfig',
+      );
+      return _defaults[_devModeKey] as bool;
+    }
+  }
+
+  /// Get dev base URL from Remote Config
+  static String getBaseUrlDev() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        developer.log(
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default dev base URL',
+          name: 'RemoteConfig',
+        );
+        return _defaults[_baseUrlDevKey] as String;
+      }
+
+      final value = _remoteConfig!.getString(_baseUrlDevKey);
+      developer.log(
+        '📍 FirebaseRemoteConfig: Retrieved dev base URL: $value',
+        name: 'RemoteConfig',
+      );
+      return value;
+    } catch (e) {
+      developer.log(
+        '❌ FirebaseRemoteConfig: Error getting dev base URL: $e, returning default',
+        name: 'RemoteConfig',
+      );
+      return _defaults[_baseUrlDevKey] as String;
+    }
+  }
+
+  /// Get dev bare base URL from Remote Config
+  static String getBareBaseUrlDev() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        developer.log(
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default dev bare base URL',
+          name: 'RemoteConfig',
+        );
+        return _defaults[_bareBaseUrlDevKey] as String;
+      }
+
+      final value = _remoteConfig!.getString(_bareBaseUrlDevKey);
+      developer.log(
+        '📍 FirebaseRemoteConfig: Retrieved dev bare base URL: $value',
+        name: 'RemoteConfig',
+      );
+      return value;
+    } catch (e) {
+      developer.log(
+        '❌ FirebaseRemoteConfig: Error getting dev bare base URL: $e, returning default',
+        name: 'RemoteConfig',
+      );
+      return _defaults[_bareBaseUrlDevKey] as String;
+    }
+  }
 
   /// Force refresh configuration (useful for testing)
   static Future<bool> forceRefresh() async {

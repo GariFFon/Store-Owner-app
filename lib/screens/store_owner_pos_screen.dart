@@ -1004,26 +1004,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       return;
     }
 
-    // Validate order method is selected
     final orderMethodId = _selectedOrderMethod?['id']?.toString();
-    if (orderMethodId == null || orderMethodId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: TranslatedText('Please select an order method'),
-        ),
-      );
-      return;
-    }
-
-    // Validate address is selected
-    if (selected_address_id == null || selected_address_id!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: TranslatedText('Please select a delivery address'),
-        ),
-      );
-      return;
-    }
 
     // Validate payment method is selected
     if (_selectedPaymentMethodId == null || _selectedPaymentMethodId!.isEmpty) {
@@ -1162,11 +1143,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   Future<void> _confirmPlaceOrder() async {
     // Validate required fields before placing order
     final orderMethodId = _selectedOrderMethod?['id']?.toString();
-    if (orderMethodId == null ||
-        orderMethodId.isEmpty ||
-        selected_address_id == null ||
-        selected_address_id!.isEmpty ||
-        _selectedPaymentMethodId == null ||
+    if (_selectedPaymentMethodId == null ||
         _selectedPaymentMethodId!.isEmpty ||
         customer_user_id == null ||
         customer_user_id!.isEmpty) {
@@ -2581,6 +2558,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                   debugPrint(
                                     'Guest customer fetch error (non-blocking): $e',
                                   );
+                                  return false;
                                 });
                               }
                             },
@@ -2639,10 +2617,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                           '$countryCode$phone';
 
                                       try {
-                                        await _fetchCustomerData(
+                                        bool found = await _fetchCustomerData(
                                           fullPhoneNumber,
                                         );
                                         if (mounted) Navigator.pop(context);
+                                        
+                                        if (!found && mounted && fullPhoneNumber != '91910000000018' && fullPhoneNumber != '910000000018') {
+                                          _showAddCustomerDetailsDialog(fullPhoneNumber);
+                                        }
                                       } catch (e) {
                                         setState(() => isLoading = false);
                                         if (context.mounted) {
@@ -2730,7 +2712,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   // Fetch customer data from API
-  Future<void> _fetchCustomerData(
+  Future<bool> _fetchCustomerData(
     String phoneNumber, {
     bool silent = false,
   }) async {
@@ -2775,13 +2757,222 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                 ),
               );
             }
+            return true;
           }
         }
       }
+      return false;
     } catch (e) {
       print('Error fetching customer data: $e');
       rethrow;
     }
+  }
+
+  Future<void> _showAddCustomerDetailsDialog(String phoneNumber) async {
+    final nameController = TextEditingController();
+    String selectedGender = 'Male';
+    bool isSubmitting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const TranslatedText(
+                      'New Customer',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    TranslatedText(
+                      'Phone: +$phoneNumber',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    const TranslatedText(
+                      'Name',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: nameController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        hintText: 'Enter customer name',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const TranslatedText(
+                      'Gender',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedGender,
+                          isExpanded: true,
+                          items: ['Male', 'Female', 'Other']
+                              .map((gender) => DropdownMenuItem(
+                                    value: gender,
+                                    child: TranslatedText(gender),
+                                  ))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedGender = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: isSubmitting
+                                ? null
+                                : () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const TranslatedText('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: isSubmitting
+                                ? null
+                                : () async {
+                                    if (nameController.text.trim().isEmpty) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: TranslatedText(
+                                            'Please enter customer name',
+                                          ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    setDialogState(() => isSubmitting = true);
+                                    try {
+                                      // Create User
+                                      final response = await ApiService.post(
+                                        '/pos-add-customer/', // Backend endpoint placeholder
+                                        body: {
+                                          'phone_number': int.parse(phoneNumber),
+                                          'first_name': nameController.text.trim(),
+                                          'gender': selectedGender,
+                                          'store_id': widget.storeId,
+                                        },
+                                        useBearerToken: true,
+                                      );
+
+                                      if (response['statusCode'] == 200) {
+                                        if (mounted) Navigator.pop(context);
+                                        // Refetch to assign ID globally & load context
+                                        await _fetchCustomerData(phoneNumber);
+                                      } else {
+                                        throw Exception(
+                                          response['data']?['message'] ??
+                                          'Failed to create user',
+                                        );
+                                      }
+                                    } catch (e) {
+                                      setDialogState(() => isSubmitting = false);
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: TranslatedText(
+                                              'Error: $e',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: isSubmitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const TranslatedText('Save'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
