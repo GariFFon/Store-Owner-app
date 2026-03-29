@@ -1283,4 +1283,31 @@ class StoreOwnerApiService {
     if (lower.contains('other')) return 'other';
     return 'savings'; // Fallback
   }
+
+  /// Register staff face
+  /// POST /register-face/
+  /// Payload: { "staff_id": "...", "video": FILE }
+  static Future<bool> registerFace(
+    String staffId,
+    File videoFile,
+  ) async {
+    try {
+      final response = await ApiService.postMultipart(
+        endpoint: '/register-face/',
+        files: {'video': videoFile},
+        fields: {'staff_id': staffId},
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200) {
+        final data = response['data'];
+        if (data != null && data['status'] == 200) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Failed to register face: $e');
+    }
+  }
 }

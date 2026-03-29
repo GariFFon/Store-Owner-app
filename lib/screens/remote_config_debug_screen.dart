@@ -280,9 +280,27 @@ class _RemoteConfigDebugScreenState extends State<RemoteConfigDebugScreen> {
                   theme,
                 ),
                 _buildParameterCard(
-                  'Min App Version',
+                  'Min App Version (Platform-Aware)',
                   FirebaseRemoteConfigService.getMinAppVersion(),
                   Icons.app_settings_alt,
+                  theme,
+                ),
+                _buildParameterCard(
+                  'Min Android Version',
+                  FirebaseRemoteConfigService.getMinAppVersionAndroid(),
+                  Icons.android,
+                  theme,
+                ),
+                _buildParameterCard(
+                  'Min iOS Version',
+                  FirebaseRemoteConfigService.getMinAppVersionIos(),
+                  Icons.apple,
+                  theme,
+                ),
+                _buildParameterCard(
+                  'Min Windows Version',
+                  FirebaseRemoteConfigService.getMinAppVersionWindows(),
+                  Icons.desktop_windows,
                   theme,
                 ),
               ],
@@ -347,10 +365,11 @@ class _RemoteConfigDebugScreenState extends State<RemoteConfigDebugScreen> {
                       const SizedBox(height: 8),
                       const Text(
                         '1. Set up parameters in Firebase Console > Remote Config\n'
-                        '2. Use parameter names: base_url, bare_base_url, api_timeout_seconds, enable_debug_mode, min_app_version\n'
-                        '3. Publish your changes in the Firebase Console\n'
-                        '4. Use "Force Refresh" to fetch latest values\n'
-                        '5. Real-time updates will be received automatically',
+                        '2. Use parameter names: base_url, bare_base_url, api_timeout_seconds, enable_debug_mode\n'
+                        '3. Platform-specific version params: min_app_version_store_android, min_app_version_store_ios, min_app_version_store_windows\n'
+                        '4. Publish your changes in the Firebase Console\n'
+                        '5. Use "Force Refresh" to fetch latest values\n'
+                        '6. Real-time updates will be received automatically',
                       ),
                     ],
                   ),

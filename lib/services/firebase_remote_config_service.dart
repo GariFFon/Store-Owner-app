@@ -15,6 +15,11 @@ class FirebaseRemoteConfigService {
   static const String _enableDebugModeKey = 'enable_debug_mode';
   static const String _appVersionKey = 'min_app_version';
 
+  // Platform-specific minimum app version keys
+  static const String _minAppVersionAndroidKey = 'min_app_version_store_android';
+  static const String _minAppVersionIosKey = 'min_app_version_store_ios';
+  static const String _minAppVersionWindowsKey = 'min_app_version_store_windows';
+
   // Search configuration keys
   static const String _searchRadiusKey = 'searchRadius';
   static const String _searchStatusKey = 'searchStatus';
@@ -79,6 +84,11 @@ class FirebaseRemoteConfigService {
     _apiTimeoutKey: 30,
     _enableDebugModeKey: false,
     _appVersionKey: '1.0.0',
+
+    // Platform-specific minimum app version defaults
+    _minAppVersionAndroidKey: '1.0.0',
+    _minAppVersionIosKey: '1.0.0',
+    _minAppVersionWindowsKey: '1.0.0',
 
     // Search defaults
     _searchRadiusKey: 1000,
@@ -477,7 +487,19 @@ class FirebaseRemoteConfigService {
         name: 'RemoteConfig',
       );
       developer.log(
-        '   📱 Min App Version: ${getMinAppVersion()}',
+        '   📱 Min App Version (Platform: ${defaultTargetPlatform.name}): ${getMinVersion()}',
+        name: 'RemoteConfig',
+      );
+      developer.log(
+        '   🤖 Min Android Version: ${getMinAppVersionAndroid()}',
+        name: 'RemoteConfig',
+      );
+      developer.log(
+        '   🍎 Min iOS Version: ${getMinAppVersionIos()}',
+        name: 'RemoteConfig',
+      );
+      developer.log(
+        '   🪟 Min Windows Version: ${getMinAppVersionWindows()}',
         name: 'RemoteConfig',
       );
       developer.log(
@@ -612,29 +634,110 @@ class FirebaseRemoteConfigService {
     }
   }
 
-  /// Get minimum app version
+  /// Get minimum app version (backward compatible - delegates to getMinVersion)
   static String getMinAppVersion() {
+    return getMinVersion();
+  }
+
+  /// Get minimum app version for Android
+  static String getMinAppVersionAndroid() {
     try {
       if (!_isInitialized || _remoteConfig == null) {
         developer.log(
-          '⚠️ FirebaseRemoteConfig: Not initialized, returning default app version',
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default Android app version',
           name: 'RemoteConfig',
         );
-        return _defaults[_appVersionKey] as String;
+        return _defaults[_minAppVersionAndroidKey] as String;
       }
 
-      final value = _remoteConfig!.getString(_appVersionKey);
+      final value = _remoteConfig!.getString(_minAppVersionAndroidKey);
       developer.log(
-        '📱 FirebaseRemoteConfig: Retrieved min app version: $value',
+        '🤖 FirebaseRemoteConfig: Retrieved min Android app version: $value',
         name: 'RemoteConfig',
       );
-      return value;
+      return value.isNotEmpty ? value : _defaults[_minAppVersionAndroidKey] as String;
     } catch (e) {
       developer.log(
-        '❌ FirebaseRemoteConfig: Error getting min app version: $e, returning default',
+        '❌ FirebaseRemoteConfig: Error getting min Android app version: $e, returning default',
         name: 'RemoteConfig',
       );
-      return _defaults[_appVersionKey] as String;
+      return _defaults[_minAppVersionAndroidKey] as String;
+    }
+  }
+
+  /// Get minimum app version for iOS
+  static String getMinAppVersionIos() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        developer.log(
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default iOS app version',
+          name: 'RemoteConfig',
+        );
+        return _defaults[_minAppVersionIosKey] as String;
+      }
+
+      final value = _remoteConfig!.getString(_minAppVersionIosKey);
+      developer.log(
+        '🍎 FirebaseRemoteConfig: Retrieved min iOS app version: $value',
+        name: 'RemoteConfig',
+      );
+      return value.isNotEmpty ? value : _defaults[_minAppVersionIosKey] as String;
+    } catch (e) {
+      developer.log(
+        '❌ FirebaseRemoteConfig: Error getting min iOS app version: $e, returning default',
+        name: 'RemoteConfig',
+      );
+      return _defaults[_minAppVersionIosKey] as String;
+    }
+  }
+
+  /// Get minimum app version for Windows
+  static String getMinAppVersionWindows() {
+    try {
+      if (!_isInitialized || _remoteConfig == null) {
+        developer.log(
+          '⚠️ FirebaseRemoteConfig: Not initialized, returning default Windows app version',
+          name: 'RemoteConfig',
+        );
+        return _defaults[_minAppVersionWindowsKey] as String;
+      }
+
+      final value = _remoteConfig!.getString(_minAppVersionWindowsKey);
+      developer.log(
+        '🪟 FirebaseRemoteConfig: Retrieved min Windows app version: $value',
+        name: 'RemoteConfig',
+      );
+      return value.isNotEmpty ? value : _defaults[_minAppVersionWindowsKey] as String;
+    } catch (e) {
+      developer.log(
+        '❌ FirebaseRemoteConfig: Error getting min Windows app version: $e, returning default',
+        name: 'RemoteConfig',
+      );
+      return _defaults[_minAppVersionWindowsKey] as String;
+    }
+  }
+
+  /// Platform-aware method that automatically returns the appropriate minimum version
+  /// based on the current platform (defaultTargetPlatform).
+  static String getMinVersion() {
+    developer.log(
+      '🔍 FirebaseRemoteConfig: Detecting platform for version check: ${defaultTargetPlatform.name}',
+      name: 'RemoteConfig',
+    );
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return getMinAppVersionAndroid();
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return getMinAppVersionIos();
+    } else if (defaultTargetPlatform == TargetPlatform.windows) {
+      return getMinAppVersionWindows();
+    } else {
+      // Web, macOS, Linux, etc. use Android version as fallback
+      developer.log(
+        '⚠️ FirebaseRemoteConfig: Unknown platform ${defaultTargetPlatform.name}, using Android version as fallback',
+        name: 'RemoteConfig',
+      );
+      return getMinAppVersionAndroid();
     }
   }
 
@@ -1182,6 +1285,11 @@ class FirebaseRemoteConfigService {
         'api_timeout_seconds': getApiTimeout(),
         'enable_debug_mode': isDebugModeEnabled(),
         'min_app_version': getMinAppVersion(),
+        'min_app_version_store_android': getMinAppVersionAndroid(),
+        'min_app_version_store_ios': getMinAppVersionIos(),
+        'min_app_version_store_windows': getMinAppVersionWindows(),
+        'platform_detected': defaultTargetPlatform.name,
+        'min_version_for_platform': getMinVersion(),
         'search_radius': getSearchRadius(),
         'search_status': getSearchStatus(),
         'search_order_by': getSearchOrderBy(),

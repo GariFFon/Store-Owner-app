@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:exanor/utils/platform_helper.dart';
@@ -158,7 +159,19 @@ Future<void> _initializeMobileAds() async {
   }
 }
 
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
+  }
+}
+
 void main() async {
+  // Override HTTP default behavior to bypass SSL verification issues on stripped-down Windows like Tiny10
+  HttpOverrides.global = MyHttpOverrides();
+
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 

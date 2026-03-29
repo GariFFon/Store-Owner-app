@@ -35,13 +35,30 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"/>
 
-    <application android:label="Exanor Store Partner" android:name="${applicationName}" android:icon="@mipmap/launcher_icon" android:largeHeap="true" android:hardwareAccelerated="true" android:requestLegacyExternalStorage="false" android:usesCleartextTraffic="true">
+    <!-- Background operation & notifications -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY"/>
+
+    <application android:label="Exanor Store Partner" android:name="com.exanor.exanor.ExanorApplication" android:icon="@mipmap/launcher_icon" android:largeHeap="true" android:hardwareAccelerated="true" android:requestLegacyExternalStorage="false" android:usesCleartextTraffic="true">
 
         <!-- Google Maps API Key -->
         <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyCP4Kqp_KQ35KbqG3lUHPltBA6W6b_aorg"/>
 
         <!-- AdMob App ID -->
         <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-5158384667126059~5111430646"/>
+
+        <!-- FCM Default notification channel with custom sound -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="exanor_order_channel_v2" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/launcher_icon" />
 
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:taskAffinity="" android:theme="@style/LaunchTheme" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize">
 

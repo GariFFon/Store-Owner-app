@@ -92,6 +92,18 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        // Copy the asset file to a temp file
+        val tempFile = java.io.File.createTempFile("alarm_sound", ".wav", cacheDir)
+        assets.open("flutter_assets/assets/order_sound/Store-notification.wav").use { inputStream ->
+            tempFile.outputStream().use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        }
+        tempFile.deleteOnExit()
+
+        // Track how many times the sound has played
+        var playCount = 0
+
         // Create MediaPlayer with STREAM_ALARM
         mediaPlayer = MediaPlayer().apply {
             setAudioAttributes(
@@ -101,32 +113,37 @@ class MainActivity : FlutterActivity() {
                     .build()
             )
             
-            // Load the asset file - copy to temp file first
-            val tempFile = java.io.File.createTempFile("alarm_sound", ".mp3", cacheDir)
-            assets.open("flutter_assets/assets/order_sound/WhatsApp Audio 2026-02-06 at 21.04.43.mpeg").use { inputStream ->
-                tempFile.outputStream().use { outputStream ->
-                    inputStream.copyTo(outputStream)
-                }
-            }
-            tempFile.deleteOnExit()
             setDataSource(tempFile.absolutePath)
             
             setVolume(1.0f, 1.0f) // Max volume on player
             prepare()
             start()
             
-            setOnCompletionListener {
-                // Restore original volume after playback
-                restoreVolume()
-                // Clean up temp file
-                tempFile.delete()
+            setOnCompletionListener { mp ->
+                playCount++
+                if (playCount < 2) {
+                    // Play the sound a second time after a short delay
+                    handler.postDelayed({
+                        try {
+                            mp.seekTo(0)
+                            mp.start()
+                        } catch (e: Exception) {
+                            restoreVolume()
+                            tempFile.delete()
+                        }
+                    }, 500)
+                } else {
+                    // After second play, restore volume and clean up
+                    restoreVolume()
+                    tempFile.delete()
+                }
             }
         }
 
-        // Also restore volume after 15 seconds as backup
+        // Also restore volume after 30 seconds as backup
         handler.postDelayed({
             restoreVolume()
-        }, 15000)
+        }, 30000)
     }
 
     private fun stopAlarmSound() {

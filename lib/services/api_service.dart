@@ -377,7 +377,8 @@ class ApiService {
       // Add error information to performance metric
       performanceMetric.putAttribute('error', e.runtimeType.toString());
       performanceMetric.putAttribute('error_message', e.toString());
-
+      
+      // ...existing error handling...
       _log(
         '❌ API REQUEST ERROR:\n📍 URL: $fullUrl\n🔧 Method: ${method.name.toUpperCase()}\n💥 Error: ${e.toString()}\n---',
       );
@@ -426,6 +427,95 @@ class ApiService {
       throw ApiException('Network error: ${e.toString()}');
     }
   }
+
+  /// Multipart POST request method
+  /// [endpoint] - API endpoint (without base URL)
+  /// [files] - Map of field names to File objects
+  /// [fields] - Optional text fields to include in the request
+  /// [headers] - Optional custom headers
+  /// [useBearerToken] - Whether to include Bearer token in headers
+  static Future<Map<String, dynamic>> postMultipart({
+    required String endpoint,
+    required Map<String, File> files,
+    Map<String, String>? fields,
+    Map<String, String>? headers,
+    bool useBearerToken = false,
+  }) async {
+    // Construct full URL
+    final String fullUrl = '$_baseUrl$endpoint';
+
+    // Create Firebase Performance HTTP metric (mocking POST for metric)
+    final performanceMetric = PerformanceService.instance.createHttpMetric(
+      fullUrl,
+      firebase_perf.HttpMethod.Post,
+    );
+
+    try {
+      // Start performance monitoring
+      await performanceMetric.start();
+
+      final Uri uri = Uri.parse(fullUrl);
+      var request = http.MultipartRequest('POST', uri);
+
+      // Add Headers
+      Map<String, String> requestHeaders = {
+        'Accept': 'application/json',
+      };
+
+      if (useBearerToken) {
+        final accessToken = await _getAccessToken();
+        if (accessToken != null) {
+          requestHeaders['Authorization'] = 'Bearer $accessToken';
+        }
+      }
+
+      if (headers != null) {
+        requestHeaders.addAll(headers);
+      }
+      request.headers.addAll(requestHeaders);
+
+      // Add Fields
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      // Add Files
+      for (var entry in files.entries) {
+        if (await entry.value.exists()) {
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              entry.key,
+              entry.value.path,
+            ),
+          );
+        }
+      }
+
+      _log(
+        '🌐 MULTIPART REQUEST DEBUG:\n📍 URL: $fullUrl\n🔧 Method: POST (Multipart)\n📋 Headers: $requestHeaders\n📝 Fields: $fields\n📁 Files: ${files.keys.toList()}\n---',
+      );
+
+      final streamedResponse = await request.send().timeout(_timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      return await _handleResponse(
+        response,
+        endpoint,
+        HttpMethod.post,
+        fields, // passing fields as body for logging purposes
+        headers,
+        useBearerToken,
+        performanceMetric,
+      );
+    } catch (e) {
+      performanceMetric.putAttribute('error', e.runtimeType.toString());
+      performanceMetric.putAttribute('error_message', e.toString());
+      await performanceMetric.stop();
+      _log('❌ MULTIPART REQUEST ERROR: $e');
+      throw ApiException('Network error: ${e.toString()}');
+    }
+  }
+
 
   /// Handle HTTP response
   static Future<Map<String, dynamic>> _handleResponse(

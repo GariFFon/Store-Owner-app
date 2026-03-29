@@ -15,6 +15,7 @@ class NotificationService {
   static GlobalKey<NavigatorState>? _navigatorKey;
   static bool _tokenSentThisSession = false;
   static AudioPlayer? _audioPlayer;
+  static int _soundPlayCount = 0;
 
   /// Initialize the notification service with navigator key
   static void initialize(GlobalKey<NavigatorState> navigatorKey) {
@@ -76,10 +77,27 @@ class NotificationService {
       );
 
       await _audioPlayer!.setVolume(1.0);
+
+      // Play the sound 3 times for every order
+      _soundPlayCount = 0;
       await _audioPlayer!.play(
-        AssetSource('order_sound/WhatsApp Audio 2026-02-06 at 21.04.43.mpeg'),
+        AssetSource('order_sound/Store-notification.wav'),
         volume: 1.0,
       );
+
+      // Listen for completion and replay up to 3 total times
+      _audioPlayer!.onPlayerComplete.listen((_) async {
+        _soundPlayCount++;
+        if (_soundPlayCount < 2) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          try {
+            await _audioPlayer!.play(
+              AssetSource('order_sound/Store-notification.wav'),
+              volume: 1.0,
+            );
+          } catch (_) {}
+        }
+      });
     } catch (e) {
       developer.log(
         '❌ NotificationService: Failed to play order sound: $e',
@@ -199,6 +217,10 @@ class NotificationService {
     );
   }
 
+  // Debounce tracking to prevent notification spam
+  static DateTime? _lastNotificationTime;
+  static String? _lastNotificationId;
+
   /// Show in-app notification for foreground messages
   static void showInAppNotification(RemoteMessage message) {
     if (_navigatorKey?.currentContext == null) {
@@ -208,6 +230,21 @@ class NotificationService {
       );
       return;
     }
+
+    // Debounce: ignore duplicate notifications within 3 seconds
+    final now = DateTime.now();
+    final msgId = message.messageId ?? message.notification?.title ?? '';
+    if (_lastNotificationTime != null &&
+        _lastNotificationId == msgId &&
+        now.difference(_lastNotificationTime!).inSeconds < 3) {
+      developer.log(
+        '⚠️ NotificationService: Debounced duplicate notification',
+        name: 'Notification',
+      );
+      return;
+    }
+    _lastNotificationTime = now;
+    _lastNotificationId = msgId;
 
     final context = _navigatorKey!.currentContext!;
     final notification = message.notification;

@@ -26,6 +26,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
   String? _savedPrinterName;
   double? _savedPaperSize;
   String? _connectionType; // 'bluetooth' or 'wifi_other'
+  DateTime? _lastErrorNotificationTime; // Debounce for error notifications
 
   @override
   void initState() {
@@ -36,9 +37,28 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
   Future<void> _loadSavedPreferences() async {
     final connType = await InvoicePrintService.getSavedConnectionType();
     String? printerName;
+    String? effectiveConnType = connType;
 
     if (connType == InvoicePrintService.connectionBluetooth) {
-      printerName = await BluetoothPrintService.getSavedPrinterName();
+      // ── LIVE CHECK: verify Bluetooth is actually ON and connected ──
+      final btAvailable = await BluetoothPrintService.isBluetoothAvailable();
+      if (!btAvailable) {
+        // Bluetooth is OFF or unavailable — show disconnected state
+        printerName = null;
+        effectiveConnType = null;
+      } else {
+        // Bluetooth is ON — check if we're actually connected to a printer
+        final btConnected = await BluetoothPrintService.isConnected();
+        final savedName = await BluetoothPrintService.getSavedPrinterName();
+        if (btConnected && savedName != null) {
+          printerName = savedName;
+        } else if (savedName != null) {
+          // Saved printer exists but not connected — show as disconnected
+          printerName = '$savedName (Disconnected)';
+        } else {
+          printerName = null;
+        }
+      }
     } else if (connType == InvoicePrintService.connectionWifi || connType == InvoicePrintService.connectionWired) {
       if (InvoicePrintService.isDesktop) {
         printerName = await InvoicePrintService.getSavedPrinterName();
@@ -52,7 +72,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
     final paperSize = await InvoicePrintService.getSavedPaperSize();
     if (mounted) {
       setState(() {
-        _connectionType = connType;
+        _connectionType = effectiveConnType;
         _savedPrinterName = printerName;
         _savedPaperSize = paperSize;
       });
@@ -289,16 +309,67 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
       return false;
     }
 
-    // If Bluetooth, check if a BT printer is selected
+    // If Bluetooth, verify BT is actually ON and printer is reachable
     if (_connectionType == InvoicePrintService.connectionBluetooth) {
+      // Step 1: Check if Bluetooth is even turned on
+      final btAvailable = await BluetoothPrintService.isBluetoothAvailable();
+      if (!btAvailable) {
+        // Only show notification if not debounced
+        final now = DateTime.now();
+        if (mounted && (_lastErrorNotificationTime == null ||
+            now.difference(_lastErrorNotificationTime!).inSeconds > 5)) {
+          _lastErrorNotificationTime = now;
+          BluetoothPrintService.showTopRightNotification(
+            context,
+            message: 'Bluetooth is OFF',
+            detail: 'Please turn on Bluetooth and try again.',
+            icon: Icons.bluetooth_disabled_rounded,
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 5),
+          );
+          // Refresh the UI to reflect the actual state
+          await _loadSavedPreferences();
+        }
+        return false;
+      }
+
+      // Step 2: Check if a BT printer is saved
       final hasBtPrinter = await BluetoothPrintService.hasDefaultPrinter();
       if (!hasBtPrinter && mounted) {
         await BluetoothPrintService.showPrinterPickerDialog(context);
         await _loadSavedPreferences();
         return await BluetoothPrintService.hasDefaultPrinter();
       }
+
+      // Step 3: Try to connect if not currently connected
+      final btConnected = await BluetoothPrintService.isConnected();
+      if (!btConnected) {
+        // Try reconnecting to saved printer
+        final reconnected = await BluetoothPrintService.connectToSavedPrinter();
+        if (!reconnected && mounted) {
+          // Only show notification if not debounced
+          final now = DateTime.now();
+          if (_lastErrorNotificationTime == null ||
+              now.difference(_lastErrorNotificationTime!).inSeconds > 5) {
+            _lastErrorNotificationTime = now;
+            BluetoothPrintService.showTopRightNotification(
+              context,
+              message: 'Printer not reachable',
+              detail: 'Make sure your printer is on and in range.',
+              icon: Icons.print_disabled_rounded,
+              backgroundColor: const Color(0xFFF59E0B),
+              duration: const Duration(seconds: 5),
+            );
+          }
+          await _loadSavedPreferences();
+          return false;
+        }
+        // Refresh UI after successful reconnection
+        await _loadSavedPreferences();
+      }
     }
 
+    // If WiFi/Wired on mobile, no extra check needed (system dialog handles it)
     return true;
   }
 

@@ -1,5 +1,6 @@
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/create_staff_bottom_sheet.dart';
+import 'package:exanor/screens/face_registration_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -661,7 +662,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       icon: Icon(Icons.more_vert, color: Colors.grey[400]),
       elevation: 4,
       borderRadius: BorderRadius.circular(12),
-      onSelected: (value) {
+      onSelected: (value) async {
         if (value == 'role') {
           _showRolePicker(staff);
         } else if (value == 'attendance') {
@@ -669,9 +670,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
             const SnackBar(content: Text("Attendance feature coming soon!")),
           );
         } else if (value == 'face') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Face verification feature coming soon!"),
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FaceRegistrationScreen(
+                staffId: staff['id'],
+                staffName: staff['user_first_name'] ?? 'Staff',
+              ),
             ),
           );
         }
