@@ -4,6 +4,7 @@ import 'package:exanor/screens/onboarding_screen.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/services/in_app_update_service.dart';
 import 'package:exanor/services/firebase_remote_config_service.dart';
+import 'package:exanor/services/windows_version_check_service.dart';
 import 'package:exanor/utils/platform_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
@@ -174,11 +175,21 @@ class _SplashScreenState extends State<SplashScreen>
     await configFuture;
     _isLoggedIn = await userCheckFuture;
 
+    // Android: In-app update check (Play Store)
     if (mounted && PlatformHelper.isInAppUpdateSupported) {
       try {
         await InAppUpdateService.instance.checkForCriticalUpdates(context);
       } catch (e) {
         /* proceed */
+      }
+    }
+
+    // Windows: Custom HTTP-based version check
+    if (mounted && PlatformHelper.isWindows) {
+      try {
+        await WindowsVersionCheckService.checkForUpdates(context);
+      } catch (e) {
+        /* proceed even if version check fails */
       }
     }
 

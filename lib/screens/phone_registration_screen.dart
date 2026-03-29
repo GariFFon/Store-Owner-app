@@ -113,7 +113,7 @@ class _PhoneRegistrationScreenState extends State<PhoneRegistrationScreen> {
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/icon/exanor_icon_512x512px.png',
+                        'assets/icon/exanor_store_partner_logo_512x512px.png',
                         width: 60,
                         height: 60,
                         fit: BoxFit.contain,

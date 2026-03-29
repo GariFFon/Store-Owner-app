@@ -494,7 +494,7 @@ class BluetoothPrintService {
 
     // Bill info (size 0)
     _printWrappedLine("Bill No: ${storeInfo['bill_number'] ?? ''}", lineWidth);
-    _printWrappedLine("Order ID: ${storeInfo['order_number'] ?? ''}", lineWidth);
+    _printWrappedLine("Token No: ${storeInfo['token_number'] ?? ''}", lineWidth);
     _bluetooth.printCustom("Date: ${DateTime.now().toString().substring(0, 16)}", 0, 0);
 
     _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
@@ -549,19 +549,11 @@ class BluetoothPrintService {
     // QR Code
     if (qrCodeUrl.isNotEmpty) {
       _bluetooth.printNewLine();
-      // Print slightly larger QR code
       _bluetooth.printQRcode(qrCodeUrl, 250, 250, 1);
       _bluetooth.printNewLine();
     }
 
     _bluetooth.printCustom("Thank you for your visit!", 0, 1);
-
-    // Refund policy (justified and small)
-    if (data['refund_policy'] != null &&
-        data['refund_policy'].toString().isNotEmpty) {
-      _bluetooth.printNewLine();
-      _printJustified(data['refund_policy'].toString(), lineWidth);
-    }
 
     _bluetooth.printNewLine();
     _bluetooth.printNewLine();

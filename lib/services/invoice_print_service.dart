@@ -99,7 +99,6 @@ class InvoicePrintService {
 
     final double grandTotalSize = isNarrow ? 9.0 : (isA4 ? 14.0 : 11.0);
     final double thankYouSize = isNarrow ? 8.0 : (isA4 ? 15.0 : 11.0);
-    final double refundPolicySize = isNarrow ? 6.0 : (isA4 ? 8.0 : 6.0);
     final double logoSize = isNarrow ? 30.0 : (isA4 ? 60.0 : 50.0);
     final double qrSize = isNarrow ? 50.0 : (isA4 ? 100.0 : 80.0);
     final double itemSpacing = isNarrow ? 1.0 : 2.0;
@@ -241,7 +240,7 @@ class InvoicePrintService {
             style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
           ),
           pw.Text(
-            "Order ID: ${storeInfo['order_number'] ?? ''}",
+            "Token No: ${storeInfo['token_number'] ?? ''}",
             style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
           ),
           pw.Text(
@@ -416,14 +415,6 @@ class InvoicePrintService {
               style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: thankYouSize),
             ),
           ),
-          if (data['refund_policy'] != null &&
-              data['refund_policy'].toString().isNotEmpty) ...[
-            pw.SizedBox(height: sectionSpacing),
-            pw.Text(
-              data['refund_policy'],
-              style: pw.TextStyle(fontSize: refundPolicySize, fontWeight: boldWeight),
-            ),
-          ],
           pw.SizedBox(height: 20),
         ],
       );

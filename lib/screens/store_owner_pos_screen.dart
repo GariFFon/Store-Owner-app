@@ -59,9 +59,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
   /// Public: Refresh products in the current category (called via Ctrl+R / F5)
   void refreshProducts() {
-    if (_selectedCategoryId != null) {
-      _fetchProductsByCategory(_selectedCategoryId!, isRefresh: true);
-    }
+    _fetchCategories();
+    _validateCart();
+    _fetchOrderMethods();
   }
 
   // Categories
@@ -338,7 +338,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
             // Auto-select first category (which is now "All")
             if (_categories.isNotEmpty) {
-              _selectedCategoryId = _categories[0]['id'];
+              String? categoryToSelect = _selectedCategoryId;
+              if (categoryToSelect == null || !_categories.any((c) => c['id'] == categoryToSelect)) {
+                categoryToSelect = _categories[0]['id'];
+              }
+              _selectedCategoryId = categoryToSelect;
               _fetchProductsByCategory(_selectedCategoryId!);
             }
           });
@@ -1682,6 +1686,56 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              // Order Type Selector
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 16.0),
+                                child: InkWell(
+                                  onTap: () async {
+                                    await _showOrderMethodSelection();
+                                    setSheetState(() {}); // Refresh cart sheet to show newly selected order type
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.orange.shade200),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.room_service_outlined, size: 20, color: Colors.orange.shade800),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Order Type',
+                                                style: TextStyle(
+                                                  color: Colors.black54,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              TranslatedText(
+                                                _selectedOrderMethod?['order_method_name'] ?? 'Select Type',
+                                                style: TextStyle(
+                                                  color: Colors.orange.shade900,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(Icons.keyboard_arrow_right, size: 20, color: Colors.orange.shade800),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                               // Order Summary / Payment Breakdown
                               if (_cartData != null &&
                                   _cartData!['cart_total'] != null) ...[
@@ -4118,8 +4172,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       return Container(
         width: width,
         color: Colors.white,
-        child: Center(
-          child: Icon(Icons.error_outline, color: Colors.grey[400]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, color: Colors.grey[400], size: 28),
+            const SizedBox(height: 8),
+            IconButton(
+              icon: Icon(Icons.refresh, color: theme.primaryColor),
+              onPressed: _fetchCategories,
+              tooltip: 'Retry',
+            ),
+          ],
         ),
       );
     }
@@ -4336,11 +4399,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       child: RefreshIndicator(
         onRefresh: () async {
           final cartFuture = _validateCart();
-          final productsFuture = _fetchProductsByCategory(
-            _selectedCategoryId ?? 'all',
-            isRefresh: true,
-          );
-          await Future.wait([cartFuture, productsFuture]);
+          final categoryFuture = _fetchCategories();
+          final methodFuture = _fetchOrderMethods();
+          await Future.wait([cartFuture, categoryFuture, methodFuture]);
         },
         child: CustomScrollView(
           controller: _scrollController,
@@ -4931,8 +4992,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     }
   }
 
-  void _showOrderMethodSelection() {
-    showDialog(
+  Future<void> _showOrderMethodSelection() {
+    return showDialog(
       context: context,
       barrierDismissible: true,
       builder: (context) {

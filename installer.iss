@@ -1,95 +1,43 @@
-; =============================================================================
-; Exanor Store Partner - Inno Setup Script
-; App:     Exanor Store Partner (Flutter Windows Desktop)
-; Binary:  exanor_user_new.exe
-; Version: 1.0.1
-; =============================================================================
-
-#define MyAppName      "Exanor Store Partner"
-#define MyAppVersion   "1.0.1"
-#define MyAppPublisher "Exanor"
-#define MyAppURL       "https://exanor.com"
-#define MyAppExeName   "exanor_user_new.exe"
-#define MyAppId        "{B3F4A2C1-7E8D-4F9A-B1C2-D3E4F5A6B7C8}"
-
 [Setup]
-; ---- Identity ---------------------------------------------------------------
-AppId={{#MyAppId}
-AppName={#MyAppName}
-AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} {#MyAppVersion}
-AppPublisher={#MyAppPublisher}
-AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}/support
-AppUpdatesURL={#MyAppURL}/updates
-AppCopyright=Copyright (C) 2026 {#MyAppPublisher}. All rights reserved.
+; App Details
+AppName=Exanor Store App
+AppVersion=1.0.1
+AppPublisher=Exanor
+AppPublisherURL=https://exanor.store
+AppSupportURL=https://exanor.store
+AppUpdatesURL=https://exanor.store
 
-; ---- Install Paths ----------------------------------------------------------
-DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppName}
+; Executable Name
+AppMutex=exanor_store_app_mutex
+
+; Output Installer Settings
+DefaultDirName={autopf}\Exanor Store App
 DisableProgramGroupPage=yes
-
-; ---- Icons & Uninstall ------------------------------------------------------
-SetupIconFile=windows\runner\resources\app_icon.ico
-UninstallDisplayIcon={app}\{#MyAppExeName}
-UninstallDisplayName={#MyAppName}
-
-; ---- Output -----------------------------------------------------------------
 OutputDir=installer_output
-OutputBaseFilename=ExanorStorePartner-Setup-{#MyAppVersion}
-
-; ---- Compression ------------------------------------------------------------
+OutputBaseFilename=ExanorStorePartner-Setup-1.0.1
 Compression=lzma2/ultra64
 SolidCompression=yes
-LZMAUseSeparateProcess=yes
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 
-; ---- Architecture -----------------------------------------------------------
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
-
-; ---- Privileges -------------------------------------------------------------
-PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
-
-; ---- Wizard -----------------------------------------------------------------
-WizardStyle=modern
-DisableWelcomePage=no
-DisableDirPage=no
-DisableReadyPage=no
-
-; ---- Minimum Windows Version (Windows 10) -----------------------------------
-MinVersion=10.0
-
-; ---- Misc -------------------------------------------------------------------
-; Allow user to re-run the app after install
-CloseApplications=yes
-RestartApplications=yes
-
-[Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
+; Icons & Visuals
+SetupIconFile=windows\runner\resources\app_icon.ico
+UninstallDisplayIcon={app}\exanor_user_new.exe
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; Main application bundle (exe + all DLLs + flutter_assets + data)
-Source: "build\windows\x64\runner\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\windows\x64\runner\Release\*.dll";            DestDir: "{app}"; Flags: ignoreversion
-Source: "build\windows\x64\runner\Release\data\*";           DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Main Executable
+Source: "build\windows\x64\runner\Release\exanor_user_new.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+; Libraries (.dll) & Dependencies
+Source: "build\windows\x64\runner\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "build\windows\x64\runner\Release\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs
 
 [Icons]
-; Start Menu shortcut
-Name: "{group}\{#MyAppName}";      Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
-; Desktop shortcut (only if the task is selected)
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\Exanor Store App"; Filename: "{app}\exanor_user_new.exe"
+Name: "{autodesktop}\Exanor Store App"; Filename: "{app}\exanor_user_new.exe"; Tasks: desktopicon
 
 [Run]
-; Launch the app after installation (optional, skippable)
-Filename: "{app}\{#MyAppExeName}"; \
-  Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
-  Flags: nowait postinstall skipifsilent; \
-  WorkingDir: "{app}"
-
-[UninstallDelete]
-; Remove any leftover files/folders created by the app during runtime
-Type: filesandordirs; Name: "{app}"
+Filename: "{app}\exanor_user_new.exe"; Description: "{cm:LaunchProgram,Exanor Store App}"; Flags: nowait postinstall skipifsilent
