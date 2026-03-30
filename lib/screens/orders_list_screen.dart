@@ -107,16 +107,6 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     }
   }
 
-  // Default fallback status options
-  static const List<Map<String, dynamic>> _defaultStatusOptions = [
-    {'status': 'order_placed', 'status_title_for_seller': 'Order Placed'},
-    {'status': 'order_confirmed', 'status_title_for_seller': 'Confirmed'},
-    {'status': 'order_preparing', 'status_title_for_seller': 'Preparing'},
-    {'status': 'order_ready', 'status_title_for_seller': 'Ready'},
-    {'status': 'order_completed', 'status_title_for_seller': 'Completed'},
-    {'status': 'order_cancelled', 'status_title_for_seller': 'Cancelled'},
-  ];
-
   Future<void> _fetchStatusOptions() async {
     if (_effectiveStoreId == null) return;
 
@@ -135,28 +125,25 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
           response['data']['status'] == 200 &&
           mounted) {
         final List<dynamic> apiOptions = response['data']['response'] ?? [];
-        setState(() {
-          // Use API options if available, otherwise use defaults
-          _statusOptions = apiOptions.isNotEmpty
-              ? apiOptions
-              : _defaultStatusOptions;
-          _isLoadingStatusOptions = false;
-        });
-      } else {
-        // API failed, use default options
         if (mounted) {
           setState(() {
-            _statusOptions = _defaultStatusOptions;
+            _statusOptions = apiOptions;
+            _isLoadingStatusOptions = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _statusOptions = [];
             _isLoadingStatusOptions = false;
           });
         }
       }
     } catch (e) {
       print("❌ Error fetching status options: $e");
-      // On error, use default options
       if (mounted) {
         setState(() {
-          _statusOptions = _defaultStatusOptions;
+          _statusOptions = [];
           _isLoadingStatusOptions = false;
         });
       }
@@ -250,6 +237,24 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
             _isLoading = false;
             _isLoadingMore = false;
             _errorMessage = null;
+
+            // If the dedicated status-options endpoint returned nothing,
+            // derive unique filter tabs from the orders themselves.
+            if (_statusOptions.isEmpty && _orders.isNotEmpty) {
+              final seen = <String>{};
+              final derived = <Map<String, dynamic>>[];
+              for (final order in _orders) {
+                final s = order['status']?.toString();
+                final t = order['order_status_title']?.toString();
+                if (s != null && seen.add(s)) {
+                  derived.add({
+                    'status': s,
+                    'status_title_for_seller': t ?? s,
+                  });
+                }
+              }
+              _statusOptions = derived;
+            }
           });
           _loadUntilScrollable();
         }

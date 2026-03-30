@@ -81,7 +81,7 @@ class NotificationService {
       // Play the sound 3 times for every order
       _soundPlayCount = 0;
       await _audioPlayer!.play(
-        AssetSource('order_sound/Store-notification.wav'),
+        AssetSource('order_sound/Store-notification.mp3'),
         volume: 1.0,
       );
 
@@ -92,7 +92,7 @@ class NotificationService {
           await Future.delayed(const Duration(milliseconds: 500));
           try {
             await _audioPlayer!.play(
-              AssetSource('order_sound/Store-notification.wav'),
+              AssetSource('order_sound/Store-notification.mp3'),
               volume: 1.0,
             );
           } catch (_) {}

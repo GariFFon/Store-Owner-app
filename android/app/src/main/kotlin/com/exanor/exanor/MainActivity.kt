@@ -93,8 +93,8 @@ class MainActivity : FlutterActivity() {
         }
 
         // Copy the asset file to a temp file
-        val tempFile = java.io.File.createTempFile("alarm_sound", ".wav", cacheDir)
-        assets.open("flutter_assets/assets/order_sound/Store-notification.wav").use { inputStream ->
+        val tempFile = java.io.File.createTempFile("alarm_sound", ".mp3", cacheDir)
+        assets.open("flutter_assets/assets/order_sound/Store-notification.mp3").use { inputStream ->
             tempFile.outputStream().use { outputStream ->
                 inputStream.copyTo(outputStream)
             }
