@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:exanor/screens/payment_information_screen.dart';
+import 'package:exanor/widgets/ai_product_template_generator_sheet.dart';
 import 'package:intl/intl.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
@@ -1886,36 +1887,44 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
               border: Border(top: BorderSide(color: Colors.grey[200]!)),
             ),
             child: GestureDetector(
-              onTap: () {
-                showDialog(
+              onTap: () async {
+                final result = await showModalBottomSheet(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                  isScrollControlled: true,
+                  isDismissible: false,
+                  enableDrag: false,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom,
                     ),
-                    title: Row(
-                      children: [
-                        Icon(
-                          Icons.construction_rounded,
-                          color: Colors.orange[700],
-                          size: 24,
-                        ),
-                        const SizedBox(width: 10),
-                        const Text('Coming Soon'),
-                      ],
+                    child: AiProductTemplateGeneratorSheet(
+                      storeId: widget.storeId,
+                      initialSearchText: _searchController.text,
                     ),
-                    content: const Text(
-                      'This feature is currently under development. Stay tuned!',
-                      style: TextStyle(fontSize: 15),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Got it'),
-                      ),
-                    ],
                   ),
                 );
+
+                if (result != null && result is Map<String, dynamic>) {
+                  final combos = result['combinations'] as List?;
+                  final id = (combos != null && combos.isNotEmpty)
+                      ? combos[0]['combination_id']
+                      : (result['product_template_id'] ?? result['id']);
+
+                  final name = (combos != null && combos.isNotEmpty)
+                      ? (combos[0]['combination_name'] ?? result['product_name'])
+                      : result['product_name'];
+                      
+                  widget.onSelect({
+                    'id': id,
+                    'product_id': id,
+                    'products_combination_template_id': id,
+                    'product_name': name,
+                    'product_combination_template_name': name,
+                    'category_name': result['child_category'] ?? result['parent_category'],
+                    'gst_data': { 'hsn_code': result['hsn_code'] }
+                  });
+                }
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:math' as math;
 import 'package:exanor/screens/create_store_dialog.dart';
+import 'package:exanor/widgets/ai_product_template_generator_sheet.dart';
 import 'package:uuid/uuid.dart';
 
 class AddPurchaseOrderScreen extends StatefulWidget {
@@ -1363,7 +1364,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         ),
 
         // Results Detached
-        if (_productSearchResults.isNotEmpty) ...[
+        if (_productSearchController.text.isNotEmpty && !_isSearchingProduct) ...[
           const SizedBox(height: 12),
           Container(
             constraints: const BoxConstraints(maxHeight: 320),
@@ -1385,10 +1386,109 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                 shrinkWrap: true,
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _productSearchResults.length,
+                itemCount: _productSearchResults.length + 1,
                 separatorBuilder: (_, __) =>
                     const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 itemBuilder: (context, index) {
+                  // Add New Product Option (Always Last Item)
+                  if (index == _productSearchResults.length) {
+                    return Material(
+                      color: Colors.white,
+                      child: InkWell(
+                        onTap: () async {
+                          final result = await showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            isDismissible: false,
+                            enableDrag: false,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => Padding(
+                              padding: EdgeInsets.only(
+                                bottom: MediaQuery.of(context).viewInsets.bottom,
+                              ),
+                              child: AiProductTemplateGeneratorSheet(
+                                storeId: widget.storeId,
+                                initialSearchText: _productSearchController.text,
+                              ),
+                            ),
+                          );
+
+                          if (result != null && result is Map<String, dynamic>) {
+                            // Extract data and add to purchase products
+                            if (result['combinations'] != null && (result['combinations'] as List).isNotEmpty) {
+                              for (var combo in result['combinations']) {
+                                _addProduct({
+                                  'id': combo['combination_id'],
+                                  'product_combination_template_id': combo['combination_id'],
+                                  'product_combination_template_name': combo['combination_name'] ?? result['product_name'],
+                                  'product_name': result['product_name'],
+                                  'category_name': result['child_category'] ?? result['parent_category'] ?? 'Category',
+                                  'product_image': null,
+                                });
+                              }
+                            } else {
+                              _addProduct({
+                                'id': result['product_template_id'] ?? result['id'],
+                                'product_combination_template_id': result['product_template_id'] ?? result['id'],
+                                'product_combination_template_name': result['product_name'],
+                                'product_name': result['product_name'],
+                                'category_name': result['child_category'] ?? result['parent_category'] ?? 'Category',
+                                'product_image': null,
+                              });
+                            }
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFEFF6FF),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.add_rounded,
+                                  color: Color(0xFF3B82F6),
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Add New Product',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                    Text(
+                                      'Name: "${_productSearchController.text}"',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
                   final prod = _productSearchResults[index];
                   // Display logic
                   final pName =
