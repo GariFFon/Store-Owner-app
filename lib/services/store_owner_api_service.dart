@@ -1310,4 +1310,64 @@ class StoreOwnerApiService {
       throw Exception('Failed to register face: $e');
     }
   }
+
+  /// Create product template from AI
+  /// POST /create-product-template-from-ai/
+  static Future<Map<String, dynamic>> createProductTemplateFromAi({
+    required String productString,
+    required String storeId,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/create-product-template-from-ai/',
+        body: {
+          'product_string': productString,
+          'store_access': true,
+          'store_id': storeId,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return Map<String, dynamic>.from(data['response']);
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to generate product from AI: $e');
+    }
+  }
+
+  /// Update product template
+  /// PUT /update-product-template/
+  static Future<Map<String, dynamic>> updateProductTemplate({
+    required String productTemplateId,
+    required String storeId,
+    required List<Map<String, dynamic>> editables,
+  }) async {
+    try {
+      final response = await ApiService.put(
+        '/update-product-template/',
+        body: {
+          'product_template_id': productTemplateId,
+          'store_access': true,
+          'store_id': storeId,
+          'editables': editables,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return Map<String, dynamic>.from(data['response']);
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to update product template: $e');
+    }
+  }
 }

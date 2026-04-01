@@ -11,6 +11,8 @@ import 'package:exanor/screens/assistant_screen.dart';
 import 'package:exanor/services/firebase_remote_config_service.dart';
 import 'package:exanor/services/notification_service.dart';
 import 'package:exanor/utils/keyboard_shortcuts.dart';
+import 'package:exanor/utils/version_utils.dart';
+import 'package:exanor/widgets/outdated_version_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -64,6 +66,35 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
 
     // Create notification token after authentication
     NotificationService.createNotificationToken();
+
+    // Check application version after current frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAppVersion();
+    });
+  }
+
+  Future<void> _checkAppVersion() async {
+    final String minRequiredVersion = FirebaseRemoteConfigService.getMinVersion();
+    final bool isOutdated = await VersionUtils.isVersionOutdated(minRequiredVersion);
+    
+    if (isOutdated && mounted) {
+      final String currentVersion = await VersionUtils.getCurrentAppVersion();
+      final String downloadUrl = FirebaseRemoteConfigService.getAppDownloadUrl();
+      
+      showGeneralDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.transparent, // backdrop filter on the dialog itself
+        transitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return OutdatedVersionDialog(
+            currentVersion: currentVersion,
+            requiredVersion: minRequiredVersion,
+            downloadUrl: downloadUrl,
+          );
+        },
+      );
+    }
   }
 
   void _initAnimations() {
