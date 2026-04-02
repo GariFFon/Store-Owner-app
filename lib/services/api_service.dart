@@ -724,6 +724,74 @@ class ApiService {
     }
   }
 
+  // --- Real-time Chat & Ticketing Microservice Integration ---
+
+  /// Fetch chat history for a specific order
+  static Future<Map<String, dynamic>> getOrderChatHistory(String orderId, {int page = 1, int limit = 50}) async {
+    final token = await getAccessToken();
+    final url = Uri.parse('${chatBaseUrl}/chat/history/order/$orderId?page=$page&limit=$limit');
+    
+    _log('🌐 Chat History GET: $url');
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final body = jsonDecode(response.body);
+      // The NestJS returns { status: 200, response: { messages: [...], ... } }
+      final messages = body['response']?['messages'] ?? [];
+      return {'statusCode': response.statusCode, 'data': messages};
+    } else {
+      throw ApiException('Chat Error: ${response.body}', statusCode: response.statusCode);
+    }
+  }
+
+  /// Flag a store/user for abusive behavior and notify admin
+  static Future<Map<String, dynamic>> flagParticipant(String participantId, String reason) async {
+    final token = await getAccessToken();
+    final url = Uri.parse('${chatBaseUrl}/chat/flag');
+    
+    final response = await http.post(
+       url,
+       headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'participant_id': participantId, 'reason': reason}),
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return {'statusCode': response.statusCode, 'data': jsonDecode(response.body)};
+    } else {
+      throw ApiException('Flag Error: ${response.body}', statusCode: response.statusCode);
+    }
+  }
+
+  /// Create a support ticket for an order
+  static Future<Map<String, dynamic>> createTicket(String orderId, String category) async {
+    final token = await getAccessToken();
+    final url = Uri.parse('${chatBaseUrl}/ticket');
+    
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'orderId': orderId, 'issueCategory': category}),
+    );
+    
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return {'statusCode': response.statusCode, 'data': jsonDecode(response.body)};
+    } else {
+      throw ApiException('Ticket Error: ${response.body}', statusCode: response.statusCode);
+    }
+  }
+
   // Convenience methods for common operations
 
   /// GET request
@@ -1170,6 +1238,27 @@ class ApiService {
       _log('❌ Error getting access token: $e');
       return null;
     }
+  }
+
+  /// Public method to get the current access token
+  static Future<String?> getAccessToken() async {
+    return await _getAccessToken();
+  }
+
+  /// Get chat microservice base URL (for REST API calls).
+  /// Includes the /api/v1 global prefix configured in NestJS main.ts.
+  /// TODO: Update this when a production chat server is deployed.
+  static String get chatBaseUrl {
+    // If you need local testing again, flip this flag. But for now point to production.
+    const bool isLocalDev = false; 
+
+    if (isLocalDev) {
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000/api/v1';
+      return 'http://localhost:4000/api/v1'; // iOS Simulator
+    }
+
+    // Production backend
+    return 'https://exanor-chat-service.onrender.com/api/v1';
   }
 
   /// Get refresh token from storage
