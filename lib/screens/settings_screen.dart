@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
@@ -29,6 +31,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   Map<String, dynamic> _storeInfo = {};
   bool _isGeneralLoading = false;
   String? _generalError;
+  final Map<String, File> _selectedKycDocs = {};
+  bool _isUploadingKyc = false;
 
   // Orders Tab State
   List<Map<String, dynamic>> _orderMethods = [];
@@ -145,6 +149,64 @@ class _SettingsScreenState extends State<SettingsScreen>
         _generalError = 'Error: $e';
         _isGeneralLoading = false;
       });
+    }
+  }
+
+  Future<void> _pickKycDocument(String key) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _selectedKycDocs[key] = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<void> _submitKycDocuments() async {
+    if (_selectedKycDocs.isEmpty) return;
+
+    setState(() => _isUploadingKyc = true);
+    try {
+      final response = await ApiService.putMultipart(
+        endpoint: '/store-registration/',
+        files: _selectedKycDocs,
+        fields: {'store_id': widget.storeId},
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 &&
+          response['data'] != null &&
+          (response['data']['status'] == 200 || response['data']['status'] == 201)) {
+        
+        final responseData = response['data']['response'] ?? {};
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(responseData['message'] ??
+                  'KYC documents updated successfully'),
+            ),
+          );
+        }
+        await _fetchStoreInfo();
+        setState(() {
+          _selectedKycDocs.clear();
+        });
+      } else {
+        final errorMsg = response['data']?['response']?['message'] ??
+                         response['data']?['message'] ??
+                         'Upload failed';
+        throw Exception(errorMsg);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload KYC documents: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingKyc = false);
+      }
     }
   }
 
@@ -1035,17 +1097,17 @@ class _SettingsScreenState extends State<SettingsScreen>
     final kyc = (_storeInfo['kyc'] as Map?)?.cast<String, dynamic>() ?? {};
 
     final signatoryDocs = [
-      {'label': 'PAN Card (Front)', 'url': kyc['signatory_pan_front_url']},
-      {'label': 'PAN Card (Back)', 'url': kyc['signatory_pan_back_url']},
-      {'label': 'Aadhaar (Front)', 'url': kyc['signatory_aadhaar_front_url']},
-      {'label': 'Aadhaar (Back)', 'url': kyc['signatory_aadhaar_back_url']},
+      {'label': 'PAN Card (Front)', 'key': 'signatory_pan_front_url', 'url': kyc['signatory_pan_front_url']},
+      {'label': 'PAN Card (Back)', 'key': 'signatory_pan_back_url', 'url': kyc['signatory_pan_back_url']},
+      {'label': 'Aadhaar (Front)', 'key': 'signatory_aadhaar_front_url', 'url': kyc['signatory_aadhaar_front_url']},
+      {'label': 'Aadhaar (Back)', 'key': 'signatory_aadhaar_back_url', 'url': kyc['signatory_aadhaar_back_url']},
     ];
     final companyDocs = [
-      {'label': 'Company PAN', 'url': kyc['company_pan_card_url']},
-      {'label': 'GST Certificate', 'url': kyc['gst_certificate_url']},
-      {'label': 'Trade License', 'url': kyc['trade_license_url']},
-      {'label': 'FSSAI License', 'url': kyc['fssai_license_url']},
-      {'label': 'Address Proof', 'url': kyc['address_proof_url']},
+      {'label': 'Company PAN', 'key': 'company_pan_card_url', 'url': kyc['company_pan_card_url']},
+      {'label': 'GST Certificate', 'key': 'gst_certificate_url', 'url': kyc['gst_certificate_url']},
+      {'label': 'Trade License', 'key': 'trade_license_url', 'url': kyc['trade_license_url']},
+      {'label': 'FSSAI License', 'key': 'fssai_license_url', 'url': kyc['fssai_license_url']},
+      {'label': 'Address Proof', 'key': 'address_proof_url', 'url': kyc['address_proof_url']},
     ];
 
     final submitted =
@@ -1153,7 +1215,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               childAspectRatio: 0.72,
               children: signatoryDocs
                   .map((d) => _kycDocTile(
-                      label: d['label']!.toString(), url: d['url']?.toString()))
+                      label: d['label']!.toString(), url: d['url']?.toString(), fieldKey: d['key']!.toString()))
                   .toList(),
             ),
           ),
@@ -1172,7 +1234,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               childAspectRatio: 0.72,
               children: companyDocs
                   .map((d) => _kycDocTile(
-                      label: d['label']!.toString(), url: d['url']?.toString()))
+                      label: d['label']!.toString(), url: d['url']?.toString(), fieldKey: d['key']!.toString()))
                   .toList(),
             ),
           ),
@@ -1206,6 +1268,27 @@ class _SettingsScreenState extends State<SettingsScreen>
                       style: TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w700)),
                 ),
+                if (_selectedKycDocs.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _isUploadingKyc ? null : _submitKycDocuments,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
+                    icon: _isUploadingKyc
+                        ? const SizedBox(
+                            width: 13,
+                            height: 13,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.upload, size: 13),
+                    label: const Text('Submit',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1235,18 +1318,29 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  Widget _kycDocTile({required String label, String? url}) {
+  Widget _kycDocTile({required String label, String? url, required String fieldKey}) {
+    final File? pendingFile = _selectedKycDocs[fieldKey];
     final hasDoc = url != null && url.isNotEmpty;
+    final hasPending = pendingFile != null;
+
+    Color containerBgColor;
+    Color borderColor;
+    if (hasPending) {
+      containerBgColor = const Color(0xFFEEF2FF);
+      borderColor = const Color(0xFF818CF8);
+    } else if (hasDoc) {
+      containerBgColor = const Color(0xFFF0FDF4);
+      borderColor = const Color(0xFFBBF7D0);
+    } else {
+      containerBgColor = const Color(0xFFFAFAFA);
+      borderColor = const Color(0xFFE2E8F0);
+    }
+
     return Container(
       decoration: BoxDecoration(
-        color: hasDoc
-            ? const Color(0xFFF0FDF4)
-            : const Color(0xFFFAFAFA),
+        color: containerBgColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-            color: hasDoc
-                ? const Color(0xFFBBF7D0)
-                : const Color(0xFFE2E8F0)),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1257,7 +1351,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ClipRRect(
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(9)),
-                  child: hasDoc
+                  child: hasDoc && !hasPending
                       ? Image.network(
                           url,
                           width: double.infinity,
@@ -1275,14 +1369,23 @@ class _SettingsScreenState extends State<SettingsScreen>
                             fit: BoxFit.scaleDown,
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.description_outlined,
-                                    color: Color(0xFFCBD5E1), size: 22),
-                                SizedBox(height: 4),
+                              children: [
+                                if (hasPending)
+                                  const Icon(Icons.image,
+                                      color: Color(0xFF818CF8), size: 22)
+                                else
+                                  const Icon(Icons.description_outlined,
+                                      color: Color(0xFFCBD5E1), size: 22),
+                                const SizedBox(height: 4),
                                 Text(
-                                  'Not uploaded',
+                                  hasPending
+                                      ? '✓ ' + pendingFile.path.split('/').last
+                                      : 'Not uploaded',
                                   style: TextStyle(
-                                      fontSize: 9, color: Color(0xFFCBD5E1)),
+                                      fontSize: 9,
+                                      color: hasPending
+                                          ? const Color(0xFF6366F1)
+                                          : const Color(0xFFCBD5E1)),
                                   textAlign: TextAlign.center,
                                 ),
                               ],
@@ -1297,13 +1400,17 @@ class _SettingsScreenState extends State<SettingsScreen>
                     width: 18,
                     height: 18,
                     decoration: BoxDecoration(
-                      color: hasDoc
-                          ? const Color(0xFF22C55E)
-                          : const Color(0xFFF59E0B),
+                      color: hasPending
+                          ? const Color(0xFF6366F1)
+                          : hasDoc
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFF59E0B),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      hasDoc ? Icons.check : Icons.warning_amber_rounded,
+                      hasPending || hasDoc
+                          ? Icons.check
+                          : Icons.warning_amber_rounded,
                       size: 11,
                       color: Colors.white,
                     ),
@@ -1329,7 +1436,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             child: SizedBox(
               width: double.infinity,
               height: 24,
-              child: hasDoc
+              child: hasDoc && !hasPending
                   ? OutlinedButton.icon(
                       onPressed: () async {
                         if (url.isNotEmpty) {
@@ -1355,13 +1462,18 @@ class _SettingsScreenState extends State<SettingsScreen>
                               fontSize: 10, fontWeight: FontWeight.w600)),
                     )
                   : OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: () => _pickKycDocument(fieldKey),
                       style: OutlinedButton.styleFrom(
                         padding: EdgeInsets.zero,
-                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        side: BorderSide(
+                            color: hasPending
+                                ? const Color(0xFF818CF8)
+                                : const Color(0xFFCBD5E1)),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(6)),
-                        foregroundColor: const Color(0xFF64748B),
+                        foregroundColor: hasPending
+                            ? const Color(0xFF6366F1)
+                            : const Color(0xFF64748B),
                       ),
                       icon: const Icon(Icons.upload_outlined, size: 10),
                       label: const Text('Upload',
