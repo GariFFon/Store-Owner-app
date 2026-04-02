@@ -1249,8 +1249,16 @@ class ApiService {
   /// Includes the /api/v1 global prefix configured in NestJS main.ts.
   /// TODO: Update this when a production chat server is deployed.
   static String get chatBaseUrl {
-    if (Platform.isAndroid) return 'http://10.0.2.2:4000/api/v1';
-    return 'http://localhost:4000/api/v1'; // iOS Simulator
+    // If you need local testing again, flip this flag. But for now point to production.
+    const bool isLocalDev = false; 
+
+    if (isLocalDev) {
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000/api/v1';
+      return 'http://localhost:4000/api/v1'; // iOS Simulator
+    }
+
+    // Production backend
+    return 'https://exanor-chat-service.onrender.com/api/v1';
   }
 
   /// Get refresh token from storage

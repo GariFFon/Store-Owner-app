@@ -70,19 +70,16 @@ class ChatService {
   /// On a real device you MUST use your machine's LAN IP (e.g. 192.168.x.x).
   /// On Android emulator use 10.0.2.2, on iOS simulator use localhost.
   String _getChatUrl() {
-    // ── Always use your machine's local-network IP so physical devices work ──
-    // Change this to your machine's actual LAN IP when testing on real phones.
-    const String lanIp = '192.168.1.5'; // <-- UPDATE THIS to your PC's IP
+    const bool isLocalDev = false;
 
-    if (Platform.isAndroid) {
-      // Android emulator maps 10.0.2.2 → host machine's localhost
-      return 'http://10.0.2.2:4000';
-    } else if (Platform.isIOS) {
-      // iOS simulator can reach localhost directly
-      return 'http://localhost:4000';
+    if (isLocalDev) {
+      const String lanIp = '192.168.1.5';
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000';
+      if (Platform.isIOS) return 'http://localhost:4000';
+      return 'http://$lanIp:4000';
     }
-    // Fallback (real devices on same WiFi)
-    return 'http://$lanIp:4000';
+
+    return 'https://exanor-chat-service.onrender.com';
   }
 
   Future<void> connect(String orderId) async {
