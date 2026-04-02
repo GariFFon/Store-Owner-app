@@ -913,12 +913,86 @@ class _SettingsScreenState extends State<SettingsScreen>
 
     return Column(
       children: [
+        if (_storeInfo['status']?.toString().toLowerCase() == 'pending')
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFFEDD5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Color(0xFFF97316), size: 18),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF78350F),
+                            height: 1.4,
+                            fontWeight: FontWeight.w400),
+                        children: [
+                          TextSpan(text: 'Your store is '),
+                          TextSpan(
+                              text: 'pending approval',
+                              style: TextStyle(fontWeight: FontWeight.w700)),
+                          TextSpan(
+                              text:
+                                  '. Upload all KYC documents to speed up verification.'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: () {},
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      foregroundColor: const Color(0xFFB45309),
+                    ),
+                    child: const Text(
+                      'Contact Us',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
         // ── Card 1: Store Identity ────────────────────────────────
         _buildInfoCard(
           icon: Icons.storefront_rounded,
           iconColor: const Color(0xFF6366F1),
           title: 'Store Identity',
           subtitle: 'Basic identity information of your store',
+          rightBadge: _storeInfo['status']?.toString().toLowerCase() == 'pending'
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFFCD34D)),
+                  ),
+                  child: const Text(
+                    'Pending Review',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFD97706)),
+                  ),
+                )
+              : null,
           rows: [
             _infoRow('Store Name', _storeInfo['store_name']?.toString() ?? ''),
             _infoRow('Legal Name', _storeInfo['legal_name']?.toString() ?? ''),
@@ -1836,6 +1910,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     required String title,
     required String subtitle,
     required List<Widget> rows,
+    Widget? rightBadge,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1866,7 +1941,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             title,
@@ -1876,39 +1954,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                               color: Color(0xFF1E293B),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFFCBD5E1),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(
-                                  Icons.lock_outline_rounded,
-                                  size: 10,
-                                  color: Color(0xFF64748B),
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'read-only',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          _readOnlyBadge(),
                         ],
                       ),
                       const SizedBox(height: 2),
@@ -1922,6 +1968,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ],
                   ),
                 ),
+                if (rightBadge != null) ...[
+                  const SizedBox(width: 8),
+                  rightBadge,
+                ],
               ],
             ),
           ),
