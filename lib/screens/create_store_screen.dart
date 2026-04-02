@@ -32,8 +32,12 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
 
   int _currentStep = 0;
 
+  // Submitting state
+  bool _isSubmitting = false;
+
   // Controllers
   final _storeNameController = TextEditingController();
+  final _legalNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
 
@@ -125,6 +129,7 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
   @override
   void dispose() {
     _storeNameController.dispose();
+    _legalNameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     _addressLine1Controller.dispose();
@@ -425,29 +430,40 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
                   color: Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
-                    onTap: _onNextPressed,
+                    onTap: _isSubmitting ? null : _onNextPressed,
                     borderRadius: BorderRadius.circular(12),
                     child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            _currentStep == 4 ? "Complete Setup" : "Continue",
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
+                      child: _isSubmitting && _currentStep == 4
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _currentStep == 4
+                                      ? "Complete Setup"
+                                      : "Continue",
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
@@ -714,6 +730,12 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
           label: "Store Name",
           controller: _storeNameController,
           icon: Icons.store_rounded,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          label: "Legal Name",
+          controller: _legalNameController,
+          icon: Icons.badge_outlined,
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -995,6 +1017,8 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
             children: [
               _buildReviewRow("Store Name", _storeNameController.text),
               const Divider(),
+              _buildReviewRow("Legal Name", _legalNameController.text),
+              const Divider(),
               _buildReviewRow(
                 "Category",
                 _categories.firstWhere(
@@ -1134,8 +1158,10 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
       return;
     }
     if (_currentStep == 1) {
-      if (_storeNameController.text.isEmpty || _phoneController.text.isEmpty) {
-        _showSnack("Please fill required details.");
+      if (_storeNameController.text.isEmpty ||
+          _legalNameController.text.isEmpty ||
+          _phoneController.text.isEmpty) {
+        _showSnack("Please fill Store Name, Legal Name and Phone Number.");
         return;
       }
       if (_phoneController.text.length != 10) {
@@ -1162,12 +1188,74 @@ class _CreateStoreScreenState extends State<CreateStoreScreen>
     }
 
     if (_currentStep == 4) {
-      _showSnack("Creating your store...");
-      // Logic to submit
+      await _submitStoreRegistration();
     } else {
       if (_currentStep < _stepTitles.length - 1) {
         setState(() => _currentStep++);
       }
+    }
+  }
+
+  Future<void> _submitStoreRegistration() async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Build text fields
+      final fields = <String, String>{
+        'store_category_id': _selectedCategoryId ?? '',
+        'store_name': _storeNameController.text.trim(),
+        'legal_name': _legalNameController.text.trim(),
+        'phone_number': _phoneController.text.trim(),
+        'email': _emailController.text.trim(),
+        'address_line_1': _addressLine1Controller.text.trim(),
+        'area': _localityController.text.trim(),
+        'city': _cityController.text.trim(),
+        'state': _stateController.text.trim(),
+        'pin': _pincodeController.text.trim(),
+        if (_showGSTForm && _gstNumberController.text.isNotEmpty)
+          'gst_in': _gstNumberController.text.trim(),
+      };
+
+      // Build files map (only include images that were picked)
+      final files = <String, File>{};
+      if (_storeLogo != null) {
+        files['store_logo_img_url'] = File(_storeLogo!.path);
+      }
+      if (_storeBanner != null) {
+        files['store_banner_img_url'] = File(_storeBanner!.path);
+      }
+
+      final response = await ApiService.postMultipart(
+        endpoint: '/store-registration/',
+        files: files,
+        fields: fields,
+        useBearerToken: true,
+      );
+
+      if (!mounted) return;
+
+      final statusCode = response['statusCode'] as int? ?? 0;
+      final data = response['data'];
+      final internalStatus =
+          (data is Map ? data['status'] : null) as int? ?? statusCode;
+
+      if (internalStatus == 200 || statusCode == 201) {
+        // Success — pop back to the previous screen
+        _showSnack("Store created successfully! 🎉");
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (mounted) Navigator.pop(context, true);
+      } else {
+        final message = (data is Map
+                ? (data['message'] ?? data['detail'] ?? 'Unknown error')
+                : 'Unknown error')
+            .toString();
+        _showSnack("Failed to create store: $message");
+      }
+    } catch (e) {
+      if (mounted) _showSnack("Error: ${e.toString()}");
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 

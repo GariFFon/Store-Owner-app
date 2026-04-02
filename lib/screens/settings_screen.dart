@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
-import 'package:exanor/components/translation_widget.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:exanor/models/store_bank_details.dart';
@@ -25,6 +24,11 @@ class _SettingsScreenState extends State<SettingsScreen>
   final TextEditingController _storeNameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+
+  // General Tab State
+  Map<String, dynamic> _storeInfo = {};
+  bool _isGeneralLoading = false;
+  String? _generalError;
 
   // Orders Tab State
   List<Map<String, dynamic>> _orderMethods = [];
@@ -92,6 +96,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     setState(() => _activeTab = tab);
 
     switch (tab) {
+      case 'General':
+        _fetchStoreInfo();
+        break;
       case 'Orders':
         _fetchOrderMethods();
         break;
@@ -107,6 +114,40 @@ class _SettingsScreenState extends State<SettingsScreen>
         break;
     }
   }
+
+  Future<void> _fetchStoreInfo() async {
+    setState(() {
+      _isGeneralLoading = true;
+      _generalError = null;
+    });
+    try {
+      final response = await ApiService.post(
+        '/user-stores/',
+        body: {"store_id": widget.storeId, "store_access": true},
+        useBearerToken: true,
+      );
+      if (response['statusCode'] == 200 &&
+          response['data'] != null &&
+          response['data']['status'] == 200) {
+        setState(() {
+          _storeInfo =
+              Map<String, dynamic>.from(response['data']['response'] ?? {});
+          _isGeneralLoading = false;
+        });
+      } else {
+        setState(() {
+          _generalError = 'Failed to load store info';
+          _isGeneralLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _generalError = 'Error: $e';
+        _isGeneralLoading = false;
+      });
+    }
+  }
+
 
   Future<void> _fetchOrderMethods() async {
     setState(() {
@@ -754,167 +795,1152 @@ class _SettingsScreenState extends State<SettingsScreen>
   // --- TAB CONTENTS ---
 
   Widget _buildGeneralTab() {
-    return Column(
-      children: [
-        _buildSectionHeader('Store Profile'),
-        const SizedBox(height: 16),
-        _buildCard(
+    if (_isGeneralLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 80),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    if (_generalError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 60),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Store Images Section
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Store Logo",
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFFE2E8F0),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.add_photo_alternate_rounded,
-                                  color: Colors.blue[300],
-                                  size: 32,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  "Update Logo",
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.blue[600],
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Store Banner",
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFFE2E8F0),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Transform(
-                                  transform: Matrix4.rotationZ(-0.1),
-                                  child: Icon(
-                                    Icons.image_rounded,
-                                    color: Colors.indigo[300],
-                                    size: 32,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              _buildModernInput(
-                label: "Store Name",
-                controller: _storeNameController,
-                icon: Icons.store_rounded,
-              ),
-              const SizedBox(height: 20),
-              _buildModernInput(
-                label: "Phone Number",
-                controller: _phoneController,
-                icon: Icons.phone_rounded,
-              ),
-              const SizedBox(height: 20),
-              _buildModernInput(
-                label: "Email Address",
-                controller: _emailController,
-                icon: Icons.email_rounded,
+              Icon(Icons.error_outline_rounded, color: Colors.red[300], size: 48),
+              const SizedBox(height: 12),
+              Text(_generalError!, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: _fetchStoreInfo,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 32),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(
-              onPressed: () {},
-              child: const Text(
-                "DISCARD",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                "Save Changes",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+      );
+    }
+
+    final contact = (_storeInfo['contact'] as Map?)?.cast<String, dynamic>() ?? {};
+    final address = (_storeInfo['address'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    final email = contact['email']?.toString() ?? '';
+    final phone = contact['phone_number'];
+    final altPhone = contact['alternate_phone_number'];
+    final weburl = contact['weburl']?.toString() ?? '';
+
+    final String phoneDisplay =
+        (phone != null && phone != 0) ? '+91 $phone' : '';
+    final String altPhoneDisplay =
+        (altPhone != null && altPhone != 0) ? '+91 $altPhone' : '';
+    final String weburlDisplay =
+        (weburl.isNotEmpty && weburl != 'undefined') ? weburl : '';
+
+    final addrLine1 = address['address_line_1']?.toString() ?? '';
+    final addrLine2 = address['address_line_2']?.toString() ?? '';
+    final area = address['area']?.toString() ?? '';
+    final city = address['city']?.toString() ?? '';
+    final state = address['state']?.toString() ?? '';
+    final pin = address['pin'];
+    final pinDisplay = (pin != null && pin != 0) ? pin.toString() : '';
+    final country = address['country']?.toString() ?? '';
+    final landmark = address['landmark']?.toString() ?? '';
+
+    return Column(
+      children: [
+        // ── Card 1: Store Identity ────────────────────────────────
+        _buildInfoCard(
+          icon: Icons.storefront_rounded,
+          iconColor: const Color(0xFF6366F1),
+          title: 'Store Identity',
+          subtitle: 'Basic identity information of your store',
+          rows: [
+            _infoRow('Store Name', _storeInfo['store_name']?.toString() ?? ''),
+            _infoRow('Legal Name', _storeInfo['legal_name']?.toString() ?? ''),
+            _infoRow('Category', _storeInfo['category']?.toString() ?? ''),
+            _infoRow('Role', _storeInfo['role_name']?.toString() ?? ''),
+            _infoRow(
+              'Status',
+              _storeInfo['status']?.toString() ?? '',
+              isBadge: true,
+              badgeColor: _storeInfo['is_approved'] == true
+                  ? const Color(0xFF22C55E)
+                  : const Color(0xFFF59E0B),
             ),
           ],
         ),
+        const SizedBox(height: 16),
+
+        // ── Card 2: Contact Information ───────────────────────────
+        _buildInfoCard(
+          icon: Icons.phone_in_talk_rounded,
+          iconColor: const Color(0xFF2563EB),
+          title: 'Contact Information',
+          subtitle: 'Phone, email and website associated with your store',
+          rows: [
+            _infoRow('Email', email),
+            _infoRow('Phone Number', phoneDisplay),
+            _infoRow('Alternate Phone', altPhoneDisplay),
+            _infoRow('Website', weburlDisplay),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // ── Card 3: Store Address ─────────────────────────────────
+        _buildInfoCard(
+          icon: Icons.location_on_rounded,
+          iconColor: const Color(0xFF8B5CF6),
+          title: 'Store Address',
+          subtitle: 'Registered physical address of your store',
+          rows: [
+            _infoRow('Address Line 1', addrLine1),
+            _infoRow('Address Line 2', addrLine2),
+            _infoRow('Area / Locality', area),
+            _infoRow('City', city),
+            _infoRow('State', state),
+            _infoRow('PIN Code', pinDisplay),
+            _infoRow('Country', country),
+            _infoRow('Landmark', landmark),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // ── Card 4: Branding ──────────────────────────────────────
+        _buildBrandingCard(),
+        const SizedBox(height: 16),
+
+        // ── Card 5: KYC Verification ─────────────────────────────
+        _buildKycCard(),
+        const SizedBox(height: 16),
+
+        // ── Card 6: GST Configuration ─────────────────────────────
+        _buildGstCard(),
+        const SizedBox(height: 16),
+
+        // ── Card 7: Currency ──────────────────────────────────────
+        _buildCurrencyCard(),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  Widget _buildBrandingCard() {
+    final branding =
+        (_storeInfo['branding'] as Map?)?.cast<String, dynamic>() ?? {};
+    final logoUrl = branding['store_logo_img_url']?.toString() ?? '';
+    final bannerUrl = branding['store_banner_img_url']?.toString() ?? '';
+    final offerImgUrl = branding['bottom_offer_img']?.toString() ?? '';
+    final offerTitle = branding['bottom_offer_title']?.toString() ?? '';
+    final offerSubtitle = branding['bottom_offer_subtitle']?.toString() ?? '';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          _infoCardHeader(
+            icon: Icons.image_outlined,
+            iconColor: const Color(0xFF0EA5E9),
+            title: 'Branding',
+            subtitle: 'Store logo, banner and promotional images',
+          ),
+          const Divider(height: 1, color: const Color(0xFFE2E8F0)),
+
+          // Images row
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _brandingImageTile(
+                    label: 'Store Logo', url: logoUrl, isCircle: true),
+                const SizedBox(width: 16),
+                _brandingImageTile(label: 'Store Banner', url: bannerUrl),
+                const SizedBox(width: 16),
+                _brandingImageTile(label: 'Offer Image', url: offerImgUrl),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: const Color(0xFFF1F5F9)),
+
+          // Text rows
+          _infoRow('Offer Title', offerTitle),
+          _infoRow('Offer Subtitle', offerSubtitle),
+
+          // Footer
+          const Divider(height: 1, color: const Color(0xFFF1F5F9)),
+          _infoCardFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _brandingImageTile({
+    required String label,
+    required String url,
+    bool isCircle = false,
+  }) {
+    final hasImage = url.isNotEmpty && Uri.tryParse(url)?.hasAbsolutePath == true;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(isCircle ? 60 : 8),
+            child: Container(
+              height: 72,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: hasImage
+                  ? Image.network(
+                      url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            color: Color(0xFFCBD5E1)),
+                      ),
+                    )
+                  : const Center(
+                      child: Icon(Icons.person, color: Color(0xFFCBD5E1), size: 32),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKycCard() {
+    final kyc = (_storeInfo['kyc'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    final signatoryDocs = [
+      {'label': 'PAN Card (Front)', 'url': kyc['signatory_pan_front_url']},
+      {'label': 'PAN Card (Back)', 'url': kyc['signatory_pan_back_url']},
+      {'label': 'Aadhaar (Front)', 'url': kyc['signatory_aadhaar_front_url']},
+      {'label': 'Aadhaar (Back)', 'url': kyc['signatory_aadhaar_back_url']},
+    ];
+    final companyDocs = [
+      {'label': 'Company PAN', 'url': kyc['company_pan_card_url']},
+      {'label': 'GST Certificate', 'url': kyc['gst_certificate_url']},
+      {'label': 'Trade License', 'url': kyc['trade_license_url']},
+      {'label': 'FSSAI License', 'url': kyc['fssai_license_url']},
+      {'label': 'Address Proof', 'url': kyc['address_proof_url']},
+    ];
+
+    final submitted =
+        [...signatoryDocs, ...companyDocs].where((d) => d['url'] != null).length;
+    final total = signatoryDocs.length + companyDocs.length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with badge
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.verified_user_outlined,
+                      color: Color(0xFF6366F1), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                const Text(
+                                  'KYC Verification',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                ),
+                                _readOnlyBadge(),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(20),
+                              border:
+                                  Border.all(color: const Color(0xFFFCD34D)),
+                            ),
+                            child: Text(
+                              '$submitted/$total Submitted',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFD97706),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Identity and business documents for compliance — one-time upload only',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: const Color(0xFFE2E8F0)),
+
+          // AUTHORIZED SIGNATORY
+          _kycSectionLabel('AUTHORIZED SIGNATORY', Icons.person_outline_rounded),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: GridView.count(
+              crossAxisCount: 4,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: 0.72,
+              children: signatoryDocs
+                  .map((d) => _kycDocTile(
+                      label: d['label']!.toString(), url: d['url']?.toString()))
+                  .toList(),
+            ),
+          ),
+          const Divider(height: 1, color: const Color(0xFFE2E8F0)),
+
+          // COMPANY DOCUMENTS
+          _kycSectionLabel('COMPANY DOCUMENTS', Icons.business_outlined),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: GridView.count(
+              crossAxisCount: 4,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: 0.72,
+              children: companyDocs
+                  .map((d) => _kycDocTile(
+                      label: d['label']!.toString(), url: d['url']?.toString()))
+                  .toList(),
+            ),
+          ),
+
+          // Footer
+          const Divider(height: 1, color: const Color(0xFFF1F5F9)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                const Flexible(
+                  child: Text(
+                    'Upload missing documents above, then submit. Submitted documents cannot be replaced.',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                    softWrap: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () {},
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    foregroundColor: const Color(0xFF2563EB),
+                  ),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 13),
+                  label: const Text('Contact Us',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kycSectionLabel(String label, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF94A3B8)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kycDocTile({required String label, String? url}) {
+    final hasDoc = url != null && url.isNotEmpty;
+    return Container(
+      decoration: BoxDecoration(
+        color: hasDoc
+            ? const Color(0xFFF0FDF4)
+            : const Color(0xFFFAFAFA),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: hasDoc
+                ? const Color(0xFFBBF7D0)
+                : const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(9)),
+                  child: hasDoc
+                      ? Image.network(
+                          url,
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.broken_image_outlined,
+                                color: Color(0xFFCBD5E1), size: 24),
+                          ),
+                        )
+                      : Container(
+                          alignment: Alignment.center,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.description_outlined,
+                                    color: Color(0xFFCBD5E1), size: 22),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Not uploaded',
+                                  style: TextStyle(
+                                      fontSize: 9, color: Color(0xFFCBD5E1)),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: hasDoc
+                          ? const Color(0xFF22C55E)
+                          : const Color(0xFFF59E0B),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      hasDoc ? Icons.check : Icons.warning_amber_rounded,
+                      size: 11,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+            child: Text(
+              label,
+              style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1E293B)),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+            child: SizedBox(
+              width: double.infinity,
+              height: 24,
+              child: hasDoc
+                  ? OutlinedButton.icon(
+                      onPressed: () async {
+                        if (url.isNotEmpty) {
+                          final uri = Uri.parse(url);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri,
+                                mode: LaunchMode.externalApplication);
+                          } else {
+                            debugPrint('Could not launch $url');
+                          }
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        side: const BorderSide(color: Color(0xFF22C55E)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6)),
+                        foregroundColor: const Color(0xFF16A34A),
+                      ),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 10),
+                      label: const Text('View',
+                          style: TextStyle(
+                              fontSize: 10, fontWeight: FontWeight.w600)),
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: () {},
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6)),
+                        foregroundColor: const Color(0xFF64748B),
+                      ),
+                      icon: const Icon(Icons.upload_outlined, size: 10),
+                      label: const Text('Upload',
+                          style: TextStyle(
+                              fontSize: 10, fontWeight: FontWeight.w600)),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGstCard() {
+    final gst = (_storeInfo['gst'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    String _boolBadge(dynamic val) => val == true ? 'Enabled' : 'Disabled';
+    Color _boolColor(dynamic val) =>
+        val == true ? const Color(0xFF22C55E) : const Color(0xFF94A3B8);
+
+    final gstIn = gst['gst_in']?.toString() ?? '';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with GSTIN chip
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.receipt_long_outlined,
+                      color: Color(0xFF2563EB), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                const Text(
+                                  'GST Configuration',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                ),
+                                _readOnlyBadge(),
+                              ],
+                            ),
+                          ),
+                          if (gstIn.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: const Color(0xFFCBD5E1)),
+                                ),
+                                child: Text(
+                                  gstIn,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF1E293B),
+                                    letterSpacing: 0.5,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Tax registration and billing rules',
+                        style: TextStyle(
+                            fontSize: 12, color: Color(0xFF94A3B8)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: const Color(0xFFE2E8F0)),
+
+          // Main rows
+          _infoRow('GST Enabled', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['is_gst_enabled']),
+              badgeOverrideText: _boolBadge(gst['is_gst_enabled'])),
+          _infoRow('GSTIN', gstIn),
+          _infoRow('Registration Type',
+              gst['gst_registration_type']?.toString() ?? ''),
+          _infoRow('Scheme', gst['gst_scheme']?.toString() ?? ''),
+          _infoRow('Registered State', () {
+            final s = gst['gst_registered_state']?.toString() ?? '';
+            return (s == 'undefined' || s.isEmpty) ? '' : s;
+          }()),
+          _infoRow('State Code', gst['gst_state_code']?.toString() ?? ''),
+          _infoRow('GSTR-1 Periodicity',
+              gst['gstr1_periodicity']?.toString() ?? ''),
+
+          // ADVANCED section
+          _gstSectionLabel('ADVANCED'),
+          _infoRow('TDS Enabled', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['is_tds_enabled']),
+              badgeOverrideText: _boolBadge(gst['is_tds_enabled'])),
+          _infoRow('Allow Mixed GST', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['allow_mixed_gst']),
+              badgeOverrideText: _boolBadge(gst['allow_mixed_gst'])),
+          _infoRow('GST Rate Details', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['gst_rate_details_enabled']),
+              badgeOverrideText: _boolBadge(gst['gst_rate_details_enabled'])),
+          _infoRow('Advance Receipt Tax Liability', '',
+              isBadge: true,
+              badgeColor: _boolColor(
+                  gst['advance_receipt_tax_liability_enabled']),
+              badgeOverrideText:
+                  _boolBadge(gst['advance_receipt_tax_liability_enabled'])),
+          _infoRow('Reverse Charge Tax Liability', '',
+              isBadge: true,
+              badgeColor: _boolColor(
+                  gst['reverse_charge_tax_liability_enabled']),
+              badgeOverrideText:
+                  _boolBadge(gst['reverse_charge_tax_liability_enabled'])),
+          _infoRow('GST Classifications', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['gst_classifications_enabled']),
+              badgeOverrideText:
+                  _boolBadge(gst['gst_classifications_enabled'])),
+          _infoRow('LUT / Bond Details Provided', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['lut_or_bond_details_provided']),
+              badgeOverrideText:
+                  _boolBadge(gst['lut_or_bond_details_provided'])),
+          _infoRow('E-Invoicing Applicable', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['is_e_invoicing_applicable']),
+              badgeOverrideText:
+                  _boolBadge(gst['is_e_invoicing_applicable'])),
+          _infoRow('Other Territory Access', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['is_access_of_other_territory']),
+              badgeOverrideText:
+                  _boolBadge(gst['is_access_of_other_territory'])),
+
+          // E-WAY BILL section
+          _gstSectionLabel('E-WAY BILL'),
+          _infoRow('E-Way Bill Applicable', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['is_eway_bill_applicable']),
+              badgeOverrideText:
+                  _boolBadge(gst['is_eway_bill_applicable'])),
+          _infoRow('Threshold Amount',
+              '₹ ${gst['eway_bill_threshold_amount'] ?? '0.00'}'),
+          _infoRow('Intrastate E-Way Bill', '',
+              isBadge: true,
+              badgeColor:
+                  _boolColor(gst['is_intrastate_eway_bill_applicable']),
+              badgeOverrideText: _boolBadge(
+                  gst['is_intrastate_eway_bill_applicable'])),
+          _infoRow('Intrastate Threshold',
+              '₹ ${gst['intrastate_eway_bill_threshold_amount'] ?? '0.00'}'),
+          _infoRow('E-Way Bill with Invoice', '',
+              isBadge: true,
+              badgeColor: _boolColor(gst['eway_bill_with_invoice_enabled']),
+              badgeOverrideText:
+                  _boolBadge(gst['eway_bill_with_invoice_enabled'])),
+
+          // Footer
+          const Divider(height: 1, color: const Color(0xFFF1F5F9)),
+          _infoCardFooter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _gstSectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF94A3B8),
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurrencyCard() {
+    return _buildInfoCard(
+      icon: Icons.currency_rupee_rounded,
+      iconColor: const Color(0xFF10B981),
+      title: 'Currency',
+      subtitle: 'Billing currency for this store',
+      rows: [
+        _infoRow('Currency', _storeInfo['currency']?.toString() ?? ''),
+        _infoRow('Symbol', _storeInfo['currency_symbol']?.toString() ?? ''),
+      ],
+    );
+  }
+
+  // ── Shared header / footer helpers ───────────────────────────
+
+  Widget _infoCardHeader({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    _readOnlyBadge(),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                      fontSize: 12, color: Color(0xFF94A3B8)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _readOnlyBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.lock_outline_rounded, size: 10, color: Color(0xFF64748B)),
+          SizedBox(width: 4),
+          Text(
+            'read-only',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoCardFooter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Flexible(
+            child: Text(
+              'Need to make changes? Contact our support team.',
+              style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+              overflow: TextOverflow.visible,
+              softWrap: true,
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: () {},
+            style: OutlinedButton.styleFrom(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              side: const BorderSide(color: Color(0xFFCBD5E1)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              foregroundColor: const Color(0xFF2563EB),
+            ),
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 13),
+            label: const Text('Contact Us',
+                style:
+                    TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Reusable read-only info card matching the design in the reference images.
+  Widget _buildInfoCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required List<Widget> rows,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFCBD5E1),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(
+                                  Icons.lock_outline_rounded,
+                                  size: 10,
+                                  color: Color(0xFF64748B),
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'read-only',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Divider + rows
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          ...rows,
+
+          // Footer
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: const Text(
+                    'Need to make changes? Contact our support team.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    overflow: TextOverflow.visible,
+                    softWrap: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () {},
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    foregroundColor: const Color(0xFF2563EB),
+                  ),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 13),
+                  label: const Text(
+                    'Contact Us',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Single read-only row inside an info card.
+  Widget _infoRow(
+    String label,
+    String value, {
+    bool isBadge = false,
+    Color? badgeColor,
+    String? badgeOverrideText,
+  }) {
+    final bool empty = value.isEmpty && (badgeOverrideText == null || badgeOverrideText.isEmpty);
+    final String badgeText = badgeOverrideText ??
+        (value.isEmpty ? 'Unknown' : value[0].toUpperCase() + value.substring(1));
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Flexible(
+                flex: 2,
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Flexible(
+                flex: 3,
+                child: isBadge
+                    ? Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (badgeColor ?? Colors.grey).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            badgeText,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: badgeColor ?? Colors.grey,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        empty ? 'Not provided' : value,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight:
+                              empty ? FontWeight.w400 : FontWeight.w600,
+                          color: empty
+                              ? const Color(0xFFCBD5E1)
+                              : const Color(0xFF1E293B),
+                          fontStyle:
+                              empty ? FontStyle.italic : FontStyle.normal,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: Color(0xFFF1F5F9)),
       ],
     );
   }
@@ -1621,46 +2647,6 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  Widget _buildModernInput({
-    required String label,
-    required TextEditingController controller,
-    required IconData icon,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF475569),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: "Enter $label",
-              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-              prefixIcon: Icon(icon, color: Colors.grey[400], size: 20),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildControlCard({
     required String title,
