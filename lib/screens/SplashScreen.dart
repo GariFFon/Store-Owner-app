@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:math';
+import 'package:geolocator/geolocator.dart';
 
 // ------------------------------------------------
 //  OPTIMIZED STAR MODEL
@@ -169,6 +170,16 @@ class _SplashScreenState extends State<SplashScreen>
 
     final configFuture = _initRemoteConfig();
     final userCheckFuture = _checkUserSession();
+
+    // Request location permission at startup
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    } catch (e) {
+      developer.log('Error requesting location permission: $e', name: 'SplashScreen');
+    }
 
     await minSplashDuration;
 
