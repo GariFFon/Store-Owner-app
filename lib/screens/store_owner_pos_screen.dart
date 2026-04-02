@@ -994,6 +994,65 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   }
 
   Future<void> _reviewOrder() async {
+    // Check location permission before reviewing order
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: TranslatedText('Please enable location services to review order')),
+        );
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: TranslatedText('Location permission is required to review order')),
+          );
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: TranslatedText('Location permission permanently denied. Please open settings.')),
+        );
+        await Geolocator.openAppSettings();
+        return;
+      }
+
+      if (_lat == 0.0 && _lng == 0.0) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(child: CircularProgressIndicator()),
+        );
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 5),
+          ),
+        );
+        if (mounted) Navigator.pop(context);
+        
+        setState(() {
+          _lat = position.latitude;
+          _lng = position.longitude;
+        });
+      }
+    } catch (e) {
+      print('Location error before review order: $e');
+      if (mounted && _lat == 0.0 && _lng == 0.0) {
+        // Pop loading if it was showing and threw error
+        // Note: we might need to handle popping safely if it was stuck
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: TranslatedText('Could not verify location: $e')),
+        );
+      }
+    }
+
     if (_cartItemsAvailable.isEmpty) {
       ScaffoldMessenger.of(
         context,
