@@ -156,12 +156,16 @@ class _ReviewConfirmScreenState extends State<ReviewConfirmScreen> {
           );
           Navigator.of(context).popUntil((route) => route.isFirst);
         } else {
+          String errorMsg = 'Failed to create purchase entry';
+          if (result['response'] is String) {
+            errorMsg = result['response'].toString();
+          } else if (result['message'] is String) {
+            errorMsg = result['message'].toString();
+          }
+          
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                result['message']?.toString() ??
-                    'Failed to create purchase entry',
-              ),
+              content: Text(errorMsg),
               backgroundColor: Colors.red,
             ),
           );

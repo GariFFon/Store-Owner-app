@@ -856,7 +856,7 @@ class StoreOwnerApiService {
         useBearerToken: true,
       );
 
-      if (response['statusCode'] == 200 && response['data'] != null) {
+      if (response['data'] != null) {
         return Map<String, dynamic>.from(response['data']);
       }
       return {};
