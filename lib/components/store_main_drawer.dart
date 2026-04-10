@@ -1,4 +1,5 @@
 import 'package:exanor/screens/gst_rates_screen.dart';
+import 'package:exanor/screens/products_screen.dart';
 import 'package:exanor/screens/orders_list_screen.dart';
 import 'package:exanor/screens/store_owner_pos_screen.dart';
 import 'package:exanor/screens/overview_screen.dart';
@@ -276,7 +277,18 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                   _buildDrawerItem(
                     icon: Icons.inventory_2_outlined,
                     title: 'Products',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ProductsScreen(
+                            storeId: widget.storeId,
+                            storeName: widget.storeName,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   _buildDrawerItem(
                     icon: Icons.local_shipping_outlined,
