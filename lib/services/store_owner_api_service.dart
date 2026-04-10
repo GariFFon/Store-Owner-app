@@ -1370,4 +1370,150 @@ class StoreOwnerApiService {
       throw Exception('Failed to update product template: $e');
     }
   }
+
+  /// Fetch product reviews (paginated)
+  /// POST /product-reviews/
+  ///
+  /// Sample payload:
+  /// {"page":1,"query":{"product_id":"..."},"store_access":true,"store_id":"..."}
+  static Future<Map<String, dynamic>> getProductReviews({
+    required String storeId,
+    required String productId,
+    int page = 1,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/product-reviews/',
+        body: {
+          'page': page,
+          'query': {'product_id': productId},
+          'store_access': true,
+          'store_id': storeId,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch product reviews: $e');
+    }
+  }
+
+  /// Fetch orders filtered by status (paginated)
+  /// POST /orders/
+  ///
+  /// Sample payload:
+  /// {"query":{"status":"order_placed"},"page":1,"store_id":"...","store_access":true}
+  static Future<Map<String, dynamic>> getOrdersByStatus({
+    required String storeId,
+    String status = 'order_placed',
+    int page = 1,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/orders/',
+        body: {
+          'query': {'status': status},
+          'page': page,
+          'store_id': storeId,
+          'store_access': true,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch orders: $e');
+    }
+  }
+
+  /// Fetch BOM operations for a product combination
+  /// POST /bom-operations/
+  ///
+  /// Sample payload:
+  /// {"list":true,"store_id":"...","is_active":true,"product_combination_id":"..."}
+  static Future<Map<String, dynamic>> getBomOperations({
+    required String storeId,
+    required String productCombinationId,
+    bool isActive = true,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/bom-operations/',
+        body: {
+          'list': true,
+          'store_id': storeId,
+          'is_active': isActive,
+          'product_combination_id': productCombinationId,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch BOM operations: $e');
+    }
+  }
+
+  /// Validate whether a BOM can be produced for a given quantity + godown.
+  /// POST /validate-production-possibility/
+  static Future<Map<String, dynamic>> validateProductionPossibility({
+    required String storeId,
+    required String bomId,
+    required double quantityToProduce,
+    String? godownId,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'bom_id': bomId,
+        'store_id': storeId,
+        'quantity_to_produce': quantityToProduce,
+      };
+      if (godownId != null) body['godown_id'] = godownId;
+
+      final response = await ApiService.post(
+        '/validate-production-possibility/',
+        body: body,
+        useBearerToken: true,
+      );
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to validate production: $e');
+    }
+  }
+
+  /// Fetch full BOM details (components list).
+  /// POST /bom-operations/  { "view_details": true, "bom_id": "..." }
+  static Future<Map<String, dynamic>> getBomDetails({
+    required String bomId,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/bom-operations/',
+        body: {
+          'view_details': true,
+          'bom_id': bomId,
+        },
+        useBearerToken: true,
+      );
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch BOM details: $e');
+    }
+  }
 }

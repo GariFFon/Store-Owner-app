@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 import 'package:exanor/components/custom_cached_network_image.dart';
 import 'package:exanor/services/api_service.dart';
+import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -31,6 +33,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   String? _error;
   late TabController _tabController;
 
+  // ── Reviews state ────────────────────────────────────────────────────────
+  List<Map<String, dynamic>> _reviews = [];
+  bool _reviewsLoading = false;
+  bool _reviewsHasNext = false;
+  int _reviewsPage = 1;
+  String? _reviewsError;
+  bool _reviewsFetched = false;
+
+  // ── Manufacturing state ──────────────────────────────────────────────
+  List<Map<String, dynamic>> _boms = [];
+  List<String> _orderMethods = []; // distinct order methods from /orders/ API
+  bool _mfgLoading = false;
+  bool _mfgFetched = false;
+  String? _mfgError;
+  static const _kAllMethods = '__all__';
+  String _selectedOrderMethod = _kAllMethods; // sentinel = All Methods
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +67,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     // Only trigger on settled tab (not mid-animation).
     if (mounted && !_tabController.indexIsChanging) {
       setState(() {});
+      // Auto-load reviews the first time the Reviews tab is selected.
+      if (_tabController.index == 1 && !_reviewsFetched) {
+        _fetchReviews();
+      }
+      // Auto-load manufacturing the first time that tab is selected.
+      if (_tabController.index == 2 && !_mfgFetched) {
+        _fetchManufacturing();
+      }
     }
   }
 
@@ -101,6 +128,117 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       setState(() {
         _isLoading = false;
         _error = 'Error: $e';
+      });
+    }
+  }
+
+  // ── Reviews API ──────────────────────────────────────────────────────────
+  Future<void> _fetchReviews({bool loadMore = false}) async {
+    if (_reviewsLoading) return;
+    if (!mounted) return;
+
+    final productId = _product?['product_id']?.toString() ?? '';
+    if (productId.isEmpty) return;
+
+    final page = loadMore ? _reviewsPage + 1 : 1;
+
+    setState(() {
+      _reviewsLoading = true;
+      _reviewsError = null;
+      if (!loadMore) {
+        _reviews = [];
+        _reviewsPage = 1;
+      }
+    });
+
+    try {
+      final data = await StoreOwnerApiService.getProductReviews(
+        storeId: widget.storeId,
+        productId: productId,
+        page: page,
+      );
+
+      if (!mounted) return;
+
+      final List<dynamic> rawList = data['response'] ?? [];
+      final pagination = data['pagination'] as Map<String, dynamic>? ?? {};
+
+      setState(() {
+        _reviewsLoading = false;
+        _reviewsFetched = true;
+        _reviewsPage = page;
+        _reviewsHasNext = pagination['has_next'] == true;
+        if (loadMore) {
+          _reviews.addAll(rawList.map((e) => Map<String, dynamic>.from(e)));
+        } else {
+          _reviews = rawList.map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _reviewsLoading = false;
+        _reviewsError = e.toString();
+      });
+    }
+  }
+
+  // ── Manufacturing API ──────────────────────────────────────────────────
+  Future<void> _fetchManufacturing() async {
+    if (_mfgLoading || !mounted) return;
+
+    setState(() {
+      _mfgLoading = true;
+      _mfgError = null;
+    });
+
+    try {
+      // Run both API calls in parallel.
+      final results = await Future.wait([
+        StoreOwnerApiService.getBomOperations(
+          storeId: widget.storeId,
+          productCombinationId: widget.productId,
+        ),
+        StoreOwnerApiService.getOrdersByStatus(
+          storeId: widget.storeId,
+          status: 'order_placed',
+        ),
+      ]);
+
+      if (!mounted) return;
+
+      // Handle both response shapes:
+      //   { "response": { "boms": [...] } }  — nested
+      //   { "response": [ ... ] }             — flat list
+      final bomResponse = results[0]['response'];
+      final List<dynamic> rawBoms;
+      if (bomResponse is List) {
+        rawBoms = bomResponse;
+      } else if (bomResponse is Map) {
+        rawBoms = (bomResponse['boms'] as List<dynamic>?) ?? [];
+      } else {
+        rawBoms = [];
+      }
+
+      // Extract unique order methods from orders response.
+      final rawOrders = results[1]['response'] as List<dynamic>? ?? [];
+      final methods = <String>{};
+      for (final o in rawOrders) {
+        final m = (o as Map<String, dynamic>)['order_method_name']?.toString();
+        if (m != null && m.isNotEmpty) methods.add(m);
+      }
+
+      setState(() {
+        _mfgLoading = false;
+        _mfgFetched = true;
+        _boms = rawBoms.map((e) => Map<String, dynamic>.from(e)).toList();
+        _orderMethods = methods.toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _mfgLoading = false;
+        _mfgError = e.toString();
       });
     }
   }
@@ -548,12 +686,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       case 0:
         return _buildInventoryColumn();
       case 1:
-        return _buildPlaceholderInline(
-            Icons.star_outline_rounded, 'Reviews coming soon');
+        return _buildReviewsTab(isWide: false);
       case 2:
-        return _buildPlaceholderInline(
-            Icons.precision_manufacturing_outlined,
-            'Manufacturing details coming soon');
+        return _buildManufacturingTab(isWide: false);
       default:
         return const SizedBox();
     }
@@ -914,11 +1049,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             controller: _tabController,
             children: [
               _buildInventoryListWide(),
-              _buildPlaceholderTab(
-                  Icons.star_outline_rounded, 'Reviews coming soon'),
-              _buildPlaceholderTab(
-                  Icons.precision_manufacturing_outlined,
-                  'Manufacturing details coming soon'),
+              _buildReviewsTab(isWide: true),
+              _buildManufacturingTab(isWide: true),
             ],
           ),
         ),
@@ -1186,17 +1318,723 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     );
   }
 
-  // ── Placeholder tabs ──────────────────────────────────────────────────────
-  Widget _buildPlaceholderTab(IconData icon, String msg) {
-    return Center(
+  // ── Reviews tab ───────────────────────────────────────────────────────────
+  Widget _buildReviewsTab({required bool isWide}) {
+    // If reviews haven't been fetched yet (e.g., wide layout loads all
+    // TabBarView children upfront), trigger the first fetch.
+    if (!_reviewsFetched && !_reviewsLoading) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_reviewsFetched) _fetchReviews();
+      });
+    }
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header ────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.star_rounded,
+                  color: Color(0xFFF59E0B), size: 20),
+              const SizedBox(width: 6),
+              Text(
+                'Customer Reviews',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const Spacer(),
+              if (_reviews.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_reviews.length} review${_reviews.length != 1 ? "s" : ""}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFF59E0B),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+        // ── Body ──────────────────────────────────────────────────────
+        if (_reviewsLoading && _reviews.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 60),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_reviewsError != null && _reviews.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.error_outline,
+                      size: 40, color: Colors.grey[400]),
+                  const SizedBox(height: 10),
+                  Text(
+                    _reviewsError ?? 'Failed to load reviews',
+                    style: TextStyle(
+                        color: Colors.grey[600], fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _fetchReviews,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (_reviews.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 60),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.rate_review_outlined,
+                      size: 52, color: Colors.grey[300]),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No reviews yet',
+                    style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Be the first to review this product!',
+                    style: TextStyle(
+                        color: Colors.grey[400], fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...[
+            for (final review in _reviews) _buildReviewCard(review),
+            if (_reviewsHasNext)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _reviewsLoading
+                        ? null
+                        : () => _fetchReviews(loadMore: true),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF2563EB),
+                      side: const BorderSide(color: Color(0xFF2563EB)),
+                    ),
+                    child: _reviewsLoading
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Load More'),
+                  ),
+                ),
+              ),
+          ],
+        const SizedBox(height: 16),
+      ],
+    );
+
+    // Wide = inside Expanded TabBarView (finite height) → ListView.
+    // Mobile = inside CustomScrollView (inline) → plain Column.
+    if (isWide) {
+      return ListView(
+        padding: EdgeInsets.zero,
+        children: [content],
+      );
+    }
+    return content;
+  }
+
+  Widget _buildReviewCard(Map<String, dynamic> review) {
+    final rating = (review['rating'] as num?)?.toDouble() ?? 0.0;
+    final comment = review['comment']?.toString() ?? '';
+    final author = (review['customer_name']?.toString().isNotEmpty == true
+            ? review['customer_name']!.toString()
+            : null) ??
+        (review['user_name']?.toString().isNotEmpty == true
+            ? review['user_name']!.toString()
+            : null) ??
+        (review['name']?.toString().isNotEmpty == true
+            ? review['name']!.toString()
+            : null) ??
+        'Anonymous';
+    final ts = review['created_at'] ?? review['timestamp'];
+    String dateStr = '';
+    if (ts != null) {
+      try {
+        final dt = ts is num
+            ? DateTime.fromMillisecondsSinceEpoch(ts.toInt() * 1000)
+            : DateTime.parse(ts.toString());
+        dateStr = DateFormat('dd MMM yyyy').format(dt);
+      } catch (_) {}
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 52, color: Colors.grey[300]),
-          const SizedBox(height: 12),
-          Text(
-            msg,
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+          // Author row
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor:
+                    const Color(0xFF2563EB).withValues(alpha: 0.12),
+                child: Text(
+                  author.isNotEmpty ? author[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2563EB),
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      author,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    if (dateStr.isNotEmpty)
+                      Text(
+                        dateStr,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              // Star rating
+              Row(
+                children: List.generate(5, (i) {
+                  final filled = i < rating.round();
+                  return Icon(
+                    filled ? Icons.star_rounded : Icons.star_outline_rounded,
+                    color: filled
+                        ? const Color(0xFFF59E0B)
+                        : Colors.grey[300],
+                    size: 16,
+                  );
+                }),
+              ),
+            ],
+          ),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              comment,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF475569),
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Manufacturing tab ──────────────────────────────────────────────────────
+  Widget _buildManufacturingTab({required bool isWide}) {
+    if (!_mfgFetched && !_mfgLoading) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_mfgFetched) _fetchManufacturing();
+      });
+    }
+
+    // Use order methods fetched from /orders/ API.
+    final methods = _orderMethods;
+
+    // "All Methods" sentinel → show every BOM regardless of order_method_name.
+    // Specific method selected → match only that method.
+    final filteredBoms = _selectedOrderMethod == _kAllMethods
+        ? _boms // all BOMs, including those with null order_method_name
+        : _boms
+            .where((b) =>
+                b['order_method_name']?.toString() == _selectedOrderMethod)
+            .toList();
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header: row 1 = title + count ───────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: const Text(
+            'Bills of Materials',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+        ),
+        if (_boms.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              '${_boms.length} active BOM${_boms.length != 1 ? "s" : ""}',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            ),
+          ),
+        // ── Header: row 2 = filter + create button ───────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              // Method filter dropdown
+              if (methods.isNotEmpty) _buildMethodDropdown(methods),
+              if (methods.isNotEmpty) const SizedBox(width: 8),
+              // Create BOM button
+              ElevatedButton.icon(
+                onPressed: () =>
+                    _showBar('Create BOM — coming soon', const Color(0xFF2563EB)),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('CREATE BOM'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  textStyle: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+        // ── Body ──────────────────────────────────────────────────────
+        if (_mfgLoading && _boms.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 60),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_mfgError != null && _boms.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.error_outline, size: 40, color: Colors.grey[400]),
+                  const SizedBox(height: 10),
+                  Text(
+                    _mfgError ?? 'Failed to load BOMs',
+                    style:
+                        TextStyle(color: Colors.grey[600], fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _fetchManufacturing,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (filteredBoms.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 60),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.precision_manufacturing_outlined,
+                      size: 52, color: Colors.grey[300]),
+                  const SizedBox(height: 12),
+                  Text(
+                    _boms.isEmpty ? 'No BOMs found' : 'No BOMs for selected method',
+                    style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          for (final bom in filteredBoms) _buildBomCard(bom),
+
+        const SizedBox(height: 20),
+      ],
+    );
+
+    if (isWide) {
+      return ListView(padding: EdgeInsets.zero, children: [content]);
+    }
+    return content;
+  }
+
+  Widget _buildMethodDropdown(List<String> methods) {
+    return PopupMenuButton<String>(
+      initialValue: _selectedOrderMethod,
+      // onSelected is always called for non-null values — sentinel '_all_' is safe.
+      onSelected: (value) => setState(() => _selectedOrderMethod = value),
+      tooltip: 'Filter by order method',
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: _kAllMethods,
+          child: Row(
+            children: [
+              if (_selectedOrderMethod == _kAllMethods)
+                const Icon(Icons.check,
+                    size: 16, color: Color(0xFF2563EB))
+              else
+                const SizedBox(width: 16),
+              const SizedBox(width: 8),
+              const Text('All Methods'),
+            ],
+          ),
+        ),
+        for (final m in methods)
+          PopupMenuItem<String>(
+            value: m,
+            child: Row(
+              children: [
+                if (_selectedOrderMethod == m)
+                  const Icon(Icons.check,
+                      size: 16, color: Color(0xFF2563EB))
+                else
+                  const SizedBox(width: 16),
+                const SizedBox(width: 8),
+                Text(m),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF2563EB)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _selectedOrderMethod == _kAllMethods
+                  ? 'All Methods'
+                  : _selectedOrderMethod,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2563EB),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_drop_down,
+                size: 18, color: Color(0xFF2563EB)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBomCard(Map<String, dynamic> bom) {
+    final version = bom['version'] ?? 1;
+    final methodName = bom['order_method_name']?.toString();
+    final finishedItem = bom['finished_item']?.toString() ?? '—';
+    final outputQty = bom['output_quantity']?.toString() ?? '0';
+    final outputUnit = bom['output_unit']?.toString() ?? '';
+    final components = (bom['components_count'] as num?)?.toInt() ?? 0;
+    final isActive = bom['is_active'] == true;
+    final bomId = bom['id']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Row 1: badge + version/method ─────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: Row(
+              children: [
+                // Active badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? const Color(0xFF16A34A)
+                        : Colors.grey[400],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isActive ? 'Active' : 'Inactive',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Version & method — Flexible prevents overflow
+                Flexible(
+                  child: Text(
+                    'V$version${methodName != null ? " • ${methodName.toUpperCase()}" : ""}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF475569),
+                      letterSpacing: 0.4,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ── Row 2: action buttons (right-aligned) ────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // GET REPORT
+                OutlinedButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => _FeasibilityReportDialog(
+                      storeId: widget.storeId,
+                      bomId: bomId,
+                      outputQty: outputQty,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF475569),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    textStyle: const TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w700),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('GET REPORT'),
+                ),
+                const SizedBox(width: 6),
+                // MATERIALS
+                OutlinedButton.icon(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => _BomDetailsDialog(bomId: bomId),
+                  ),
+                  icon: const Icon(Icons.remove_red_eye_outlined, size: 13),
+                  label: const Text('MATERIALS'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF2563EB),
+                    side: const BorderSide(color: Color(0xFF2563EB)),
+                    textStyle: const TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w700),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6)),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // PRODUCE
+                ElevatedButton.icon(
+                  onPressed: () => _showBar(
+                      'Produce BOM $bomId — coming soon',
+                      const Color(0xFF16A34A)),
+                  icon: const Icon(Icons.settings_outlined, size: 13),
+                  label: const Text('PRODUCE'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w700),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Finished item name
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+            child: Text(
+              finishedItem,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          // Output Qty + Components
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                // Output Qty card
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: const Color(0xFF2563EB), width: 1.5),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Output Qty',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF2563EB)
+                                .withValues(alpha: 0.8),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          outputQty,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
+                        if (outputUnit.isNotEmpty)
+                          Text(
+                            outputUnit,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Components card
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Components',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$components',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1254,4 +2092,920 @@ class _BarcodePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BarcodePainter old) => old.data != data;
+}
+
+// ── Feasibility Report Dialog ────────────────────────────────────────────────
+class _FeasibilityReportDialog extends StatefulWidget {
+  final String storeId;
+  final String bomId;
+  final String outputQty; // pre-fill quantity from BOM card
+
+  const _FeasibilityReportDialog({
+    required this.storeId,
+    required this.bomId,
+    required this.outputQty,
+  });
+
+  @override
+  State<_FeasibilityReportDialog> createState() =>
+      _FeasibilityReportDialogState();
+}
+
+class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
+  // ── Input state ────────────────────────────────────────────────────────────
+  final _qtyController = TextEditingController();
+  List<Map<String, dynamic>> _godowns = [];
+  String? _selectedGodownId; // null = All Godowns (Global)
+
+  // ── Loading / result state ─────────────────────────────────────────────────
+  bool _godownsLoading = true;
+  bool _validating = false;
+  Map<String, dynamic>? _result;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _qtyController.text = widget.outputQty.isNotEmpty ? widget.outputQty : '1';
+    _loadGodowns();
+  }
+
+  @override
+  void dispose() {
+    _qtyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadGodowns() async {
+    try {
+      final list = await StoreOwnerApiService.getGodowns(widget.storeId);
+      if (mounted) {
+        setState(() {
+          _godowns = list;
+          _godownsLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _godownsLoading = false);
+    }
+  }
+
+  Future<void> _generateReport() async {
+    final qty = double.tryParse(_qtyController.text.trim());
+    if (qty == null || qty <= 0) {
+      setState(() => _error = 'Enter a valid quantity greater than 0.');
+      return;
+    }
+    setState(() {
+      _validating = true;
+      _error = null;
+      _result = null;
+    });
+    try {
+      final data = await StoreOwnerApiService.validateProductionPossibility(
+        storeId: widget.storeId,
+        bomId: widget.bomId,
+        quantityToProduce: qty,
+        godownId: _selectedGodownId,
+      );
+      final resp = data['response'];
+      if (resp is Map) {
+        setState(() {
+          _result = Map<String, dynamic>.from(resp);
+          _validating = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Unexpected response format.';
+          _validating = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _validating = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+          maxWidth: 680,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header ────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Row(
+                children: [
+                  const Text(
+                    'Feasibility Report',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: IconButton.styleFrom(
+                      foregroundColor: const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 16, indent: 20, endIndent: 20),
+
+            // ── Scrollable body ───────────────────────────────────────────
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Inputs (stacked vertically for mobile safety) ────────
+                    // Qty field
+                    TextField(
+                      controller: _qtyController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Quantity to Produce',
+                        labelStyle: const TextStyle(
+                            fontSize: 13, color: Color(0xFF64748B)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                              color: Color(0xFF2563EB), width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Enter target output quantity.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                    ),
+                    const SizedBox(height: 14),
+                    // Godown dropdown
+                    _godownsLoading
+                        ? Container(
+                            height: 52,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: const Color(0xFF2563EB)),
+                            ),
+                            child: const Center(
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2)),
+                          )
+                        : DropdownButtonFormField<String?>(
+                            initialValue: _selectedGodownId,
+                            isExpanded: true, // prevents overflow
+                            decoration: InputDecoration(
+                              labelText: 'Godown (Optional)',
+                              labelStyle: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF2563EB),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                    color: Color(0xFF2563EB), width: 1.5),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                    color: Color(0xFF2563EB), width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 14),
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('All Godowns (Global)',
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                              for (final g in _godowns)
+                                DropdownMenuItem<String?>(
+                                  value: g['id']?.toString(),
+                                  child: Text(
+                                    g['name']?.toString() ?? '—',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => _selectedGodownId = v),
+                          ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Filter by stock in specific godown.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ── Generate button ───────────────────────────────────
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _validating ? null : _generateReport,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          textStyle: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                        child: _validating
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white),
+                              )
+                            : const Text('GENERATE REPORT'),
+                      ),
+                    ),
+
+                    // ── Error ─────────────────────────────────────────────
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(8),
+                            border:
+                                Border.all(color: const Color(0xFFFCA5A5)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  color: Color(0xFFDC2626), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _error!,
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF991B1B)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    // ── Result ────────────────────────────────────────────
+                    if (_result != null) ...[
+                      const SizedBox(height: 16),
+                      _buildResultCard(_result!),
+                    ],
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Footer ────────────────────────────────────────────────────
+            const Divider(height: 1),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF64748B),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      textStyle: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('CLOSE'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultCard(Map<String, dynamic> result) {
+    final feasible = result['feasible'] == true;
+    final outputItem = result['output_item']?.toString() ?? '—';
+    final outputQty = result['output_quantity']?.toString() ?? '—';
+    final totalCost = result['total_cost_estimate']?.toString() ?? '—';
+    final limit = result['production_limit'] as Map? ?? {};
+    final maxQty = limit['max_producible_quantity']?.toString() ?? '—';
+    final components = result['components'] as List<dynamic>? ?? [];
+    final warnings = result['warnings'] as List<dynamic>? ?? [];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Output item + feasibility badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'OUTPUT ITEM',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.0,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      outputItem,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: feasible
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  feasible ? 'Possible to Produce' : 'Not Feasible',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // ── Stats row ─────────────────────────────────────────────────
+          Row(
+            children: [
+              _statBox('Estimate', '₹$totalCost'),
+              const SizedBox(width: 8),
+              _statBox('Requested', outputQty),
+              const SizedBox(width: 8),
+              _statBox('Max Possible', maxQty),
+            ],
+          ),
+
+          // ── Warnings ──────────────────────────────────────────────────
+          if (warnings.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF9C3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFDE047)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'WARNINGS',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.0,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final w in warnings)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.warning_amber_rounded,
+                              size: 14, color: Color(0xFFCA8A04)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              w.toString(),
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF78350F),
+                                  height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+
+          // ── Components breakdown ───────────────────────────────────────
+          if (components.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'COMPONENTS BREAKDOWN',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+                color: Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final c in components)
+              _buildComponentCard(Map<String, dynamic>.from(c)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statBox(String label, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComponentCard(Map<String, dynamic> c) {
+    final name = c['raw_item']?.toString() ?? '—';
+    final required = c['required_quantity']?.toString() ?? '—';
+    final available = c['available_quantity']?.toString() ?? '—';
+    final unit = c['unit']?.toString() ?? '';
+    final cost = c['total_cost']?.toString() ?? '—';
+    final sufficient = c['is_sufficient'] == true;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: sufficient
+              ? const Color(0xFFE2E8F0)
+              : const Color(0xFFFCA5A5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: sufficient
+                      ? const Color(0xFFDCFCE7)
+                      : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  sufficient ? 'Sufficient' : 'Insufficient',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: sufficient
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFFDC2626),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _componentStat('Required', '$required $unit'),
+              _componentStat('Available', '$available $unit'),
+              _componentStat('Est. Cost', '₹$cost'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _componentStat(String label, String value) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11, color: Color(0xFF94A3B8))),
+          const SizedBox(height: 3),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B))),
+        ],
+      ),
+    );
+  }
+}
+
+// ── BOM Details (Materials) Dialog ──────────────────────────────────────────
+class _BomDetailsDialog extends StatefulWidget {
+  final String bomId;
+  const _BomDetailsDialog({required this.bomId});
+
+  @override
+  State<_BomDetailsDialog> createState() => _BomDetailsDialogState();
+}
+
+class _BomDetailsDialogState extends State<_BomDetailsDialog> {
+  bool _loading = true;
+  Map<String, dynamic>? _bom;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data =
+          await StoreOwnerApiService.getBomDetails(bomId: widget.bomId);
+      final bom = (data['response'] as Map?)?.cast<String, dynamic>()['bom'];
+      if (!mounted) return;
+      if (bom is Map) {
+        setState(() {
+          _bom = Map<String, dynamic>.from(bom);
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Unexpected response format.';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+          maxWidth: 560,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header ────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
+              child: Row(
+                children: [
+                  const Text(
+                    'BOM Details',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: IconButton.styleFrom(
+                        foregroundColor: const Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 16, indent: 20, endIndent: 20),
+
+            // ── Body ──────────────────────────────────────────────────────
+            Flexible(
+              child: _loading
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : _error != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(_error!,
+                              style: const TextStyle(
+                                  color: Color(0xFFDC2626))),
+                        )
+                      : _buildBody(_bom!),
+            ),
+
+            // ── Footer ────────────────────────────────────────────────────
+            const Divider(height: 1),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    child: const Text('CLOSE'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(Map<String, dynamic> bom) {
+    final finishedItem = bom['finished_item']?.toString() ?? '—';
+    final version = bom['version']?.toString() ?? '1';
+    final outputQty = bom['output_quantity']?.toString() ?? '—';
+    final outputUnit = bom['output_unit']?.toString() ?? '';
+    final isActive = bom['is_active'] == true;
+    final components = bom['components'] as List<dynamic>? ?? [];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Finished item section ────────────────────────────────────
+          const Text(
+            'FINISHED ITEM',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+              color: Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            finishedItem,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Badges row
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              // Version
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                ),
+                child: Text(
+                  'Version $version',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+              ),
+              // Output qty
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Output: $outputQty $outputUnit',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2563EB),
+                  ),
+                ),
+              ),
+              // Active / Inactive
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFF94A3B8),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  isActive ? 'Active' : 'Inactive',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Raw materials section ────────────────────────────────────
+          Text(
+            'RAW MATERIALS (${components.length})',
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+              color: Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          if (components.isEmpty)
+            const Text(
+              'No components defined for this BOM.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            )
+          else
+            for (final c in components)
+              _componentRow(Map<String, dynamic>.from(c)),
+
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _componentRow(Map<String, dynamic> c) {
+    final name = c['raw_item']?.toString() ?? '—';
+    final qty = c['quantity']?.toString() ?? '—';
+    final unit = c['unit']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+          ),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+            ),
+            child: Text(
+              '$qty $unit',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF475569),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
