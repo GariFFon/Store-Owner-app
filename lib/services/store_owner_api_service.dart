@@ -1402,6 +1402,41 @@ class StoreOwnerApiService {
     }
   }
 
+  /// Fetch all active order methods with their IDs.
+  /// POST /order-method/
+  static Future<List<Map<String, String>>> getOrderMethods(
+      String storeId) async {
+    try {
+      final response = await ApiService.post(
+        '/order-method/',
+        body: {
+          'customer_user_id': '',
+          'store_access': true,
+          'store_id': storeId,
+          'query': {},
+        },
+        useBearerToken: true,
+      );
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        final raw = data['response'];
+        if (raw is List) {
+          return raw
+              .whereType<Map>()
+              .where((m) => m['id'] != null && m['order_method_name'] != null)
+              .map((m) => {
+                    'id': m['id'].toString(),
+                    'name': m['order_method_name'].toString(),
+                  })
+              .toList();
+        }
+      }
+      return [];
+    } catch (_) {
+      return []; // non-fatal
+    }
+  }
+
   /// Fetch orders filtered by status (paginated)
   /// POST /orders/
   ///
@@ -1514,6 +1549,139 @@ class StoreOwnerApiService {
       return {};
     } catch (e) {
       throw Exception('Failed to fetch BOM details: $e');
+    }
+  }
+
+  /// Fetch racks filtered by a specific godown.
+  /// POST /racks/  (with godown query filter)
+  static Future<List<Map<String, dynamic>>> getRacksByGodown({
+    required String storeId,
+    required String godownId,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/racks/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'create': false,
+          'query': {
+            'godown': godownId,
+            'is_active': true,
+          },
+        },
+        useBearerToken: true,
+      );
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200 && data['response'] != null) {
+          return List<Map<String, dynamic>>.from(data['response']);
+        }
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to fetch racks: $e');
+    }
+  }
+
+  /// Execute production from a BOM.
+  /// POST /bom-operations/  { "produce": true, ... }
+  static Future<Map<String, dynamic>> produceFromBom({
+    required String bomId,
+    required String storeId,
+    required String godownId,
+    required int quantityMultiplier,
+    required String date, // 'YYYY-MM-DD'
+    String? rackId,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'produce': true,
+        'bom_id': bomId,
+        'store_id': storeId,
+        'godown_id': godownId,
+        'quantity_multiplier': quantityMultiplier,
+        'date': date,
+      };
+      if (rackId != null && rackId.isNotEmpty) body['rack_id'] = rackId;
+
+      final response = await ApiService.post(
+        '/bom-operations/',
+        body: body,
+        useBearerToken: true,
+      );
+      if (response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to execute production: $e');
+    }
+  }
+
+  /// Search product combinations by query string.
+  /// POST /search-product-combinations/
+  static Future<Map<String, dynamic>> searchProductCombinations({
+    required String storeId,
+    required String query,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/search-product-combinations/',
+        body: {
+          'query': query,
+          'store_access': true,
+          'store_id': storeId,
+          'page': page,
+          'page_size': pageSize,
+        },
+        useBearerToken: true,
+      );
+      if (response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to search combinations: $e');
+    }
+  }
+
+  /// Create a new BOM.
+  /// POST /bom-operations/  { "create": true, ... }
+  static Future<Map<String, dynamic>> saveBom({
+    required String storeId,
+    required String finishedCombinationId,
+    required double outputQuantity,
+    required String outputUnitId,
+    String? orderMethodId, // universal recipe: null = all methods
+    required List<Map<String, dynamic>> components,
+    // each: { raw_combination_id, quantity, unit_id (opt), scrap_percentage }
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'create': true,
+        'store_id': storeId,
+        'store_access': true,
+        'finished_combination_id': finishedCombinationId,
+        'output_quantity': outputQuantity,
+        'output_unit_id': outputUnitId,
+        'components': components,
+      };
+      if (orderMethodId != null) body['order_method_id'] = orderMethodId;
+
+      final response = await ApiService.post(
+        '/bom-operations/',
+        body: body,
+        useBearerToken: true,
+      );
+      if (response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to save BOM: $e');
     }
   }
 }
