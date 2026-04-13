@@ -3281,9 +3281,11 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
   }
 
   Widget _componentRow(Map<String, dynamic> c) {
-    final name = c['raw_item']?.toString() ?? '—';
-    final qty = c['quantity']?.toString() ?? '—';
-    final unit = c['unit']?.toString() ?? '';
+    final name       = c['raw_item']?.toString() ?? '—';
+    final qty        = c['quantity']?.toString() ?? '—';
+    final unit       = c['unit']?.toString() ?? '';
+    final scrap      = double.tryParse(c['scrap_percentage']?.toString() ?? '0') ?? 0.0;
+    final isOptional = c['is_optional'] == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -3294,17 +3296,63 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Left: name + Optional badge + scrap
           Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1E293B),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Name row with optional badge
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    if (isOptional)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: const Color(0xFF2563EB), width: 1.2),
+                        ),
+                        child: const Text(
+                          'Optional',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                // Scrap % — only show if > 0
+                if (scrap > 0) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    'Scrap: ${scrap.toStringAsFixed(2)}%',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFDC2626), // red-600
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
+          const SizedBox(width: 10),
+          // Right: qty chip
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -3848,6 +3896,7 @@ class _BomComponentRow {
   final TextEditingController qtyCtrl = TextEditingController(text: '1');
   String? unitId;
   final TextEditingController scrapCtrl = TextEditingController(text: '0');
+  bool isOptional = false; // maps to is_optional in the API payload
   // search state
   String searchQuery = '';
   List<Map<String, dynamic>> searchResults = [];
@@ -3993,6 +4042,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
           'quantity': double.parse(c.qtyCtrl.text.trim()),
           'scrap_percentage':
               double.tryParse(c.scrapCtrl.text.trim()) ?? 0.0,
+          'is_optional': c.isOptional,
         };
         if (c.unitId != null) map['unit_id'] = c.unitId!;
         return map;
@@ -4008,19 +4058,41 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
       );
 
       if (!mounted) return;
-      setState(() => _saving = false);
 
       final status = data['status'] as int?;
       final success = status == 200 || status == 201;
-      final resp = data['response'];
-      final msg = (resp is Map ? resp['message'] : null)?.toString() ??
-          (success ? 'BOM created successfully.' : 'Failed to create BOM.');
 
-      _showResult(success: success, message: msg);
+      if (success) {
+        setState(() => _saving = false);
+        final resp = data['response'];
+        final msg = (resp is Map ? resp['message'] : null)?.toString() ??
+            'BOM created successfully.';
+        _showResult(success: true, message: msg);
+      } else {
+        // Stay in dialog — show exact server error inline
+        final resp = data['response'];
+        String errMsg;
+        if (resp is Map && resp['message'] != null) {
+          errMsg = resp['message'].toString();
+        } else if (data.isEmpty) {
+          errMsg = 'No response from server. Please try again.';
+        } else {
+          errMsg = 'Failed to create BOM (status $status).';
+        }
+        setState(() {
+          _saving = false;
+          _error = errMsg;
+        });
+      }
     } catch (e) {
       if (mounted) {
+        // Strip generic wrapper prefix added by saveBom()
+        final raw = e.toString();
+        final clean = raw.startsWith('Exception: Failed to save BOM: ')
+            ? raw.replaceFirst('Exception: Failed to save BOM: ', '')
+            : raw.replaceFirst('Exception: ', '');
         setState(() {
-          _error = e.toString();
+          _error = clean;
           _saving = false;
         });
       }
@@ -4618,6 +4690,45 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
           const Text(
             'Auto from inventory batch if blank',
             style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+          ),
+          const SizedBox(height: 8),
+          // Optional Component checkbox
+          InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () => setState(() => row.isOptional = !row.isOptional),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Checkbox(
+                      value: row.isOptional,
+                      onChanged: (v) =>
+                          setState(() => row.isOptional = v ?? false),
+                      activeColor: const Color(0xFF2563EB),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4)),
+                      side: const BorderSide(
+                          color: Color(0xFF94A3B8), width: 1.5),
+                      materialTapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Optional component',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
