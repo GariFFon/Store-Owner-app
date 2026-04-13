@@ -50,15 +50,26 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   static const _kAllMethods = '__all__';
   String _selectedOrderMethod = _kAllMethods; // sentinel = All Methods
 
+  // ── Pricing edit state ───────────────────────────────────────────────
+  bool _isPriceEditMode = false;
+  bool _isPriceSaving = false;
+  late TextEditingController _salePriceCtrl;
+  late TextEditingController _mrpCtrl;
+  late TextEditingController _costPriceCtrl;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    // Listen to tab changes so setState re-reads _product fresh each time.
     _tabController.addListener(_onTabChanged);
+    // Initialise price controllers with empty — they get populated after fetch
+    _salePriceCtrl = TextEditingController();
+    _mrpCtrl       = TextEditingController();
+    _costPriceCtrl = TextEditingController();
     if (widget.initialData != null) {
       _product = widget.initialData;
       _isLoading = false;
+      _syncPriceControllers();
     }
     _fetchDetail();
   }
@@ -82,6 +93,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
+    _salePriceCtrl.dispose();
+    _mrpCtrl.dispose();
+    _costPriceCtrl.dispose();
     super.dispose();
   }
 
@@ -111,6 +125,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             _isLoading = false;
             _error = null;
           });
+          _syncPriceControllers();
         } else {
           setState(() {
             _isLoading = false;
@@ -275,11 +290,77 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           '${_fieldLabel(field)} ${newValue ? "enabled" : "disabled"}',
           const Color(0xFF16A34A),
         );
+        // Auto-refresh so all fields reflect the server state
+        _fetchDetail();
       }
     } catch (e) {
       if (!mounted) return;
       _product![field] = previous;
       setState(() {});
+      _showBar('Error: $e', Colors.red);
+    }
+  }
+
+  /// Sync price text controllers from the loaded product map.
+  void _syncPriceControllers() {
+    final p = _product;
+    if (p == null) return;
+    _salePriceCtrl.text =
+        (double.tryParse(p['sale_price']?.toString() ?? '0') ?? 0.0)
+            .toStringAsFixed(2);
+    _mrpCtrl.text =
+        (double.tryParse(p['mrp']?.toString() ?? '0') ?? 0.0)
+            .toStringAsFixed(2);
+    _costPriceCtrl.text =
+        (double.tryParse(p['cost_price']?.toString() ?? '0') ?? 0.0)
+            .toStringAsFixed(2);
+  }
+
+  /// PUT /product-combinations/ — update sale_price, mrp, cost_price.
+  Future<void> _updatePrices() async {
+    final salePrice  = double.tryParse(_salePriceCtrl.text.trim()) ?? 0.0;
+    final mrp        = double.tryParse(_mrpCtrl.text.trim())        ?? 0.0;
+    final costPrice  = double.tryParse(_costPriceCtrl.text.trim())  ?? 0.0;
+
+    setState(() => _isPriceSaving = true);
+    try {
+      final response = await ApiService.put(
+        '/product-combinations/',
+        body: {
+          'products_combinations_id': widget.productId,
+          'store_id': widget.storeId,
+          'store_access': true,
+          'data': {
+            'sale_price': salePrice,
+            'mrp':        mrp,
+            'cost_price': costPrice,
+          },
+        },
+        useBearerToken: true,
+      );
+      if (!mounted) return;
+      final ok = response['statusCode'] == 200 &&
+          (response['data']?['status'] == 200 ||
+           response['data']?['status'] == 'success');
+      if (ok) {
+        // Update local product map to reflect new prices
+        _product?['sale_price'] = salePrice;
+        _product?['mrp']        = mrp;
+        _product?['cost_price'] = costPrice;
+        setState(() {
+          _isPriceEditMode = false;
+          _isPriceSaving   = false;
+        });
+        _showBar('Prices updated successfully', const Color(0xFF16A34A));
+        // Auto-refresh to sync server state
+        _fetchDetail();
+      } else {
+        setState(() => _isPriceSaving = false);
+        _showBar('Failed to update prices. Please try again.', Colors.red);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isPriceSaving = false);
       _showBar('Error: $e', Colors.red);
     }
   }
@@ -301,6 +382,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       case 'is_accessible_online': return 'Online Access';
       case 'is_accessible_pos':    return 'POS Access';
       case 'auto_produce':         return 'Auto Produce';
+      case 'is_inventory_management_required': return 'Inventory Management';
       default:                     return field;
     }
   }
@@ -532,7 +614,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     // No AnimatedBuilder here — plain CustomScrollView.
     // Tab changes and toggle changes both call setState() on the parent,
     // which re-calls build() -> _buildMobileScrollView() with fresh data.
-    return CustomScrollView(
+    return RefreshIndicator(
+      onRefresh: _fetchDetail,
+      color: const Color(0xFF2563EB),
+      child: CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
@@ -607,10 +692,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                       (p['rating_count'] as num?) == 0
                           ? 'No ratings'
                           : '${p['average_rating']} (${p['rating_count']})'),
-                  _detailRow('Sale Price', _fmtMoney(p['sale_price'])),
-                  _detailRow('MRP',        _fmtMoney(p['mrp'])),
-                  _detailRow('Cost Price', _fmtMoney(p['cost_price'])),
                 ]),
+                const SizedBox(height: 16),
+
+                // Pricing details — editable
+                _buildPricingCard(),
                 const SizedBox(height: 16),
 
                 // Access toggles — reads p fresh so setState reflects instantly
@@ -634,7 +720,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           ),
         ),
       ],
-    );
+    ),  // end CustomScrollView
+    );  // end RefreshIndicator
   }
 
   Widget _buildMobileTabSelector() {
@@ -805,10 +892,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 (p['rating_count'] as num?) == 0
                     ? 'No ratings'
                     : '${p['average_rating']} (${p['rating_count']})'),
-            _detailRow('Sale Price', _fmtMoney(p['sale_price'])),
-            _detailRow('MRP',        _fmtMoney(p['mrp'])),
-            _detailRow('Cost Price', _fmtMoney(p['cost_price'])),
           ]),
+          const SizedBox(height: 16),
+
+          // Pricing details — editable
+          _buildPricingCard(),
           const SizedBox(height: 16),
 
           _sectionHeader('ACCESS & AUTOMATION'),
@@ -863,15 +951,228 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     );
   }
 
-  Widget _sectionHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: Color(0xFF94A3B8),
-        letterSpacing: 1.3,
+  Widget _sectionHeader(String title, {Widget? trailing}) {
+    if (trailing == null) {
+      return Text(
+        title,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF94A3B8),
+          letterSpacing: 1.3,
+        ),
+      );
+    }
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF94A3B8),
+            letterSpacing: 1.3,
+          ),
+        ),
+        const Spacer(),
+        trailing,
+      ],
+    );
+  }
+
+  // ── Pricing card ─────────────────────────────────────────────────────────
+  Widget _buildPricingCard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader(
+          'PRICING DETAILS',
+          trailing: _isPriceEditMode
+              ? const SizedBox.shrink()
+              : OutlinedButton(
+                  onPressed: () {
+                    _syncPriceControllers();
+                    setState(() => _isPriceEditMode = true);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    side: const BorderSide(color: Color(0xFF2563EB)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'EDIT PRICES',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2563EB),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 8),
+        if (_isPriceEditMode)
+          _buildPriceEditCard()
+        else
+          _detailCard([
+            _detailRow('Sale Price', _fmtMoney(_product?['sale_price'])),
+            _detailRow('MRP',        _fmtMoney(_product?['mrp'])),
+            _detailRow('Cost Price', _fmtMoney(_product?['cost_price'])),
+          ]),
+      ],
+    );
+  }
+
+  Widget _buildPriceEditCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: [
+          _priceField('Sale Price', _salePriceCtrl, '0.00'),
+          const SizedBox(height: 10),
+          _priceField('MRP',        _mrpCtrl,       '0.00'),
+          const SizedBox(height: 10),
+          _priceField('Cost Price', _costPriceCtrl, '0.00'),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              // Cancel
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isPriceSaving
+                      ? null
+                      : () => setState(() => _isPriceEditMode = false),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    foregroundColor: const Color(0xFF64748B),
+                  ),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Save
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isPriceSaving ? null : _updatePrices,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  child: _isPriceSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Save Prices',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _priceField(String label, TextEditingController ctrl, String hint) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+            ),
+            child: Row(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    '₹',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: hint,
+                      hintStyle: const TextStyle(
+                          fontSize: 13, color: Color(0xFFCBD5E1)),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    inputFormatters: [
+                      // allow digits and one decimal point
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'[0-9.]')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -956,6 +1257,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             'Automatically trigger BOM production when\nstock is depleted',
             p['auto_produce'] == true,
             onChanged: (v) => _updateToggle('auto_produce', v),
+          ),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          _accessRow(
+            'Inventory Management Required',
+            'Require inventory stock monitoring for execution',
+            p['is_inventory_management_required'] == true,
+            onChanged: (v) =>
+                _updateToggle('is_inventory_management_required', v),
           ),
         ],
       ),
@@ -2972,9 +3281,11 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
   }
 
   Widget _componentRow(Map<String, dynamic> c) {
-    final name = c['raw_item']?.toString() ?? '—';
-    final qty = c['quantity']?.toString() ?? '—';
-    final unit = c['unit']?.toString() ?? '';
+    final name       = c['raw_item']?.toString() ?? '—';
+    final qty        = c['quantity']?.toString() ?? '—';
+    final unit       = c['unit']?.toString() ?? '';
+    final scrap      = double.tryParse(c['scrap_percentage']?.toString() ?? '0') ?? 0.0;
+    final isOptional = c['is_optional'] == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -2985,17 +3296,63 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Left: name + Optional badge + scrap
           Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1E293B),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Name row with optional badge
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    if (isOptional)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: const Color(0xFF2563EB), width: 1.2),
+                        ),
+                        child: const Text(
+                          'Optional',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                // Scrap % — only show if > 0
+                if (scrap > 0) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    'Scrap: ${scrap.toStringAsFixed(2)}%',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFDC2626), // red-600
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
+          const SizedBox(width: 10),
+          // Right: qty chip
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -3539,6 +3896,7 @@ class _BomComponentRow {
   final TextEditingController qtyCtrl = TextEditingController(text: '1');
   String? unitId;
   final TextEditingController scrapCtrl = TextEditingController(text: '0');
+  bool isOptional = false; // maps to is_optional in the API payload
   // search state
   String searchQuery = '';
   List<Map<String, dynamic>> searchResults = [];
@@ -3684,6 +4042,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
           'quantity': double.parse(c.qtyCtrl.text.trim()),
           'scrap_percentage':
               double.tryParse(c.scrapCtrl.text.trim()) ?? 0.0,
+          'is_optional': c.isOptional,
         };
         if (c.unitId != null) map['unit_id'] = c.unitId!;
         return map;
@@ -3699,19 +4058,41 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
       );
 
       if (!mounted) return;
-      setState(() => _saving = false);
 
       final status = data['status'] as int?;
       final success = status == 200 || status == 201;
-      final resp = data['response'];
-      final msg = (resp is Map ? resp['message'] : null)?.toString() ??
-          (success ? 'BOM created successfully.' : 'Failed to create BOM.');
 
-      _showResult(success: success, message: msg);
+      if (success) {
+        setState(() => _saving = false);
+        final resp = data['response'];
+        final msg = (resp is Map ? resp['message'] : null)?.toString() ??
+            'BOM created successfully.';
+        _showResult(success: true, message: msg);
+      } else {
+        // Stay in dialog — show exact server error inline
+        final resp = data['response'];
+        String errMsg;
+        if (resp is Map && resp['message'] != null) {
+          errMsg = resp['message'].toString();
+        } else if (data.isEmpty) {
+          errMsg = 'No response from server. Please try again.';
+        } else {
+          errMsg = 'Failed to create BOM (status $status).';
+        }
+        setState(() {
+          _saving = false;
+          _error = errMsg;
+        });
+      }
     } catch (e) {
       if (mounted) {
+        // Strip generic wrapper prefix added by saveBom()
+        final raw = e.toString();
+        final clean = raw.startsWith('Exception: Failed to save BOM: ')
+            ? raw.replaceFirst('Exception: Failed to save BOM: ', '')
+            : raw.replaceFirst('Exception: ', '');
         setState(() {
-          _error = e.toString();
+          _error = clean;
           _saving = false;
         });
       }
@@ -4309,6 +4690,45 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
           const Text(
             'Auto from inventory batch if blank',
             style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+          ),
+          const SizedBox(height: 8),
+          // Optional Component checkbox
+          InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () => setState(() => row.isOptional = !row.isOptional),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Checkbox(
+                      value: row.isOptional,
+                      onChanged: (v) =>
+                          setState(() => row.isOptional = v ?? false),
+                      activeColor: const Color(0xFF2563EB),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4)),
+                      side: const BorderSide(
+                          color: Color(0xFF94A3B8), width: 1.5),
+                      materialTapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Optional component',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

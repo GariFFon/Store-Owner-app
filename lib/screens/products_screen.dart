@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:exanor/components/custom_cached_network_image.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/product_detail_screen.dart';
 import 'package:exanor/services/api_service.dart';
+import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -493,92 +495,146 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  // ── Search bar ────────────────────────────────────────────────────────────
+  // ── Search bar + Add Product button ───────────────────────────────────────
   Widget _buildSearchBar() {
     final bool hasText = _searchController.text.isNotEmpty;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      height: 46,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-        border: Border.all(
-          color: _isSearchMode
-              ? Colors.indigo.withValues(alpha: 0.4)
-              : Colors.grey[200]!,
-          width: _isSearchMode ? 1.5 : 1,
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       child: Row(
         children: [
-          // Search icon / spinner
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: _isSearching
-                  ? const SizedBox(
-                      key: ValueKey('spinner'),
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                            Color(0xFF1565C0)),
-                      ),
-                    )
-                  : const Icon(
-                      key: ValueKey('icon'),
-                      Icons.search_rounded,
-                      color: Color(0xFF1565C0),
-                      size: 20,
-                    ),
-            ),
-          ),
-
-          // Text field
+          // Search field
           Expanded(
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              onChanged: _onSearchChanged,
-              style: const TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w500),
-              textAlignVertical: TextAlignVertical.center,
-              decoration: InputDecoration(
-                hintText: 'Search products...',
-                hintStyle: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
+            child: Container(
+              height: 46,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+                border: Border.all(
+                  color: _isSearchMode
+                      ? Colors.indigo.withValues(alpha: 0.4)
+                      : Colors.grey[200]!,
+                  width: _isSearchMode ? 1.5 : 1,
                 ),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Row(
+                children: [
+                  // Search icon / spinner
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: _isSearching
+                          ? const SizedBox(
+                              key: ValueKey('spinner'),
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFF1565C0)),
+                              ),
+                            )
+                          : const Icon(
+                              key: ValueKey('icon'),
+                              Icons.search_rounded,
+                              color: Color(0xFF1565C0),
+                              size: 20,
+                            ),
+                    ),
+                  ),
+
+                  // Text field
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      onChanged: _onSearchChanged,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w500),
+                      textAlignVertical: TextAlignVertical.center,
+                      decoration: InputDecoration(
+                        hintText: 'Search products...',
+                        hintStyle: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+
+                  // Clear button
+                  if (hasText)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded,
+                          size: 18, color: Colors.grey),
+                      onPressed: _clearSearch,
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(),
+                    )
+                  else
+                    const SizedBox(width: 8),
+                ],
               ),
             ),
           ),
 
-          // Clear button
-          if (hasText)
-            IconButton(
-              icon: const Icon(Icons.close_rounded,
-                  size: 18, color: Colors.grey),
-              onPressed: _clearSearch,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(),
-            )
-          else
-            const SizedBox(width: 8),
+          const SizedBox(width: 8),
+
+          // Add Product button
+          GestureDetector(
+            onTap: () {
+              showDialog(
+                context: context,
+                barrierColor: Colors.black.withValues(alpha: 0.3),
+                builder: (_) => _AddProductDialog(storeId: widget.storeId),
+              );
+            },
+            child: Container(
+              height: 46,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                  SizedBox(width: 4),
+                  Text(
+                    'Add Product',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -645,19 +701,23 @@ class _ProductsScreenState extends State<ProductsScreen> {
         (_isSearchLoadingMore ? 1 : 0) +
         (!_isSearchLoadingMore && !_hasMoreSearch ? 1 : 0);
 
-    return ListView.builder(
-      controller: _scrollController,
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 120),
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        if (index == _searchResults.length) {
-          if (_isSearchLoadingMore) return _buildLoadingMoreCell();
-          return _buildEndOfListCell(_searchResults.length,
-              label: 'result');
-        }
-        return _buildProductCard(_searchResults[index], theme);
-      },
+    return RefreshIndicator(
+      onRefresh: () => _runSearch(query: _activeQuery),
+      color: const Color(0xFF2563EB),
+      child: ListView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 120),
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          if (index == _searchResults.length) {
+            if (_isSearchLoadingMore) return _buildLoadingMoreCell();
+            return _buildEndOfListCell(_searchResults.length,
+                label: 'result');
+          }
+          return _buildProductCard(_searchResults[index], theme);
+        },
+      ),
     );
   }
 
@@ -864,7 +924,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   initialData: product,
                 ),
               ),
-            );
+            ).then((_) {
+              // Refresh the list when returning from detail
+              // so any price/toggle changes are reflected
+              if (mounted) _fetchProducts(reset: true);
+            });
           },
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -876,7 +940,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: CustomCachedNetworkImage(
-                      imgUrl: imgUrl,
+                      imgUrl: imgUrl!,
                       width: 64,
                       height: 64,
                       fit: BoxFit.cover,
@@ -1043,6 +1107,617 @@ class _ProductsScreenState extends State<ProductsScreen> {
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: color,
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Add Product Dialog  — blur backdrop, template search, Add to Store button
+// ════════════════════════════════════════════════════════════════════════════
+class _AddProductDialog extends StatefulWidget {
+  final String storeId;
+  const _AddProductDialog({required this.storeId});
+
+  @override
+  State<_AddProductDialog> createState() => _AddProductDialogState();
+}
+
+class _AddProductDialogState extends State<_AddProductDialog> {
+  final TextEditingController _ctrl = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+
+  List<Map<String, dynamic>> _results = [];
+  bool _isSearching = false;
+  bool _hasSearched = false;
+  String _lastQuery = '';
+
+  // ── Pagination ───────────────────────────────────────
+  int _currentPage = 1;
+  bool _hasMore = false;
+  bool _isLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
+
+  // tracks which template IDs are "adding" (in-flight)
+  final Set<String> _addingIds = {};
+  // tracks successfully added IDs
+  final Set<String> _addedIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _focusNode.requestFocus(),
+    );
+    _scrollController.addListener(() {
+      if (!_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      if (pos.pixels >= pos.maxScrollExtent - 200 &&
+          _hasMore &&
+          !_isLoadingMore &&
+          !_isSearching) {
+        _loadMore();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focusNode.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return;
+    setState(() {
+      _isSearching = true;
+      _hasSearched = true;
+      _lastQuery = q;
+      _results = [];
+      _currentPage = 1;
+      _hasMore = false;
+      _isLoadingMore = false;
+    });
+    try {
+      final resp =
+          await StoreOwnerApiService.searchProductCombinationTemplates(
+        storeId: widget.storeId,
+        query: q,
+        page: 1,
+      );
+      if (!mounted) return;
+      final items = resp['response'];
+      final pagination = resp['pagination'] as Map? ?? {};
+      setState(() {
+        _results = items != null
+            ? List<Map<String, dynamic>>.from(items)
+            : [];
+        _hasMore = pagination['has_next'] == true;
+        _currentPage = 1;
+        _isSearching = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSearching = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || !_hasMore || _isSearching) return;
+    setState(() => _isLoadingMore = true);
+    final nextPage = _currentPage + 1;
+    try {
+      final resp =
+          await StoreOwnerApiService.searchProductCombinationTemplates(
+        storeId: widget.storeId,
+        query: _lastQuery,
+        page: nextPage,
+      );
+      if (!mounted) return;
+      final items = resp['response'];
+      final pagination = resp['pagination'] as Map? ?? {};
+      setState(() {
+        if (items != null) {
+          _results.addAll(List<Map<String, dynamic>>.from(items));
+        }
+        _hasMore = pagination['has_next'] == true;
+        _currentPage = nextPage;
+        _isLoadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingMore = false);
+    }
+  }
+
+  Future<void> _addToStore(Map<String, dynamic> template) async {
+    final id = template['id'] as String;
+    setState(() => _addingIds.add(id));
+    try {
+      final resp = await StoreOwnerApiService.createProductFromTemplate(
+        storeId: widget.storeId,
+        productCombinationTemplateId: id,
+      );
+      if (!mounted) return;
+      final status = resp['status'];
+      if (status == 200) {
+        final name = resp['response']?['product_name'] ?? 'Product';
+        setState(() => _addedIds.add(id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✓ "$name" added to your store'),
+            backgroundColor: const Color(0xFF059669),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      } else {
+        _showError('Failed to add product. Please try again.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _addingIds.remove(id));
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // ── Use AnimatedPadding + viewInsets — the only reliable Flutter pattern
+    // that makes an overlay shrink when the keyboard appears.
+    final mq = MediaQuery.of(context);
+    final viewInsets = mq.viewInsets;
+    final screenHeight = mq.size.height;
+    // Space available above the keyboard, minus status bar, nav bar, and dialog margins
+    final availableHeight = screenHeight
+        - viewInsets.bottom
+        - mq.padding.top
+        - mq.padding.bottom
+        - 96; // 40 top margin + 40 bottom margin + 16 extra breathing room
+    final resultsMaxHeight =
+        (availableHeight - 64 - 80 - 32).clamp(80.0, screenHeight);
+
+
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+      child: AnimatedPadding(
+        // This is the key: bottom padding = keyboard height → dialog slides up
+        padding: viewInsets + const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.decelerate,
+        child: MediaQuery.removeViewInsets(
+          // Remove viewInsets from the subtree so children don't double-count
+          removeLeft: true,
+          removeTop: true,
+          removeRight: true,
+          removeBottom: true,
+          context: context,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                constraints: BoxConstraints(maxHeight: availableHeight),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 30,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── Header ──────────────────────────────────────────────
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF1E40AF), Color(0xFF2563EB)],
+                        ),
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.add_box_rounded,
+                              color: Colors.white, size: 22),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Add Product to Store',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                color: Colors.white70, size: 20),
+                            onPressed: () => Navigator.of(context).pop(),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── Search field ────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: TextField(
+                        controller: _ctrl,
+                        focusNode: _focusNode,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: _search,
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500),
+                        decoration: InputDecoration(
+                          hintText: 'Type product name & press Enter…',
+                          hintStyle: TextStyle(
+                              color: Colors.grey[400], fontSize: 13),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            color: Color(0xFF2563EB),
+                            size: 20,
+                          ),
+                          suffixIcon: _isSearching
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Color(0xFF2563EB)),
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 4),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: Color(0xFF2563EB), width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ── Results ─────────────────────────────────────────────
+                    if (!_hasSearched)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        child: Text(
+                          'Search the global product catalogue and add items directly to your store.',
+                          style: TextStyle(
+                              color: Colors.grey[500], fontSize: 13),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else if (_isSearching)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                              color: Color(0xFF2563EB)),
+                        ),
+                      )
+                    else if (_results.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        child: Column(
+                          children: [
+                            Icon(Icons.search_off_rounded,
+                                size: 40, color: Colors.grey[300]),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No products found for "$_lastQuery"',
+                              style: TextStyle(
+                                  color: Colors.grey[500], fontSize: 13),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints:
+                            BoxConstraints(maxHeight: resultsMaxHeight),
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                          itemCount: _results.length + 1,
+                          itemBuilder: (_, i) {
+                            if (i == _results.length) {
+                              if (_isLoadingMore) {
+                                return const Padding(
+                                  padding:
+                                      EdgeInsets.symmetric(vertical: 14),
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              if (!_hasMore && _results.isNotEmpty) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12),
+                                  child: Center(
+                                    child: Text(
+                                      '${_results.length} product${_results.length == 1 ? '' : 's'} found',
+                                      style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                  bottom:
+                                      i < _results.length - 1 ? 8 : 0),
+                              child: _buildTemplateCard(_results[i]),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemplateCard(Map<String, dynamic> t) {
+    final id = t['id'] as String;
+    final name =
+        t['product_combination_template_name'] as String? ?? 'Unknown';
+    final imgUrl = t['img_url'] as String?;
+    final parent = t['parent_category'] as String? ?? '';
+    final child = t['child_category'] as String? ?? '';
+    final gst = t['gst_data'] as Map? ?? {};
+    final cgst = (gst['cgst_percent'] as num?)?.toDouble() ?? 0;
+    final igst = (gst['igst_percent'] as num?)?.toDouble() ?? 0;
+    final gstPct = igst > 0 ? igst : cgst * 2;
+    final hasImg = imgUrl != null && imgUrl.isNotEmpty;
+
+    final isAdding = _addingIds.contains(id);
+    final isAdded = _addedIds.contains(id);
+
+    String cap(String s) => s.isEmpty
+        ? s
+        : s
+            .split(' ')
+            .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+            .join(' ');
+
+    final catLabel = [cap(parent), cap(child)]
+        .where((s) => s.isNotEmpty && s.toLowerCase() != 'undefined')
+        .join(' › ');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isAdded
+            ? const Color(0xFFF0FDF4)
+            : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isAdded
+              ? const Color(0xFF86EFAC)
+              : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            // Product image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: hasImg
+                  ? CustomCachedNetworkImage(
+                      imgUrl: imgUrl!,
+                      width: 52,
+                      height: 52,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      width: 52,
+                      height: 52,
+                      color: const Color(0xFFE2E8F0),
+                      child: const Icon(
+                        Icons.inventory_2_outlined,
+                        color: Color(0xFF94A3B8),
+                        size: 24,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 12),
+
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (catLabel.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      catLabel,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (gstPct > 0) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                            color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Text(
+                        'GST: ${gstPct.toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Add to Store button
+            SizedBox(
+              width: 90,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: isAdded
+                    ? Container(
+                        key: const ValueKey('added'),
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF059669),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_rounded,
+                                  color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                'Added',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : GestureDetector(
+                        key: const ValueKey('add'),
+                        onTap: isAdding ? null : () => _addToStore(t),
+                        child: Container(
+                          height: 36,
+                          decoration: BoxDecoration(
+                            gradient: isAdding
+                                ? null
+                                : const LinearGradient(
+                                    colors: [
+                                      Color(0xFF2563EB),
+                                      Color(0xFF1D4ED8),
+                                    ],
+                                  ),
+                            color: isAdding
+                                ? const Color(0xFFE2E8F0)
+                                : null,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: isAdding
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF2563EB)),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Add to Store',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );

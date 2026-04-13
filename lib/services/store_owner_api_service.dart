@@ -1184,6 +1184,60 @@ class StoreOwnerApiService {
     }
   }
 
+  /// Fetch Voucher Register (Day Book)
+  /// POST /voucher-register/
+  static Future<Map<String, dynamic>> getVoucherRegister({
+    required String storeId,
+    List<String>? voucherTypes,
+    String? startDate,
+    String? endDate,
+    bool? isPosted,
+    bool? isCancelled,
+    String? sourceType,
+    String? search,
+    String? partyId,
+    int page = 1,
+    int pageSize = 25,
+    bool includeLines = false,
+  }) async {
+    try {
+      final Map<String, dynamic> body = {
+        'store_id': storeId,
+        'store_access': true,
+        'page': page,
+        'page_size': pageSize,
+        'include_lines': includeLines,
+      };
+
+      if (voucherTypes != null && voucherTypes.isNotEmpty) {
+        body['voucher_types'] = voucherTypes;
+      }
+      if (startDate != null) body['start_date'] = startDate;
+      if (endDate != null) body['end_date'] = endDate;
+      if (isPosted != null) body['is_posted'] = isPosted;
+      if (isCancelled != null) body['is_cancelled'] = isCancelled;
+      if (sourceType != null) body['source_type'] = sourceType;
+      if (search != null && search.isNotEmpty) body['search'] = search;
+      if (partyId != null) body['party_id'] = partyId;
+
+      final response = await ApiService.post(
+        '/voucher-register/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          return Map<String, dynamic>.from(data);
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch voucher register: $e');
+    }
+  }
+
   /// Fetch coupons
   /// POST /coupons/
   static Future<Map<String, dynamic>> getCoupons({
@@ -1682,6 +1736,34 @@ class StoreOwnerApiService {
       return {};
     } catch (e) {
       throw Exception('Failed to save BOM: $e');
+    }
+  }
+
+
+  /// Create a product in the store from a global template
+  /// POST /create-from-template/
+  static Future<Map<String, dynamic>> createProductFromTemplate({
+    required String storeId,
+    required String productCombinationTemplateId,
+    bool isInventoryManagementRequired = false,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/create-from-template/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'product_combination_template_id': productCombinationTemplateId,
+          'is_inventory_management_required': isInventoryManagementRequired,
+        },
+        useBearerToken: true,
+      );
+      if (response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to create product from template: $e');
     }
   }
 }
