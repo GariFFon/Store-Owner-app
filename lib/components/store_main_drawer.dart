@@ -11,6 +11,7 @@ import 'package:exanor/screens/store_selection_screen.dart';
 import 'package:exanor/screens/settings_screen.dart';
 import 'package:exanor/screens/gst_reports_screen.dart';
 import 'package:exanor/screens/day_book_screen.dart';
+import 'package:exanor/screens/my_store_qr_screen.dart';
 import 'package:exanor/screens/coupons_screen.dart';
 import 'package:exanor/screens/staff_management_screen.dart';
 import 'package:exanor/screens/financial_years_screen.dart';
@@ -527,6 +528,24 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
                   const SizedBox(height: 24),
                   Divider(color: Colors.grey.shade200),
                   const SizedBox(height: 16),
+
+                  // My Store QR
+                  _buildDrawerItem(
+                    icon: Icons.qr_code_rounded,
+                    title: 'My Store QR',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MyStoreQrScreen(
+                            storeId: widget.storeId,
+                            storeName: widget.storeName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
 
                   _buildDrawerItem(
                     icon: Icons.manage_accounts_outlined,
