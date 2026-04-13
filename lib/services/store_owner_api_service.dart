@@ -1738,4 +1738,32 @@ class StoreOwnerApiService {
       throw Exception('Failed to save BOM: $e');
     }
   }
+
+
+  /// Create a product in the store from a global template
+  /// POST /create-from-template/
+  static Future<Map<String, dynamic>> createProductFromTemplate({
+    required String storeId,
+    required String productCombinationTemplateId,
+    bool isInventoryManagementRequired = false,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/create-from-template/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'product_combination_template_id': productCombinationTemplateId,
+          'is_inventory_management_required': isInventoryManagementRequired,
+        },
+        useBearerToken: true,
+      );
+      if (response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to create product from template: $e');
+    }
+  }
 }
