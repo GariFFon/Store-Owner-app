@@ -15,12 +15,9 @@ class DayBookScreen extends StatefulWidget {
 
 class _DayBookScreenState extends State<DayBookScreen> {
   // ── Filters ────────────────────────────────────────────────────────────────
-  DateTime _startDate = DateTime(
-    DateTime.now().month >= 4 ? DateTime.now().year : DateTime.now().year - 1,
-    4,
-    1,
-  );
+  DateTime _startDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _endDate = DateTime.now();
+  String _selectedPeriod = 'month'; // week | month | year | custom
   String? _selectedVoucherType; // null = All Types
 
   // ── Data ───────────────────────────────────────────────────────────────────
@@ -165,6 +162,39 @@ class _DayBookScreenState extends State<DayBookScreen> {
         }
       });
     }
+  }
+
+  void _setPeriod(String period) {
+    final now = DateTime.now();
+    DateTime start;
+    DateTime end = now;
+
+    switch (period) {
+      case 'week':
+        // Monday of the current week
+        start = now.subtract(Duration(days: now.weekday - 1));
+        start = DateTime(start.year, start.month, start.day);
+        break;
+      case 'month':
+        start = DateTime(now.year, now.month, 1);
+        break;
+      case 'year':
+        // Financial-year start: 1 Apr of current or last year
+        start = now.month >= 4
+            ? DateTime(now.year, 4, 1)
+            : DateTime(now.year - 1, 4, 1);
+        break;
+      default: // custom — keep existing dates, just open picker
+        setState(() => _selectedPeriod = period);
+        return;
+    }
+
+    setState(() {
+      _selectedPeriod = period;
+      _startDate = start;
+      _endDate = end;
+    });
+    _refresh();
   }
 
   void _refresh() {
@@ -391,17 +421,107 @@ class _DayBookScreenState extends State<DayBookScreen> {
 
   // ── Filter bar ─────────────────────────────────────────────────────────────
   Widget _buildFilterBar() {
+    final isCustom = _selectedPeriod == 'custom';
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: _buildDateChip('Start Date', _startDate, true)),
-          const SizedBox(width: 8),
-          Expanded(child: _buildDateChip('End Date', _endDate, false)),
-          const SizedBox(width: 8),
-          Expanded(child: _buildTypeDropdown()),
+          // Row 1: Period selector + Voucher Type
+          Row(
+            children: [
+              Expanded(flex: 3, child: _buildPeriodDropdown()),
+              const SizedBox(width: 8),
+              Expanded(flex: 2, child: _buildTypeDropdown()),
+            ],
+          ),
+          // Row 2: visible only in Custom mode
+          if (isCustom) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDateChip('Start Date', _startDate, true),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildDateChip('End Date', _endDate, false),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _refresh,
+                  child: Container(
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'Apply',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildPeriodDropdown() {
+    const options = [
+      {'value': 'week', 'label': 'This Week'},
+      {'value': 'month', 'label': 'This Month'},
+      {'value': 'year', 'label': 'This Year'},
+      {'value': 'custom', 'label': 'Custom Range'},
+    ];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedPeriod,
+          isExpanded: true,
+          isDense: true,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF2563EB),
+          ),
+          dropdownColor: Colors.white,
+          icon: const Icon(
+            Icons.expand_more_rounded,
+            size: 16,
+            color: Color(0xFF2563EB),
+          ),
+          items: options.map((opt) {
+            return DropdownMenuItem<String>(
+              value: opt['value'],
+              child: Text(
+                opt['label']!,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Color(0xFF1E293B)),
+              ),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null) _setPeriod(val);
+          },
+        ),
       ),
     );
   }
