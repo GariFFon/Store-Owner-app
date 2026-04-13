@@ -606,6 +606,7 @@ class _DayBookScreenState extends State<DayBookScreen> {
             setState(
               () => _selectedVoucherType = val?.isEmpty == true ? null : val,
             );
+            _refresh();
           },
         ),
       ),
