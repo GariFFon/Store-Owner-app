@@ -701,19 +701,23 @@ class _ProductsScreenState extends State<ProductsScreen> {
         (_isSearchLoadingMore ? 1 : 0) +
         (!_isSearchLoadingMore && !_hasMoreSearch ? 1 : 0);
 
-    return ListView.builder(
-      controller: _scrollController,
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 120),
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        if (index == _searchResults.length) {
-          if (_isSearchLoadingMore) return _buildLoadingMoreCell();
-          return _buildEndOfListCell(_searchResults.length,
-              label: 'result');
-        }
-        return _buildProductCard(_searchResults[index], theme);
-      },
+    return RefreshIndicator(
+      onRefresh: () => _runSearch(query: _activeQuery),
+      color: const Color(0xFF2563EB),
+      child: ListView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 120),
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          if (index == _searchResults.length) {
+            if (_isSearchLoadingMore) return _buildLoadingMoreCell();
+            return _buildEndOfListCell(_searchResults.length,
+                label: 'result');
+          }
+          return _buildProductCard(_searchResults[index], theme);
+        },
+      ),
     );
   }
 
@@ -920,7 +924,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   initialData: product,
                 ),
               ),
-            );
+            ).then((_) {
+              // Refresh the list when returning from detail
+              // so any price/toggle changes are reflected
+              if (mounted) _fetchProducts(reset: true);
+            });
           },
           child: Padding(
             padding: const EdgeInsets.all(14),
