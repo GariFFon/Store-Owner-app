@@ -170,6 +170,15 @@ class _DayBookScreenState extends State<DayBookScreen> {
     DateTime end = now;
 
     switch (period) {
+      case 'today':
+        start = DateTime(now.year, now.month, now.day);
+        end   = start;
+        break;
+      case 'yesterday':
+        final y = now.subtract(const Duration(days: 1));
+        start = DateTime(y.year, y.month, y.day);
+        end   = start;
+        break;
       case 'week':
         // Monday of the current week
         start = now.subtract(Duration(days: now.weekday - 1));
@@ -480,10 +489,12 @@ class _DayBookScreenState extends State<DayBookScreen> {
 
   Widget _buildPeriodDropdown() {
     const options = [
-      {'value': 'week', 'label': 'This Week'},
-      {'value': 'month', 'label': 'This Month'},
-      {'value': 'year', 'label': 'This Year'},
-      {'value': 'custom', 'label': 'Custom Range'},
+      {'value': 'today',     'label': 'Today'},
+      {'value': 'yesterday', 'label': 'Yesterday'},
+      {'value': 'week',      'label': 'This Week'},
+      {'value': 'month',     'label': 'This Month'},
+      {'value': 'year',      'label': 'This Year'},
+      {'value': 'custom',    'label': 'Custom Range'},
     ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -726,7 +737,10 @@ class _DayBookScreenState extends State<DayBookScreen> {
     final double igst = double.tryParse(totals['igst']?.toString() ?? '0') ?? 0;
     final double totalGst = cgst + sgst + igst;
 
-    return Container(
+    return InkWell(
+      onTap: () => _showVoucherDetailDialog(voucher),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -890,6 +904,22 @@ class _DayBookScreenState extends State<DayBookScreen> {
             ),
           ],
         ),
+      ),
+     ),
+    );
+  }
+
+  // ── Voucher detail dialog ────────────────────────────────────────────────
+  void _showVoucherDetailDialog(Map<String, dynamic> voucher) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _VoucherDetailSheet(
+        voucher: voucher,
+        typeColor: _typeColor(voucher['voucher_type'] as String?),
+        typeLabel: _typeLabel(voucher['voucher_type'] as String?),
+        fmtDate: _fmtDate,
       ),
     );
   }
@@ -1110,4 +1140,398 @@ class _DayBookScreenState extends State<DayBookScreen> {
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────
+// Voucher Detail Bottom Sheet
+// ─────────────────────────────────────────────────────────────────────────────────
+class _VoucherDetailSheet extends StatelessWidget {
+  final Map<String, dynamic> voucher;
+  final Color typeColor;
+  final String typeLabel;
+  final String Function(String?) fmtDate;
+
+  const _VoucherDetailSheet({
+    required this.voucher,
+    required this.typeColor,
+    required this.typeLabel,
+    required this.fmtDate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final party   = voucher['party']  as Map? ?? {};
+    final totals  = voucher['totals'] as Map? ?? {};
+    final isCancelled = voucher['is_cancelled'] == true;
+    final isPosted    = voucher['is_posted']    == true;
+
+    double _d(String key) =>
+        double.tryParse(totals[key]?.toString() ?? '0') ?? 0.0;
+
+    final taxable    = _d('taxable');
+    final cgst       = _d('cgst');
+    final sgst       = _d('sgst');
+    final igst       = _d('igst');
+    final cess       = _d('cess');
+    final grandTotal = _d('grand_total');
+    final totalGst   = cgst + sgst + igst + cess;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      builder: (_, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // ── Drag handle ─────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 4),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // ── Header ──────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 16, 12),
+              child: Row(
+                children: [
+                  // Coloured type circle
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: typeColor.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        typeLabel.length > 2
+                            ? typeLabel.substring(0, 2).toUpperCase()
+                            : typeLabel.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          color: typeColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$typeLabel  #${voucher['voucher_number'] ?? '-'}',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                        Text(
+                          fmtDate(voucher['date'] as String?),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Status badges
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (isCancelled)
+                        _badge('CANCELLED', Colors.red.shade700,
+                            Colors.red.shade50)
+                      else if (isPosted)
+                        _badge('POSTED', const Color(0xFF16A34A),
+                            const Color(0xFFDCFCE7))
+                      else
+                        _badge('UNPOSTED', const Color(0xFF94A3B8),
+                            const Color(0xFFF1F5F9)),
+                    ],
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        size: 22, color: Color(0xFF94A3B8)),
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    style: IconButton.styleFrom(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+            // ── Scrollable body ─────────────────────────────────────────
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                children: [
+
+                  // Party ─────────────────────────────────────────────────
+                  if ((party['name'] as String?)?.isNotEmpty == true) ...[
+                    _sectionTitle('PARTY'),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.person_outline_rounded,
+                            size: 16, color: Color(0xFF94A3B8)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            party['name'] as String,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if ((party['id'] as String?)?.isNotEmpty == true) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        party['id'] as String,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFFCBD5E1),
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Narration ─────────────────────────────────────────────
+                  if ((voucher['narration'] as String?)?.isNotEmpty == true) ...[
+                    _sectionTitle('NARRATION'),
+                    const SizedBox(height: 6),
+                    Text(
+                      voucher['narration'] as String,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF475569),
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Grand total highlight ──────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          typeColor.withOpacity(0.08),
+                          typeColor.withOpacity(0.04),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: typeColor.withOpacity(0.15)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Grand Total',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: typeColor,
+                          ),
+                        ),
+                        Text(
+                          '₹${grandTotal.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: typeColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Tax breakdown ──────────────────────────────────────────
+                  _sectionTitle('TAX BREAKDOWN'),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      children: [
+                        _taxRow('Taxable Amount', taxable),
+                        _divider(),
+                        _taxRow('CGST', cgst),
+                        _divider(),
+                        _taxRow('SGST', sgst),
+                        _divider(),
+                        _taxRow('IGST', igst),
+                        _divider(),
+                        _taxRow('Cess', cess),
+                        if (totalGst > 0) ...[
+                          _divider(),
+                          _taxRow('Total GST', totalGst,
+                              bold: true,
+                              color: const Color(0xFF2563EB)),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Voucher meta ───────────────────────────────────────────
+                  _sectionTitle('VOUCHER INFO'),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      children: [
+                        _metaRow('Voucher ID', voucher['id']?.toString() ?? '—',
+                            monospace: true),
+                        _divider(),
+                        _metaRow('Type',
+                            voucher['voucher_type_display']?.toString() ??
+                                typeLabel),
+                        _divider(),
+                        _metaRow('Date',
+                            fmtDate(voucher['date'] as String?)),
+                        _divider(),
+                        _metaRow('Posted', isPosted ? 'Yes' : 'No'),
+                        _divider(),
+                        _metaRow('Cancelled', isCancelled ? 'Yes' : 'No'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Widget helpers ─────────────────────────────────────────────────────────
+  Widget _sectionTitle(String t) => Text(
+        t,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+          color: Color(0xFF94A3B8),
+        ),
+      );
+
+  Widget _divider() =>
+      const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0),
+          indent: 14, endIndent: 14);
+
+  Widget _taxRow(String label, double value,
+      {bool bold = false, Color? color}) {
+    final v = value == 0 ? '—' : '₹${value.toStringAsFixed(2)}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+              color: color ?? const Color(0xFF475569),
+            ),
+          ),
+          Text(
+            v,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
+              color: color ?? const Color(0xFF1E293B),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaRow(String label, String value, {bool monospace = false}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1E293B),
+                  fontFamily: monospace ? 'monospace' : null,
+                ),
+                textAlign: TextAlign.end,
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _badge(String label, Color fg, Color bg) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: fg,
+          ),
+        ),
+      );
 }
