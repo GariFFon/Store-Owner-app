@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 
@@ -10,11 +11,7 @@ class MyStoreQrScreen extends StatefulWidget {
   final String storeId;
   final String? storeName;
 
-  const MyStoreQrScreen({
-    super.key,
-    required this.storeId,
-    this.storeName,
-  });
+  const MyStoreQrScreen({super.key, required this.storeId, this.storeName});
 
   @override
   State<MyStoreQrScreen> createState() => _MyStoreQrScreenState();
@@ -125,11 +122,7 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
     try {
       final res = await ApiService.post(
         '/link-qr-to-store/',
-        body: {
-          'store_id': widget.storeId,
-          'qr_id': qrId,
-          'list': true,
-        },
+        body: {'store_id': widget.storeId, 'qr_id': qrId, 'list': true},
         useBearerToken: true,
       );
       if (!mounted) return;
@@ -169,15 +162,28 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _QrVerifyDialog(
-        qrId: qrId,
-        storeId: widget.storeId,
+      builder: (ctx) => _QrVerifyDialog(qrId: qrId, storeId: widget.storeId),
+    );
+  }
+
+  // ── Register QR ──────────────────────────────────────────────────────────
+  /// Opens the camera scanner. The scanner screen also has a
+  /// "Type UUID Manually" bottom button that shows the text dialog.
+  void _showRegisterDialog() {
+    Navigator.of(context).push(
+      MaterialPageRoute<String>(
+        fullscreenDialog: true,
+        builder: (_) => _QrScanRegisterScreen(
+          onScanned: (qrId) async {
+            await _registerQr(qrId);
+          },
+        ),
       ),
     );
   }
 
-  // ── Register QR dialog ────────────────────────────────────────────────────
-  void _showRegisterDialog() {
+  /// Fallback: manual UUID entry dialog (also reachable from scanner screen).
+  void _showManualEntryDialog() {
     final ctrl = TextEditingController();
     bool saving = false;
     String? err;
@@ -186,11 +192,13 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Register QR',
-              style:
-                  TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Enter QR UUID',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+          ),
           content: SizedBox(
             width: 320,
             child: Column(
@@ -198,9 +206,8 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Paste the QR UUID from a bulk-generated sticker to link it to this store.',
-                  style:
-                      TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                  'Type or paste the UUID printed on the bulk-generated QR sticker.',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                 ),
                 const SizedBox(height: 14),
                 TextField(
@@ -210,17 +217,21 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                     labelText: 'QR UUID',
                     hintText: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
                     hintStyle: const TextStyle(
-                        fontSize: 12, color: Color(0xFFCBD5E1)),
+                      fontSize: 12,
+                      color: Color(0xFFCBD5E1),
+                    ),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: const BorderSide(
-                          color: Color(0xFF2563EB), width: 1.5),
+                        color: Color(0xFF2563EB),
+                        width: 1.5,
+                      ),
                     ),
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.content_paste_rounded,
-                          size: 18),
+                      icon: const Icon(Icons.content_paste_rounded, size: 18),
                       onPressed: () async {
                         final d = await Clipboard.getData('text/plain');
                         if (d?.text != null) ctrl.text = d!.text!;
@@ -230,20 +241,25 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                 ),
                 if (err != null) ...[
                   const SizedBox(height: 8),
-                  Text(err!,
-                      style: const TextStyle(
-                          color: Color(0xFFDC2626), fontSize: 12)),
+                  Text(
+                    err!,
+                    style: const TextStyle(
+                      color: Color(0xFFDC2626),
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ],
             ),
           ),
-          actionsPadding:
-              const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Color(0xFF64748B))),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Color(0xFF64748B)),
+              ),
             ),
             ElevatedButton(
               onPressed: saving
@@ -265,7 +281,8 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                 backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 elevation: 0,
               ),
               child: saving
@@ -273,10 +290,14 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
-                  : const Text('Register',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  : const Text(
+                      'Register',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
             ),
           ],
         ),
@@ -289,7 +310,8 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
     if (ts == null) return '—';
     try {
       final dt = DateTime.fromMillisecondsSinceEpoch(
-          (ts as num).toInt() * 1000);
+        (ts as num).toInt() * 1000,
+      );
       return 'Linked on ${DateFormat('dd MMM yyyy').format(dt)}';
     } catch (_) {
       return '—';
@@ -308,8 +330,8 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? _buildError()
-                    : _buildBody(),
+                ? _buildError()
+                : _buildBody(),
           ),
         ],
       ),
@@ -325,18 +347,21 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 20, color: Color(0xFF334155)),
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 20,
+                      color: Color(0xFF334155),
+                    ),
                     onPressed: () => Navigator.of(context).maybePop(),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     style: IconButton.styleFrom(
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
@@ -366,16 +391,23 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                   OutlinedButton.icon(
                     onPressed: _showRegisterDialog,
                     icon: const Icon(Icons.link_rounded, size: 16),
-                    label: const Text('Register QR',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700)),
+                    label: const Text(
+                      'Register QR',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF2563EB),
                       side: const BorderSide(color: Color(0xFF2563EB)),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                     ),
                   ),
                 ],
@@ -432,8 +464,11 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.refresh_rounded,
-                    size: 18, color: Color(0xFF94A3B8)),
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  size: 18,
+                  color: Color(0xFF94A3B8),
+                ),
                 onPressed: () async {
                   await _fetchQrList();
                   setState(() {});
@@ -441,7 +476,8 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
                 style: IconButton.styleFrom(
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ],
           ),
@@ -459,8 +495,7 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                 child: Text(
                   'No QR stickers linked yet.\nTap "Register QR" to link one.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 13, color: Color(0xFF94A3B8)),
+                  style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                 ),
               ),
             )
@@ -509,12 +544,16 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.qr_code_2_rounded,
-                        size: 60, color: Color(0xFFCBD5E1)),
+                    Icon(
+                      Icons.qr_code_2_rounded,
+                      size: 60,
+                      color: Color(0xFFCBD5E1),
+                    ),
                     SizedBox(height: 8),
-                    Text('Sticker not available',
-                        style: TextStyle(
-                            fontSize: 13, color: Color(0xFF94A3B8))),
+                    Text(
+                      'Sticker not available',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                    ),
                   ],
                 ),
               ),
@@ -526,9 +565,10 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                 _stickerUrl!,
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => const Icon(
-                    Icons.broken_image_outlined,
-                    size: 60,
-                    color: Color(0xFFCBD5E1)),
+                  Icons.broken_image_outlined,
+                  size: 60,
+                  color: Color(0xFFCBD5E1),
+                ),
               ),
             ),
 
@@ -546,20 +586,25 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.download_rounded, size: 20),
               label: Text(
                 _downloading ? 'Downloading…' : 'Download Sticker',
                 style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 15),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4F46E5),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 elevation: 0,
               ),
             ),
@@ -595,9 +640,7 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isActive
-                  ? Icons.check_circle_rounded
-                  : Icons.cancel_rounded,
+              isActive ? Icons.check_circle_rounded : Icons.cancel_rounded,
               size: 18,
               color: isActive
                   ? const Color(0xFF16A34A)
@@ -624,7 +667,9 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
                 Text(
                   dateStr,
                   style: const TextStyle(
-                      fontSize: 11, color: Color(0xFF94A3B8)),
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
                 ),
               ],
             ),
@@ -634,8 +679,7 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
 
           // Active badge
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: isActive
                   ? const Color(0xFFDCFCE7)
@@ -660,16 +704,17 @@ class _MyStoreQrScreenState extends State<MyStoreQrScreen> {
           OutlinedButton.icon(
             onPressed: () => _showVerifyDialog(qrId),
             icon: const Icon(Icons.verified_rounded, size: 14),
-            label: const Text('Verify',
-                style:
-                    TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            label: const Text(
+              'Verify',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF2563EB),
               side: const BorderSide(color: Color(0xFF2563EB)),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
@@ -718,7 +763,8 @@ class _QrVerifyDialogState extends State<_QrVerifyDialog> {
         });
       } else {
         setState(() {
-          _error = data?['response']?.toString() ??
+          _error =
+              data?['response']?.toString() ??
               'Could not verify QR (status $status).';
           _loading = false;
         });
@@ -755,8 +801,11 @@ class _QrVerifyDialogState extends State<_QrVerifyDialog> {
               color: Color(0xFFEEF2FF),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.verified_rounded,
-                size: 18, color: Color(0xFF4F46E5)),
+            child: const Icon(
+              Icons.verified_rounded,
+              size: 18,
+              color: Color(0xFF4F46E5),
+            ),
           ),
           const SizedBox(width: 10),
           const Expanded(
@@ -770,13 +819,17 @@ class _QrVerifyDialogState extends State<_QrVerifyDialog> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded,
-                size: 20, color: Color(0xFF94A3B8)),
+            icon: const Icon(
+              Icons.close_rounded,
+              size: 20,
+              color: Color(0xFF94A3B8),
+            ),
             onPressed: () => Navigator.of(context).pop(),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             style: IconButton.styleFrom(
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ],
       ),
@@ -788,14 +841,14 @@ class _QrVerifyDialogState extends State<_QrVerifyDialog> {
                 child: Center(child: CircularProgressIndicator()),
               )
             : _error != null
-                ? _buildErrorContent()
-                : _buildResultContent(
-                    result!,
-                    isActive: isActive,
-                    matchesStore: matchesStore,
-                    storeName: storeName,
-                    resolvedStoreId: resolvedStoreId,
-                  ),
+            ? _buildErrorContent()
+            : _buildResultContent(
+                result!,
+                isActive: isActive,
+                matchesStore: matchesStore,
+                storeName: storeName,
+                resolvedStoreId: resolvedStoreId,
+              ),
       ),
       actions: [
         TextButton(
@@ -827,8 +880,11 @@ class _QrVerifyDialogState extends State<_QrVerifyDialog> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.error_outline_rounded,
-                    size: 18, color: Color(0xFFDC2626)),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 18,
+                  color: Color(0xFFDC2626),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -929,9 +985,7 @@ class _QrVerifyDialogState extends State<_QrVerifyDialog> {
               color: isActive
                   ? const Color(0xFF16A34A)
                   : const Color(0xFF94A3B8),
-              bg: isActive
-                  ? const Color(0xFFDCFCE7)
-                  : const Color(0xFFF1F5F9),
+              bg: isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
             ),
             // Matches / Mismatch
             _badge(
@@ -1008,4 +1062,427 @@ class _QrVerifyDialogState extends State<_QrVerifyDialog> {
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QR Camera Scanner Screen
+// ─────────────────────────────────────────────────────────────────────────────
+class _QrScanRegisterScreen extends StatefulWidget {
+  /// Called with the scanned UUID once detected.
+  final Future<void> Function(String qrId) onScanned;
+
+  const _QrScanRegisterScreen({required this.onScanned});
+
+  @override
+  State<_QrScanRegisterScreen> createState() => _QrScanRegisterScreenState();
+}
+
+class _QrScanRegisterScreenState extends State<_QrScanRegisterScreen>
+    with SingleTickerProviderStateMixin {
+  final MobileScannerController _ctrl = MobileScannerController();
+  bool _scanned = false; // prevent double-fire
+  bool _torchOn = false;
+
+  late AnimationController _anim;
+  late Animation<double> _scanLine;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _scanLine = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _anim, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _anim.dispose();
+    super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_scanned) return;
+    for (final b in capture.barcodes) {
+      final raw = b.rawValue;
+      if (raw != null && raw.isNotEmpty) {
+        final uuid = _extractUuid(raw);
+        if (uuid == null) continue; // not a recognisable UUID/URL, keep scanning
+        _scanned = true;
+        _ctrl.stop();
+        Navigator.of(context).pop(); // close scanner
+        widget.onScanned(uuid); // trigger API
+        return;
+      }
+    }
+  }
+
+  /// Extracts a UUID from [raw].
+  ///
+  /// Handles three cases:
+  ///   1. [raw] is already a bare UUID       → returned as-is.
+  ///   2. [raw] is a URL with UUID in a query →  e.g. ?id=<uuid>
+  ///   3. [raw] is a URL with UUID in path   → any path segment that looks like a UUID.
+  ///
+  /// Returns `null` if no UUID can be found.
+  static final _uuidRe = RegExp(
+    r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+    caseSensitive: false,
+  );
+
+  static String? _extractUuid(String raw) {
+    final trimmed = raw.trim();
+
+    // 1. Already a bare UUID?
+    if (_uuidRe.hasMatch(trimmed) &&
+        _uuidRe.firstMatch(trimmed)!.group(0) == trimmed) {
+      return trimmed;
+    }
+
+    // 2 & 3. Try to parse as URL and look everywhere for a UUID.
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null) {
+      // Query parameters (e.g. ?id=<uuid>, ?qr=<uuid>)
+      for (final v in uri.queryParameters.values) {
+        final m = _uuidRe.firstMatch(v);
+        if (m != null) return m.group(0)!.toLowerCase();
+      }
+      // Path segments (e.g. /qr/2a7dc210-.../)
+      for (final seg in uri.pathSegments) {
+        final m = _uuidRe.firstMatch(seg);
+        if (m != null) return m.group(0)!.toLowerCase();
+      }
+    }
+
+    // 4. Fallback: first UUID found anywhere in the raw string.
+    final m = _uuidRe.firstMatch(trimmed);
+    if (m != null) return m.group(0)!.toLowerCase();
+
+    return null; // nothing found
+  }
+
+  void _openManualEntry() {
+    final ctrl = TextEditingController();
+    String? err;
+    bool saving = false;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Enter QR UUID',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+          ),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Type or paste the UUID printed on the bulk-generated QR sticker.',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'QR UUID',
+                    hintText: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                    hintStyle: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFCBD5E1),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF2563EB),
+                        width: 1.5,
+                      ),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.content_paste_rounded, size: 18),
+                      onPressed: () async {
+                        final d = await Clipboard.getData('text/plain');
+                        if (d?.text != null) ctrl.text = d!.text!;
+                      },
+                    ),
+                  ),
+                ),
+                if (err != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    err!,
+                    style: const TextStyle(
+                      color: Color(0xFFDC2626),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Color(0xFF64748B)),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final id = ctrl.text.trim();
+                      if (id.isEmpty) {
+                        setDlg(() => err = 'Please enter a QR UUID.');
+                        return;
+                      }
+                      final uuid = _QrScanRegisterScreenState._extractUuid(id);
+                      if (uuid == null) {
+                        setDlg(() => err = 'No valid UUID found. Please check and try again.');
+                        return;
+                      }
+                      setDlg(() {
+                        saving = true;
+                        err = null;
+                      });
+                      Navigator.of(ctx).pop(); // close dialog
+                      Navigator.of(context).pop(); // close scanner
+                      await widget.onScanned(uuid);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child: saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Register',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // ── Camera feed ─────────────────────────────────────────────────
+          MobileScanner(controller: _ctrl, onDetect: _onDetect),
+
+          // ── Dark overlay with cut-out ────────────────────────────────────
+          CustomPaint(
+            painter: _ScannerOverlayPainter(),
+            child: const SizedBox.expand(),
+          ),
+
+          // ── Animated scan line inside viewfinder ─────────────────────────
+          Center(
+            child: SizedBox(
+              width: 260,
+              height: 260,
+              child: AnimatedBuilder(
+                animation: _scanLine,
+                builder: (_, __) => Align(
+                  alignment: Alignment(0, (_scanLine.value * 2) - 1),
+                  child: Container(
+                    height: 2.5,
+                    width: 240,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          const Color(0xFF2563EB).withValues(alpha: 0.9),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ── Top bar ──────────────────────────────────────────────────────
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  // Close
+                  const BackButton(color: Colors.white),
+                  const Spacer(),
+                  const Text(
+                    'Scan QR Sticker',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Torch
+                  IconButton(
+                    icon: Icon(
+                      _torchOn ? Icons.flash_on : Icons.flash_off,
+                      color: _torchOn ? const Color(0xFFFBBF24) : Colors.white,
+                    ),
+                    onPressed: () {
+                      _ctrl.toggleTorch();
+                      setState(() => _torchOn = !_torchOn);
+                    },
+                  ),
+                  // Flip camera
+                  IconButton(
+                    icon: const Icon(
+                      Icons.cameraswitch_rounded,
+                      color: Colors.white,
+                    ),
+                    onPressed: () => _ctrl.switchCamera(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Instruction label ────────────────────────────────────────────
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.only(top: 300),
+              child: Text(
+                'Point the camera at the QR sticker UUID barcode',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+
+          // ── Type manually button ─────────────────────────────────────────
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openManualEntry,
+                    icon: const Icon(
+                      Icons.keyboard_alt_outlined,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      'Type QR ID Manually',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white54, width: 1.2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Scanner viewfinder overlay painter ─────────────────────────────────────
+class _ScannerOverlayPainter extends CustomPainter {
+  static const _side = 260.0;
+  static const _corner = 24.0;
+  static const _strokeW = 3.5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final l = cx - _side / 2;
+    final t = cy - _side / 2;
+    final r = cx + _side / 2;
+    final b = cy + _side / 2;
+
+    // Dark scrim everywhere except the cut-out square
+    final scrimPaint = Paint()..color = Colors.black.withValues(alpha: 0.62);
+    canvas.drawPath(
+      Path.combine(
+        PathOperation.difference,
+        Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
+        Path()
+          ..addRRect(RRect.fromLTRBR(l, t, r, b, const Radius.circular(12))),
+      ),
+      scrimPaint,
+    );
+
+    // Blue corner brackets
+    final p = Paint()
+      ..color = const Color(0xFF2563EB)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _strokeW
+      ..strokeCap = StrokeCap.round;
+
+    void corner(double x, double y, double dx, double dy) {
+      final path = Path()
+        ..moveTo(x, y + dy * _corner)
+        ..lineTo(x, y)
+        ..lineTo(x + dx * _corner, y);
+      canvas.drawPath(path, p);
+    }
+
+    corner(l, t, 1, 1); // top-left
+    corner(r, t, -1, 1); // top-right
+    corner(l, b, 1, -1); // bottom-left
+    corner(r, b, -1, -1); // bottom-right
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
