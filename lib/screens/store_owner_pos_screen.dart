@@ -129,7 +129,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   Map<String, dynamic>? _selectedOrderMethod;
   bool _isOrderMethodsLoading = false;
 
+  // Table Selection
+  Map<String, dynamic>? _selectedTable;
+
   String? _ownerName;
+  String? _ownerUserId;
   String? _storeName;
   bool _isTextOnlyMode = false;
 
@@ -168,6 +172,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       final prefs = await SharedPreferences.getInstance();
       final firstName = prefs.getString('first_name') ?? '';
       final lastName = prefs.getString('last_name') ?? '';
+      final userId = prefs.getString('user_id') ?? '';
 
       if (mounted) {
         setState(() {
@@ -175,12 +180,217 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           if (_ownerName!.isEmpty) {
             _ownerName = 'Store Owner';
           }
+          _ownerUserId = userId;
           _storeName = prefs.getString('selected_store_name') ?? 'My Store';
         });
       }
     } catch (e) {
       debugPrint('Error fetching owner name: $e');
     }
+  }
+
+  // ── Table Selection ──────────────────────────────────────────────────────────
+  Future<List<Map<String, dynamic>>> _fetchTablesForSelection() async {
+    try {
+      final res = await ApiService.post(
+        '/store-table-operations/',
+        body: {
+          'store_id': widget.storeId,
+          'store_access': true,
+          'query': {'is_active': true},
+          'create': false,
+        },
+        useBearerToken: true,
+      );
+      final data = res['data'] as Map<String, dynamic>?;
+      if (data?['status'] == 200) {
+        final raw = data?['response'];
+        if (raw is List) {
+          return raw.map((e) => Map<String, dynamic>.from(e)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching tables: $e');
+    }
+    return [];
+  }
+
+  Future<void> _showTableSelectionDialog(StateSetter setSheetState) async {
+    // Show loading while fetching
+    List<Map<String, dynamic>> tables = [];
+    bool loadingTables = true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) {
+          if (loadingTables) {
+            _fetchTablesForSelection().then((result) {
+              if (ctx.mounted) {
+                setDlg(() {
+                  tables = result;
+                  loadingTables = false;
+                });
+              }
+            });
+          }
+          return Dialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Select Dining Table',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded,
+                              size: 18, color: Color(0xFF64748B)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // Content
+                  loadingTables
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      : tables.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(
+                                child: Text(
+                                  'No active tables found',
+                                  style: TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 14),
+                                ),
+                              ),
+                            )
+                          : GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 1.1,
+                              ),
+                              itemCount: tables.length,
+                              itemBuilder: (_, i) {
+                                final t = tables[i];
+                                final tableNum =
+                                    t['table_number']?.toString() ?? '—';
+                                final additional =
+                                    t['additional_data'] as Map? ?? {};
+                                final seats = additional['seats'] ?? 0;
+                                final isSelected =
+                                    _selectedTable?['id'] == t['id'];
+                                return GestureDetector(
+                                  onTap: () {
+                                    setDlg(() {});
+                                    setSheetState(() {
+                                      _selectedTable =
+                                          isSelected ? null : t;
+                                    });
+                                    Navigator.pop(ctx);
+                                  },
+                                  child: AnimatedContainer(
+                                    duration:
+                                        const Duration(milliseconds: 200),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFF5B4FE8)
+                                              .withOpacity(0.08)
+                                          : const Color(0xFFF8FAFC),
+                                      borderRadius:
+                                          BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? const Color(0xFF5B4FE8)
+                                            : const Color(0xFFE2E8F0),
+                                        width: isSelected ? 2 : 1,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          tableNum,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
+                                            color: isSelected
+                                                ? const Color(0xFF5B4FE8)
+                                                : const Color(0xFF1E293B),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '$seats Seat${seats == 1 ? '' : 's'}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isSelected
+                                                ? const Color(0xFF5B4FE8)
+                                                : const Color(0xFF94A3B8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Build order_additional_data payload
+  List<Map<String, String>> _buildOrderAdditionalData() {
+    final List<Map<String, String>> data = [];
+    if (_selectedTable != null) {
+      data.add({
+        'title': 'Table Number',
+        'value': _selectedTable!['table_number']?.toString() ?? '',
+      });
+    }
+    data.add({
+      'title': 'Billed By',
+      'value': '${_ownerName ?? 'Store Owner'} (ID: ${_ownerUserId ?? ''})',
+    });
+    return data;
   }
 
   Future<void> _loadViewPreference() async {
@@ -1099,6 +1309,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
           "store_id": widget.storeId,
           "user_address_id": selected_address_id,
           "coupon_code": "",
+          "order_additional_data": _buildOrderAdditionalData(),
         },
         useBearerToken: true,
       );
@@ -1247,6 +1458,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             "store_id": widget.storeId,
             "user_address_id": selected_address_id,
             "coupon_code": "",
+            "order_additional_data": _buildOrderAdditionalData(),
           },
           useBearerToken: true,
         );
@@ -1284,6 +1496,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
             "user_address_id": selected_address_id,
             "payment_methods": paymentMethodsList,
             "coupon_code": "",
+            "order_additional_data": _buildOrderAdditionalData(),
           },
           useBearerToken: true,
         );
@@ -1308,6 +1521,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
               _cartData = null;
               _multiModeValues = {};
               _selectedPaymentMode = 'UNPAID';
+              _selectedTable = null;
               // Reset all product quantities to 0
               for (int i = 0; i < _products.length; i++) {
                 if ((_products[i]['quantity'] as num?)?.toInt() != 0) {
@@ -1747,7 +1961,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                             children: [
                               // Order Type Selector
                               Padding(
-                                padding: const EdgeInsets.only(bottom: 16.0),
+                                padding: const EdgeInsets.only(bottom: 12.0),
                                 child: InkWell(
                                   onTap: () async {
                                     await _showOrderMethodSelection();
@@ -1790,6 +2004,101 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
                                           ),
                                         ),
                                         Icon(Icons.keyboard_arrow_right, size: 20, color: Colors.orange.shade800),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Table Selector
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 16.0),
+                                child: InkWell(
+                                  onTap: () =>
+                                      _showTableSelectionDialog(setSheetState),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: _selectedTable != null
+                                          ? const Color(0xFF5B4FE8)
+                                              .withOpacity(0.06)
+                                          : const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: _selectedTable != null
+                                            ? const Color(0xFF5B4FE8)
+                                                .withOpacity(0.4)
+                                            : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.table_restaurant_outlined,
+                                          size: 20,
+                                          color: _selectedTable != null
+                                              ? const Color(0xFF5B4FE8)
+                                              : const Color(0xFF94A3B8),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _selectedTable != null
+                                              ? Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    const Text(
+                                                      'Table',
+                                                      style: TextStyle(
+                                                        color:
+                                                            Color(0xFF64748B),
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      _selectedTable![
+                                                              'table_number']
+                                                          ?.toString() ??
+                                                          '',
+                                                      style: const TextStyle(
+                                                        color:
+                                                            Color(0xFF5B4FE8),
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                )
+                                              : const Text(
+                                                  'Select Table  [Optional]',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF94A3B8),
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                        ),
+                                        if (_selectedTable != null)
+                                          GestureDetector(
+                                            onTap: () => setSheetState(
+                                                () => _selectedTable = null),
+                                            child: const Icon(
+                                              Icons.close_rounded,
+                                              size: 18,
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                          )
+                                        else
+                                          const Icon(
+                                            Icons.keyboard_arrow_right,
+                                            size: 20,
+                                            color: Color(0xFF94A3B8),
+                                          ),
                                       ],
                                     ),
                                   ),
