@@ -529,6 +529,19 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    double sh = MediaQuery.of(context).size.height;
+    bool isCompact = sh < 750;
+    bool isVeryCompact = sh < 600;
+
+    double topPadding = isCompact ? 32 : 40;
+    double spacing = isVeryCompact ? 6 : (isCompact ? 8 : 12);
+    double sectionSpacing = isVeryCompact ? 12 : (isCompact ? 16 : 20);
+    double titleSize = isVeryCompact ? 18 : 22;
+    double ctaHeight = isCompact ? 46 : 54;
+    double iconSize = isCompact ? 48 : 64;
+    double iconInner = isCompact ? 24 : 32;
+    double topOffset = isCompact ? -24 : -32;
+
     final String paperSizeLabel = _savedPaperSize != null
         ? InvoicePrintService.getPaperSizeLabel(_savedPaperSize!)
         : 'Not set';
@@ -536,30 +549,31 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: Colors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 450),
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 48, 20, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              padding: EdgeInsets.fromLTRB(16, topPadding, 16, 16),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                 children: [
                   // Title
                   Text(
                     widget.title,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 22,
+                    style: TextStyle(
+                      fontSize: titleSize,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
+                      color: const Color(0xFF1E293B),
                       letterSpacing: -0.5,
                     ),
                   ),
                   if (widget.orderId.isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                    SizedBox(height: spacing / 2),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -579,7 +593,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 20),
+                  SizedBox(height: sectionSpacing),
 
                   // ── Settings Row: Printer + Paper Size ──
                   Row(
@@ -713,7 +727,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: sectionSpacing),
 
                   // Actions List
                   if (widget.onViewOrder != null) ...[
@@ -725,7 +739,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                       iconBgColor: const Color(0xFFEFF6FF),
                       onTap: widget.onViewOrder!,
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: spacing),
                   ],
 
                   _buildActionTile(
@@ -737,7 +751,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                     onTap: () => _handlePrint('quick'),
                     isHighlighted: true,
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: spacing),
 
                   _buildActionTile(
                     title: 'Print Invoice',
@@ -747,7 +761,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                     iconBgColor: const Color(0xFFEEF2FF),
                     onTap: () => _handlePrint('invoice'),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: spacing),
 
                   _buildActionTile(
                     title: 'Print Order Ticket',
@@ -757,7 +771,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                     iconBgColor: const Color(0xFFFFFBEB),
                     onTap: () => _handlePrint('ticket'),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: spacing),
 
                   // Customize Layout
                   _buildActionTile(
@@ -776,13 +790,13 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                     },
                   ),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: sectionSpacing * 1.2),
 
                   // Bottom CTA
                   if (widget.onNewOrder != null)
                     SizedBox(
                       width: double.infinity,
-                      height: 54,
+                      height: ctaHeight,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1E293B),
@@ -806,7 +820,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                   else
                     SizedBox(
                       width: double.infinity,
-                      height: 54,
+                      height: ctaHeight,
                       child: TextButton(
                         style: TextButton.styleFrom(
                           foregroundColor: const Color(0xFF64748B),
@@ -827,17 +841,18 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                     ),
                 ],
               ),
+              ),
             ),
 
             // Floating Success Icon
             Positioned(
-              top: -32,
+              top: topOffset,
               left: 0,
               right: 0,
               child: Center(
                 child: Container(
-                  width: 64,
-                  height: 64,
+                  width: iconSize,
+                  height: iconSize,
                   decoration: BoxDecoration(
                     color: const Color(0xFF10B981),
                     shape: BoxShape.circle,
@@ -850,10 +865,10 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                       ),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.check_rounded,
                     color: Colors.white,
-                    size: 32,
+                    size: iconInner,
                   ),
                 ),
               ),
@@ -917,13 +932,20 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
     required VoidCallback onTap,
     bool isHighlighted = false,
   }) {
+    bool isCompact = MediaQuery.of(context).size.height < 700;
+    double padding = isCompact ? 10 : 12;
+    double titleSize = isCompact ? 14 : 15;
+    double subtitleSize = isCompact ? 11 : 12;
+    double iconBoxPad = isCompact ? 8 : 10;
+    double iconSize = isCompact ? 20 : 22;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(padding),
           decoration: BoxDecoration(
             border: Border.all(
               color: isHighlighted
@@ -937,12 +959,12 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(iconBoxPad),
                 decoration: BoxDecoration(
                   color: iconBgColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
+                child: Icon(icon, color: iconColor, size: iconSize),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -951,19 +973,19 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                   children: [
                     TranslatedText(
                       title,
-                      style: const TextStyle(
-                        fontSize: 15,
+                      style: TextStyle(
+                        fontSize: titleSize,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1E293B),
+                        color: const Color(0xFF1E293B),
                       ),
                     ),
                     const SizedBox(height: 2),
                     TranslatedText(
                       subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
+                      style: TextStyle(
+                        fontSize: subtitleSize,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
+                        color: const Color(0xFF64748B),
                       ),
                     ),
                   ],

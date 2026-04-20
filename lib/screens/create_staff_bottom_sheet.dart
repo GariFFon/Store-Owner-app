@@ -1175,92 +1175,102 @@ class _CreateStaffBottomSheetState extends State<CreateStaffBottomSheet>
             : Column(
                 children: widget.roles.map((role) {
                   final isSelected = _selectedRoleId == role['id'];
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedRoleId = role['id'];
-                        _selectedRoleName = role['role_name'];
-                      });
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFFEFF6FF)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
+                  final Color primaryColor = const Color(0xFF2563EB); // Modern blue
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Color.alphaBlend(
+                          primaryColor.withOpacity(isSelected ? 0.08 : 0.03),
+                          Colors.white),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
                           color: isSelected
-                              ? const Color(0xFF3B82F6)
-                              : const Color(0xFFE2E8F0),
-                          width: isSelected ? 2 : 1,
+                              ? primaryColor.withOpacity(0.12)
+                              : Colors.black.withOpacity(0.04),
+                          blurRadius: isSelected ? 16 : 8,
+                          offset: Offset(0, isSelected ? 6 : 2),
                         ),
-                        boxShadow: [
-                          if (!isSelected)
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.01),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF3B82F6)
-                                    : const Color(0xFF94A3B8),
-                                width: 2,
-                              ),
-                            ),
-                            child: isSelected
-                                ? Center(
-                                    child: Container(
-                                      width: 10,
-                                      height: 10,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Color(0xFF3B82F6),
-                                      ),
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                      ],
+                      border: isSelected
+                          ? Border.all(
+                              color: primaryColor.withOpacity(0.3), width: 1.5)
+                          : Border.all(
+                              color: primaryColor.withOpacity(0.15), width: 1.0),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedRoleId = role['id'];
+                              _selectedRoleName = role['role_name'];
+                            });
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: isSelected ? 20 : 16,
+                                vertical: isSelected ? 20 : 16),
+                            child: Row(
                               children: [
-                                Text(
-                                  role['role_name'] ?? 'Unknown Role',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
                                     color: isSelected
-                                        ? const Color(0xFF0F172A)
-                                        : const Color(0xFF334155),
+                                        ? primaryColor.withOpacity(0.15)
+                                        : Colors.transparent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.shield_rounded,
+                                    color: isSelected
+                                        ? primaryColor
+                                        : const Color(0xFF64748B),
+                                    size: 20,
                                   ),
                                 ),
-                                if (role['description'] != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    role['description'],
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[500],
-                                    ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        role['role_name'] ?? 'Unknown Role',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSelected
+                                              ? primaryColor
+                                              : const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      if (role['description'] != null) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          role['description'],
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                ],
+                                ),
+                                if (isSelected)
+                                  Icon(
+                                    Icons.check_circle_rounded,
+                                    color: primaryColor,
+                                    size: 24,
+                                  ),
                               ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   );

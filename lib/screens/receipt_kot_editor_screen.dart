@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:exanor/models/receipt_layout_config.dart';
 import 'package:exanor/services/bluetooth_print_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ReceiptKotEditorScreen extends StatefulWidget {
   const ReceiptKotEditorScreen({super.key});
@@ -43,7 +44,12 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
   }
 
   Future<void> _saveConfigs() async {
-    if (_receiptConfig != null) await _receiptConfig!.save();
+    if (_receiptConfig != null) {
+      await _receiptConfig!.save();
+      final prefs = await SharedPreferences.getInstance();
+      double mm = _receiptConfig!.paperWidthChars <= 32 ? 50.8 : 76.2;
+      await prefs.setDouble('default_pos_paper_size', mm);
+    }
     if (_kotConfig != null) await _kotConfig!.save();
     if (mounted) {
       setState(() => _hasChanges = false);
@@ -710,20 +716,31 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
     required Color subtextColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: value
               ? iconColor.withOpacity(0.3)
               : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+          width: value ? 1.5 : 1.0,
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 20, color: value ? iconColor : subtextColor),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: value
+                  ? iconColor.withOpacity(0.1)
+                  : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 22, color: value ? iconColor : subtextColor),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -731,24 +748,24 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: textColor,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: subtextColor,
-                    fontWeight: FontWeight.w500,
+                    height: 1.3,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
@@ -774,45 +791,68 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
     required Color subtextColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(icon, size: 20, color: iconColor),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textColor),
-              ),
-              const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 22, color: iconColor),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   subtitle,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: iconColor),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: iconColor,
+                  ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
           SliderTheme(
             data: SliderThemeData(
               activeTrackColor: iconColor,
-              inactiveTrackColor: iconColor.withOpacity(0.2),
+              inactiveTrackColor: isDark
+                  ? const Color(0xFF334155)
+                  : const Color(0xFFE2E8F0),
               thumbColor: iconColor,
               overlayColor: iconColor.withOpacity(0.1),
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              trackHeight: 6,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 24),
             ),
             child: Slider(
               value: value,
@@ -840,72 +880,85 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
     required Color subtextColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: iconColor),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: subtextColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 22, color: iconColor),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: subtextColor,
+                        height: 1.3,
+                      ),
                     ),
                   ],
                 ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: value,
-                    items: items,
-                    onChanged: onChanged,
-                    icon: Icon(Icons.keyboard_arrow_down_rounded, color: iconColor, size: 18),
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textColor),
-                    dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Dropdown
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              ),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: value,
+                items: items,
+                onChanged: onChanged,
+                icon: Icon(
+                  Icons.expand_more_rounded,
+                  color: iconColor,
+                  size: 24,
                 ),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+                dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
           ),
@@ -921,68 +974,89 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
     Color subtextColor,
   ) {
     final styles = [
-      {'id': 'dashed', 'label': 'Dashed', 'icon': Icons.horizontal_rule_rounded, 'preview': '- - - - - - - - -'},
-      {'id': 'solid', 'label': 'Solid', 'icon': Icons.remove_rounded, 'preview': '─────────────'},
-      {'id': 'dotted', 'label': 'Dotted', 'icon': Icons.more_horiz_rounded, 'preview': '· · · · · · · · ·'},
-      {'id': 'double', 'label': 'Double', 'icon': Icons.drag_handle_rounded, 'preview': '═══════════'},
+      {'id': 'dashed', 'label': 'Dashed', 'icon': Icons.horizontal_rule_rounded, 'preview': '- - - - -'},
+      {'id': 'solid', 'label': 'Solid', 'icon': Icons.remove_rounded, 'preview': '─────────'},
+      {'id': 'dotted', 'label': 'Dotted', 'icon': Icons.more_horiz_rounded, 'preview': '· · · · ·'},
+      {'id': 'double', 'label': 'Double', 'icon': Icons.drag_handle_rounded, 'preview': '═════════'},
     ];
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: styles.map((style) {
-        final isSelected = config.breakLineStyle == style['id'];
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              config.breakLineStyle = style['id'] as String;
-              _hasChanges = true;
-            });
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
+    Widget buildBox(Map<String, dynamic> style) {
+      final isSelected = config.breakLineStyle == style['id'];
+      return GestureDetector(
+        onTap: () {
+          setState(() {
+            config.breakLineStyle = style['id'] as String;
+            _hasChanges = true;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(0xFF10B981).withOpacity(isDark ? 0.2 : 0.08)
+                : isDark
+                    ? const Color(0xFF0F172A).withOpacity(0.5)
+                    : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
               color: isSelected
-                  ? const Color(0xFF10B981).withOpacity(isDark ? 0.2 : 0.08)
+                  ? const Color(0xFF10B981)
                   : isDark
-                      ? const Color(0xFF0F172A).withOpacity(0.5)
-                      : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected
-                    ? const Color(0xFF10B981)
-                    : isDark
-                        ? const Color(0xFF334155)
-                        : const Color(0xFFE2E8F0),
-                width: isSelected ? 2 : 1,
-              ),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  style['label'] as String,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    color: isSelected ? const Color(0xFF10B981) : subtextColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  style['preview'] as String,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: subtextColor,
-                    fontFamily: 'monospace',
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
+                      ? const Color(0xFF334155)
+                      : const Color(0xFFE2E8F0),
+              width: isSelected ? 2 : 1,
             ),
           ),
-        );
-      }).toList(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                style['label'] as String,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? const Color(0xFF10B981) : textColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                style['preview'] as String,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: subtextColor,
+                  fontFamily: 'monospace',
+                  letterSpacing: 1,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: buildBox(styles[0])),
+            const SizedBox(width: 12),
+            Expanded(child: buildBox(styles[1])),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: buildBox(styles[2])),
+            const SizedBox(width: 12),
+            Expanded(child: buildBox(styles[3])),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1084,95 +1158,80 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
           width: 1.5,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            // Drag handle at left
-            ReorderableDragStartListener(
-              index: index,
-              child: Container(
-                color: Colors.transparent,
-                padding: const EdgeInsets.only(right: 14, top: 4, bottom: 4),
-                child: Icon(
-                  Icons.drag_indicator_rounded,
-                  color: subtextColor.withValues(alpha: 0.6),
-                  size: 26,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 8, right: 16, top: 14, bottom: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Drag handle at left
+                ReorderableDragStartListener(
+                  index: index,
+                  child: Container(
+                    color: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Icon(
+                      Icons.drag_indicator_rounded,
+                      color: subtextColor.withValues(alpha: 0.6),
+                      size: 24,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            
-            // Grand Number Base
-            Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: section.enabled ? sectionColor.withValues(alpha: 0.15) : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: sectionColor,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            
-            // Context & Text
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    section.label,
+                
+                // Grand Number Base
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: section.enabled ? sectionColor.withValues(alpha: 0.15) : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '${index + 1}',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: section.enabled ? textColor : subtextColor.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.w800,
+                      color: sectionColor,
                     ),
                   ),
-                  if (_getSectionSubtitle(section) != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      _getSectionSubtitle(section)!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: subtextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            
-            // Actions on the right
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_hasSectionSettings(section))
-                  Container(
-                    margin: const EdgeInsets.only(right: 10),
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: () => _showSectionSettings(section, config),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Icon(Icons.settings_outlined, size: 24, color: subtextColor),
+                ),
+                const SizedBox(width: 16),
+                
+                // Context & Text
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        section.label,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: section.enabled ? textColor : subtextColor.withValues(alpha: 0.8),
                         ),
                       ),
-                    ),
+                      if (_getSectionSubtitle(section) != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _getSectionSubtitle(section)!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: subtextColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
                   ),
+                ),
+                
+                // Switch
                 Switch.adaptive(
                   value: section.enabled,
                   onChanged: (v) {
@@ -1186,8 +1245,42 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                 ),
               ],
             ),
+          ),
+          
+          // Action Base
+          if (_hasSectionSettings(section)) ...[
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: isDark ? const Color(0xFF334155).withValues(alpha: 0.5) : const Color(0xFFE2E8F0).withValues(alpha: 0.5),
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16)),
+                onTap: () => _showSectionSettings(section, config),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.settings_outlined, size: 18, color: sectionColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Configure Settings',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: sectionColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

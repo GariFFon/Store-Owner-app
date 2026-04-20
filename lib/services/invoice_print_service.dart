@@ -740,6 +740,15 @@ class InvoicePrintService {
   static Future<void> saveDefaultPaperSize(double widthInMm) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_paperSizePrefKey, widthInMm);
+    
+    int chars = widthInMm <= 50.8 ? 32 : 48;
+    final rConfig = await ReceiptLayoutConfig.load('receipt');
+    rConfig.paperWidthChars = chars;
+    await rConfig.save();
+
+    final kConfig = await ReceiptLayoutConfig.load('kot');
+    kConfig.paperWidthChars = chars;
+    await kConfig.save();
   }
 
   static Future<double?> getSavedPaperSize() async {

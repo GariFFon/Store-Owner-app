@@ -763,103 +763,114 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
             const SizedBox(height: 24),
             ..._rolesList.map((role) {
               final isSelected = role['role_name'] == staff['role_name'];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: InkWell(
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (!isSelected) {
-                      _updateStaffRole(staff, role['role_name']);
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isSelected
-                            ? Colors.blue
-                            : const Color(0xFFE2E8F0),
-                        width: isSelected ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
+              final Color primaryColor = const Color(0xFF2563EB); // Modern blue
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Color.alphaBlend(
+                      primaryColor.withOpacity(isSelected ? 0.08 : 0.03),
+                      Colors.white),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
                       color: isSelected
-                          ? Colors.blue.withOpacity(0.04)
-                          : Colors.white,
+                          ? primaryColor.withOpacity(0.12)
+                          : Colors.black.withOpacity(0.04),
+                      blurRadius: isSelected ? 16 : 8,
+                      offset: Offset(0, isSelected ? 6 : 2),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.blue
-                                  : Colors.grey[300]!,
-                              width: 2,
-                            ),
-                            color: isSelected
-                                ? Colors.blue
-                                : Colors.transparent,
-                          ),
-                          child: isSelected
-                              ? const Center(
-                                  child: Icon(
-                                    Icons.check_rounded,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  ],
+                  border: isSelected
+                      ? Border.all(
+                          color: primaryColor.withOpacity(0.3), width: 1.5)
+                      : Border.all(
+                          color: primaryColor.withOpacity(0.15), width: 1.0),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        if (!isSelected) {
+                          _updateStaffRole(staff, role['role_name']);
+                        }
+                      },
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: isSelected ? 20 : 16,
+                            vertical: isSelected ? 20 : 16),
+                        child: Row(
                           children: [
-                            Text(
-                              role['role_name'] ?? 'Unknown',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
                                 color: isSelected
-                                    ? Colors.blue[900]
-                                    : const Color(0xFF334155),
+                                    ? primaryColor.withOpacity(0.15)
+                                    : Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.shield_rounded,
+                                color: isSelected
+                                    ? primaryColor
+                                    : const Color(0xFF64748B),
+                                size: 20,
                               ),
                             ),
-                            if (role['description'] != null)
-                              Text(
-                                role['description'],
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[500],
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    role['role_name'] ?? 'Unknown',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: isSelected
+                                          ? primaryColor
+                                          : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  if (role['description'] != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      role['description'],
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (isSelected)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'CURRENT',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: primaryColor,
+                                  ),
                                 ),
                               ),
                           ],
                         ),
-                        const Spacer(),
-                        if (isSelected)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'CURRENT',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
                   ),
                 ),

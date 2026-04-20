@@ -719,12 +719,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
       onRefresh: () => _fetchProducts(reset: true),
       child: _buildResponsiveGrid(
         itemCount: itemCount,
-        itemBuilder: (context, index) {
+        itemBuilder: (context, index, isList) {
           if (index == _products.length) {
             if (_isLoadingMore) return _buildLoadingMoreCell();
             return _buildEndOfListCell(_products.length);
           }
-          return _buildProductCard(_products[index], theme);
+          return _buildProductCard(_products[index], theme, isList: isList);
         },
       ),
     );
@@ -754,12 +754,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
       color: const Color(0xFF2563EB),
       child: _buildResponsiveGrid(
         itemCount: itemCount,
-        itemBuilder: (context, index) {
+        itemBuilder: (context, index, isList) {
           if (index == _searchResults.length) {
             if (_isSearchLoadingMore) return _buildLoadingMoreCell();
             return _buildEndOfListCell(_searchResults.length, label: 'result');
           }
-          return _buildProductCard(_searchResults[index], theme);
+          return _buildProductCard(_searchResults[index], theme, isList: isList);
         },
       ),
     );
@@ -767,33 +767,66 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   Widget _buildResponsiveGrid({
     required int itemCount,
-    required Widget Function(BuildContext, int) itemBuilder,
+    required Widget Function(BuildContext, int, bool) itemBuilder,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        int crossAxisCount = 1; // 1 column for phone (Full width list view)
-        if (constraints.maxWidth > 1200) {
-          crossAxisCount = 4;
-        } else if (constraints.maxWidth > 900) {
+        int crossAxisCount = 1;
+        if (constraints.maxWidth > 1300) {
           crossAxisCount = 3;
-        } else if (constraints.maxWidth > 600) {
-          crossAxisCount = 2;
-        } // Otherwise default 1 for Mobile 
+        } else if (constraints.maxWidth > 650) {
+          crossAxisCount = 2; // Tablets
+        }
 
-        final ratio = crossAxisCount == 1 ? 0.95 : 0.85; // A beautiful large Instagram-like ratio for phone, and 0.85 squarish for grid.
+        if (crossAxisCount == 1) {
+          return ListView.separated(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+            itemCount: itemCount,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) => itemBuilder(context, index, true),
+          );
+        }
 
-        return GridView.builder(
+        final int dataCount = itemCount > 0 ? itemCount - 1 : 0;
+        final int dataRows = (dataCount / crossAxisCount).ceil();
+        final int totalRows = dataRows + 1;
+
+        return ListView.separated(
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: ratio,
-          ),
-          itemCount: itemCount,
-          itemBuilder: itemBuilder,
+          itemCount: totalRows,
+          separatorBuilder: (context, index) => const SizedBox(height: 16),
+          itemBuilder: (context, rowIndex) {
+            // Trailing loading/end indicator stays on its own full-width row
+            if (rowIndex == dataRows) {
+              return itemBuilder(context, itemCount - 1, true);
+            }
+
+            // Group horizontal list cards together
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: List.generate(crossAxisCount, (colIndex) {
+                  final index = rowIndex * crossAxisCount + colIndex;
+                  if (index >= dataCount) {
+                    return const Expanded(child: SizedBox.shrink());
+                  }
+
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: colIndex == 0 ? 0 : 16.0,
+                      ),
+                      child: itemBuilder(context, index, true), // Force List UI
+                    ),
+                  );
+                }),
+              ),
+            );
+          },
         );
       },
     );
@@ -880,7 +913,53 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Widget _buildSearchSkeleton() {
     return _buildResponsiveGrid(
       itemCount: 6,
-      itemBuilder: (context, index) {
+      itemBuilder: (context, index, isList) {
+        if (isList) {
+          return Container(
+            height: 154,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[100]!, width: 1.5),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(16),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _shimmerBox(width: double.infinity, height: 14),
+                        const SizedBox(height: 8),
+                        _shimmerBox(width: 120, height: 11),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            _shimmerBox(width: 50, height: 20),
+                            const SizedBox(width: 8),
+                            _shimmerBox(width: 60, height: 20),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -952,7 +1031,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   // ── Product card ──────────────────────────────────────────────────────────
-  Widget _buildProductCard(Map<String, dynamic> product, ThemeData theme) {
+  Widget _buildProductCard(Map<String, dynamic> product, ThemeData theme, {bool isList = false}) {
     final name = product['product_name'] ?? 'Unknown Product';
     final parentCat = _capitalize(product['parent_category'] ?? '');
     final childCat = _capitalize(product['child_category'] ?? '');
@@ -1006,161 +1085,272 @@ class _ProductsScreenState extends State<ProductsScreen> {
               if (mounted) _fetchProducts(reset: true);
             });
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Product Image (Unobstructed, taking all remaining space)
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    hasImage
-                        ? CustomCachedNetworkImage(
-                            imgUrl: imgUrl!,
-                            fit: BoxFit.cover,
-                          )
-                        : Container(
-                            color: const Color(
-                              0xFFF8FAFC,
-                            ), // slightly softer empty grey
-                            child: Icon(
-                              Icons.shopping_bag_outlined,
-                              color: Colors.grey[300],
-                              size: 56,
-                            ),
-                          ),
-                  ],
-                ),
-              ),
-
-              // Fixed height equivalent details at the bottom
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min, // perfectly hugs the content to keep images same size
-                  children: [
-                    // Name (1 line strictly to avoid layout disparity)
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
-                        height: 1.25,
-                        letterSpacing: -0.2,
+          child: isList
+              ? IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          border: Border(right: BorderSide(color: Colors.grey[200]!)),
+                        ),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            hasImage
+                                ? CustomCachedNetworkImage(
+                                    imgUrl: imgUrl!,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Center(
+                                    child: Icon(
+                                      Icons.inventory_2_outlined,
+                                      color: Colors.grey[300],
+                                      size: 40,
+                                    ),
+                                  ),
+                          ],
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-
-                    // Category & Brand
-                    Text(
-                      showBrand
-                          ? (categoryLabel.isNotEmpty
-                                ? '$categoryLabel • $brandName'
-                                : brandName!)
-                          : categoryLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blueGrey[400],
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Systematic Info Bar (Stats + Badges)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.1)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Left side: Stats
-                          Row(
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.inventory_2_rounded,
-                                size: 14,
-                                color: totalLeft > 0 ? const Color(0xFF0F766E) : Colors.red,
-                              ),
-                              const SizedBox(width: 4),
                               Text(
-                                '${totalLeft.toStringAsFixed(0)}',
-                                style: TextStyle(
-                                  fontSize: 12,
+                                name,
+                                style: const TextStyle(
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w700,
-                                  color: totalLeft > 0 ? const Color(0xFF0F766E) : Colors.red,
+                                  color: Color(0xFF1E293B),
+                                  height: 1.25,
+                                  letterSpacing: -0.2,
                                 ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(width: 12),
-                              Icon(
-                                Icons.sell_rounded,
-                                size: 14,
-                                color: Colors.orange[700],
-                              ),
-                              const SizedBox(width: 4),
+                              const SizedBox(height: 4),
                               Text(
-                                '${totalSold.toStringAsFixed(0)}',
+                                showBrand
+                                    ? (categoryLabel.isNotEmpty
+                                        ? '$categoryLabel • $brandName'
+                                        : brandName!)
+                                    : categoryLabel,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.orange[700],
+                                  color: Colors.blueGrey[400],
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 4,
+                                runSpacing: 4,
+                                children: [
+                                  if (isPosEnabled) _softBadge('POS', const Color(0xFF10B981)),
+                                  if (isOnline) _softBadge('Online', const Color(0xFF3B82F6)),
+                                  if (status != null && status.isNotEmpty)
+                                    _softBadge(_capitalize(status), _statusColor(status)),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildStatRow(
+                                      icon: Icons.inventory_2_outlined,
+                                      title: 'INVENTORY',
+                                      value: '${_compactFormat(totalLeft)} left',
+                                      valueColor: totalLeft > 0 ? const Color(0xFF0F766E) : Colors.red,
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 6),
+                                      child: Divider(height: 1, color: Colors.grey[200]),
+                                    ),
+                                    _buildStatRow(
+                                      icon: Icons.sell_outlined,
+                                      title: 'TOTAL SOLD',
+                                      value: '${_compactFormat(totalSold)} units',
+                                      valueColor: Colors.orange[700]!,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                          // Right side: Badges
-                          Expanded(
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              reverse: true, // Align right if short, scroll left if long
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isPosEnabled)
-                                    _softBadge('POS', const Color(0xFF10B981)),
-                                  if (isPosEnabled) const SizedBox(width: 6),
-
-                                  if (isOnline)
-                                    _softBadge('Online', const Color(0xFF3B82F6)),
-                                  if (isOnline) const SizedBox(width: 6),
-
-                                  if (status != null && status.isNotEmpty)
-                                    _softBadge(
-                                      _capitalize(status),
-                                      _statusColor(status),
-                                    ),
-                                ],
-                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          hasImage
+                              ? CustomCachedNetworkImage(
+                                  imgUrl: imgUrl!,
+                                  fit: BoxFit.cover,
+                                )
+                              : Container(
+                                  color: const Color(0xFFF8FAFC),
+                                  child: Icon(
+                                    Icons.inventory_2_outlined,
+                                    color: Colors.grey[300],
+                                    size: 56,
+                                  ),
+                                ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E293B),
+                              height: 1.25,
+                              letterSpacing: -0.2,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            showBrand
+                                ? (categoryLabel.isNotEmpty
+                                      ? '$categoryLabel • $brandName'
+                                      : brandName!)
+                                : categoryLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.blueGrey[400],
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey[200]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildStatRow(
+                                  icon: Icons.inventory_2_outlined,
+                                  title: 'INVENTORY',
+                                  value: '${_compactFormat(totalLeft)} left',
+                                  valueColor: totalLeft > 0 ? const Color(0xFF0F766E) : Colors.red,
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 6),
+                                  child: Divider(height: 1, color: Colors.grey[200]),
+                                ),
+                                _buildStatRow(
+                                  icon: Icons.sell_outlined,
+                                  title: 'TOTAL SOLD',
+                                  value: '${_compactFormat(totalSold)} units',
+                                  valueColor: Colors.orange[700]!,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              if (isPosEnabled) _softBadge('POS', const Color(0xFF10B981)),
+                              if (isOnline) _softBadge('Online', const Color(0xFF3B82F6)),
+                              if (status != null && status.isNotEmpty)
+                                _softBadge(_capitalize(status), _statusColor(status)),
+                            ],
                           ),
                         ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              // NO EXTRA PARENTHESIS HERE
-            ],
-          ),
         ),
       ),
     );
   }
 
   // ── Small widgets ─────────────────────────────────────────────────────────
+
+  String _compactFormat(num value) {
+    if (value >= 1000000000) {
+      return '${(value / 1000000000).toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}B';
+    } else if (value >= 1000000) {
+      return '${(value / 1000000).toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}M';
+    } else if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}K';
+    } else {
+      return value.toStringAsFixed(0);
+    }
+  }
+
+  Widget _buildStatRow({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color valueColor,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 14, color: Colors.blueGrey[400]),
+        const SizedBox(width: 4),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Colors.blueGrey[500],
+            letterSpacing: 0.2,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+
+
   Widget _softBadge(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
