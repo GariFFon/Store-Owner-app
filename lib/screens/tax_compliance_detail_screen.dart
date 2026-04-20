@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:exanor/screens/gst_itc_ledger_screen.dart';
+import 'package:exanor/screens/tds_report_screen.dart';
+import 'package:exanor/screens/eway_bill_screen.dart';
+import 'package:exanor/screens/income_tax_computation_screen.dart';
 
 class TaxComplianceDetailScreen extends StatelessWidget {
   final String storeId;
@@ -17,6 +20,38 @@ class TaxComplianceDetailScreen extends StatelessWidget {
     final fyLabel = financialYear['label']?.toString() ?? '';
 
     switch (reportId) {
+      case 'tds_report':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TdsReportScreen(
+              storeId: storeId,
+              financialYearId: fyId,
+              fyLabel: fyLabel,
+            ),
+          ),
+        );
+        break;
+      case 'eway_bill':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EWayBillScreen(
+              storeId: storeId,
+              fyLabel: fyLabel,
+            ),
+          ),
+        );
+        break;
+      case 'income_tax':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => IncomeTaxComputationScreen(
+              storeId: storeId,
+              financialYearId: fyId,
+              fyLabel: fyLabel,
+            ),
+          ),
+        );
+        break;
       case 'gst_itc_ledger':
         Navigator.of(context).push(
           MaterialPageRoute(
