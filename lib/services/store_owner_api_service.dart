@@ -410,6 +410,34 @@ class StoreOwnerApiService {
     }
   }
 
+  /// Search product inventory
+  /// POST /product-inventory-search/
+  static Future<Map<String, dynamic>> searchProductInventory(
+    String storeId,
+    String query, {
+    int page = 1,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        '/product-inventory-search/',
+        body: {
+          'store_id': storeId,
+          'store_access': true,
+          'query': query,
+          'page': page,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to search product inventory: $e');
+    }
+  }
+
   /// Update product inventory
   /// PUT /product-inventory/
   static Future<Map<String, dynamic>> updateProductInventory({
@@ -1112,7 +1140,8 @@ class StoreOwnerApiService {
 
   /// Create Store Staff
   /// POST /store-staff/
-  static Future<bool> createStoreStaff({
+  /// Returns a map with 'success' (bool) and 'message' (String?)
+  static Future<Map<String, dynamic>> createStoreStaff({
     required String storeId,
     required String phoneNumber,
     required String roleId,
@@ -1136,12 +1165,16 @@ class StoreOwnerApiService {
           response['data'] != null) {
         final data = response['data'];
         if (data['status'] == 201) {
-          return true;
+          return {'success': true, 'message': 'Staff created'};
         }
+        return {
+          'success': false,
+          'message': data['message']?.toString() ?? 'Failed to add staff',
+        };
       }
-      return false;
+      return {'success': false, 'message': 'Failed to add staff'};
     } catch (e) {
-      throw Exception('Failed to create store staff: $e');
+      return {'success': false, 'message': e.toString()};
     }
   }
 

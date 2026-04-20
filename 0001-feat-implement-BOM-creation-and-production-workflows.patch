@@ -1,0 +1,1733 @@
+From 02ba6289001b0c080b20b509d4d44f7681c175bb Mon Sep 17 00:00:00 2001
+From: Gourav Dash <147884679+GariFFon@users.noreply.github.com>
+Date: Sat, 11 Apr 2026 02:32:18 +0530
+Subject: [PATCH] feat: implement BOM creation and production workflows with
+ updated order method fetching
+
+---
+ lib/screens/product_detail_screen.dart    | 1458 ++++++++++++++++++++-
+ lib/services/store_owner_api_service.dart |  168 +++
+ 2 files changed, 1603 insertions(+), 23 deletions(-)
+
+diff --git a/lib/screens/product_detail_screen.dart b/lib/screens/product_detail_screen.dart
+index 4530bec..14d5178 100644
+--- a/lib/screens/product_detail_screen.dart
++++ b/lib/screens/product_detail_screen.dart
+@@ -43,7 +43,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
+ 
+   // ── Manufacturing state ──────────────────────────────────────────────
+   List<Map<String, dynamic>> _boms = [];
+-  List<String> _orderMethods = []; // distinct order methods from /orders/ API
++  List<Map<String, String>> _orderMethods = []; // {id, name} pairs from /orders/ API
+   bool _mfgLoading = false;
+   bool _mfgFetched = false;
+   String? _mfgError;
+@@ -199,10 +199,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
+           storeId: widget.storeId,
+           productCombinationId: widget.productId,
+         ),
+-        StoreOwnerApiService.getOrdersByStatus(
+-          storeId: widget.storeId,
+-          status: 'order_placed',
+-        ),
++        StoreOwnerApiService.getOrderMethods(widget.storeId),
+       ]);
+ 
+       if (!mounted) return;
+@@ -210,7 +207,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
+       // Handle both response shapes:
+       //   { "response": { "boms": [...] } }  — nested
+       //   { "response": [ ... ] }             — flat list
+-      final bomResponse = results[0]['response'];
++      final bomResponse = (results[0] as Map)['response'];
+       final List<dynamic> rawBoms;
+       if (bomResponse is List) {
+         rawBoms = bomResponse;
+@@ -220,19 +217,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
+         rawBoms = [];
+       }
+ 
+-      // Extract unique order methods from orders response.
+-      final rawOrders = results[1]['response'] as List<dynamic>? ?? [];
+-      final methods = <String>{};
+-      for (final o in rawOrders) {
+-        final m = (o as Map<String, dynamic>)['order_method_name']?.toString();
+-        if (m != null && m.isNotEmpty) methods.add(m);
+-      }
++      // Order methods come directly as List<Map<String,String>> from getOrderMethods.
++      final orderMethods =
++          results[1] as List<Map<String, String>>;
+ 
+       setState(() {
+         _mfgLoading = false;
+         _mfgFetched = true;
+         _boms = rawBoms.map((e) => Map<String, dynamic>.from(e)).toList();
+-        _orderMethods = methods.toList();
++        _orderMethods = orderMethods;
+       });
+     } catch (e) {
+       if (!mounted) return;
+@@ -1636,8 +1629,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
+               if (methods.isNotEmpty) const SizedBox(width: 8),
+               // Create BOM button
+               ElevatedButton.icon(
+-                onPressed: () =>
+-                    _showBar('Create BOM — coming soon', const Color(0xFF2563EB)),
++                onPressed: () => showDialog<bool>(
++                  context: context,
++                  barrierDismissible: false,
++                  builder: (_) => _CreateBomDialog(
++                    storeId: widget.storeId,
++                    combinationId: widget.productId,
++                    productName: _product?['product_name']?.toString() ??
++                        'This Product',
++                    orderMethods: _orderMethods,
++                  ),
++                ).then((created) {
++                  if (created == true) _fetchManufacturing();
++                }),
+                 icon: const Icon(Icons.add, size: 16),
+                 label: const Text('CREATE BOM'),
+                 style: ElevatedButton.styleFrom(
+@@ -1720,7 +1724,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
+     return content;
+   }
+ 
+-  Widget _buildMethodDropdown(List<String> methods) {
++  Widget _buildMethodDropdown(List<Map<String, String>> methods) {
+     return PopupMenuButton<String>(
+       initialValue: _selectedOrderMethod,
+       // onSelected is always called for non-null values — sentinel '_all_' is safe.
+@@ -1744,16 +1748,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
+         ),
+         for (final m in methods)
+           PopupMenuItem<String>(
+-            value: m,
++            value: m['name'] ?? '',
+             child: Row(
+               children: [
+-                if (_selectedOrderMethod == m)
++                 if (_selectedOrderMethod == m['name'])
+                   const Icon(Icons.check,
+                       size: 16, color: Color(0xFF2563EB))
+                 else
+                   const SizedBox(width: 16),
+                 const SizedBox(width: 8),
+-                Text(m),
++                Text(m['name'] ?? ''),
+               ],
+             ),
+           ),
+@@ -1913,9 +1917,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
+                 const SizedBox(width: 6),
+                 // PRODUCE
+                 ElevatedButton.icon(
+-                  onPressed: () => _showBar(
+-                      'Produce BOM $bomId — coming soon',
+-                      const Color(0xFF16A34A)),
++                  onPressed: () => showDialog<void>(
++                    context: context,
++                    barrierDismissible: false,
++                    builder: (_) => _ProduceDialog(
++                      bomId: bomId,
++                      storeId: widget.storeId,
++                    ),
++                  ),
+                   icon: const Icon(Icons.settings_outlined, size: 13),
+                   label: const Text('PRODUCE'),
+                   style: ElevatedButton.styleFrom(
+@@ -3009,3 +3018,1406 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
+     );
+   }
+ }
++
++// ── Execute Production Dialog ────────────────────────────────────────────────
++class _ProduceDialog extends StatefulWidget {
++  final String bomId;
++  final String storeId;
++
++  const _ProduceDialog({required this.bomId, required this.storeId});
++
++  @override
++  State<_ProduceDialog> createState() => _ProduceDialogState();
++}
++
++class _ProduceDialogState extends State<_ProduceDialog> {
++  // ── Form state ─────────────────────────────────────────────────────────────
++  final _qtyController = TextEditingController(text: '1');
++
++  List<Map<String, dynamic>> _godowns = [];
++  List<Map<String, dynamic>> _racks = [];
++
++  String? _selectedGodownId;
++  String? _selectedRackId;
++
++  bool _godownsLoading = true;
++  bool _racksLoading = false;
++  bool _producing = false;
++  String? _error;
++
++  @override
++  void initState() {
++    super.initState();
++    _loadGodowns();
++  }
++
++  @override
++  void dispose() {
++    _qtyController.dispose();
++    super.dispose();
++  }
++
++  Future<void> _loadGodowns() async {
++    try {
++      final list = await StoreOwnerApiService.getGodowns(widget.storeId);
++      if (!mounted) return;
++      setState(() {
++        _godowns = list;
++        _godownsLoading = false;
++      });
++    } catch (_) {
++      if (mounted) setState(() => _godownsLoading = false);
++    }
++  }
++
++  Future<void> _loadRacks(String godownId) async {
++    setState(() {
++      _racksLoading = true;
++      _racks = [];
++      _selectedRackId = null;
++    });
++    try {
++      final list = await StoreOwnerApiService.getRacksByGodown(
++        storeId: widget.storeId,
++        godownId: godownId,
++      );
++      if (!mounted) return;
++      setState(() {
++        _racks = list;
++        _racksLoading = false;
++      });
++    } catch (_) {
++      if (mounted) setState(() => _racksLoading = false);
++    }
++  }
++
++  Future<void> _produce() async {
++    // validate
++    final multiplier = int.tryParse(_qtyController.text.trim());
++    if (multiplier == null || multiplier <= 0) {
++      setState(() => _error = 'Enter a valid quantity multiplier (≥ 1).');
++      return;
++    }
++    if (_selectedGodownId == null) {
++      setState(() => _error = 'Please select a godown.');
++      return;
++    }
++
++    setState(() {
++      _producing = true;
++      _error = null;
++    });
++
++    try {
++      final now = DateTime.now();
++      final date =
++          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
++
++      final data = await StoreOwnerApiService.produceFromBom(
++        bomId: widget.bomId,
++        storeId: widget.storeId,
++        godownId: _selectedGodownId!,
++        quantityMultiplier: multiplier,
++        date: date,
++        rackId: _selectedRackId,
++      );
++
++      if (!mounted) return;
++      setState(() => _producing = false);
++
++      final status = data['status'] as int?;
++      final response = data['response'] as Map?;
++      final success = status == 200 || status == 201;
++      final message = response?['message']?.toString() ??
++          (success ? 'Production completed successfully.' : 'Production failed.');
++
++      // Close dialog then show result
++      Navigator.of(context).pop();
++      _showResultDialog(success: success, message: message, response: response);
++    } catch (e) {
++      if (mounted) {
++        setState(() {
++          _error = e.toString();
++          _producing = false;
++        });
++      }
++    }
++  }
++
++  void _showResultDialog({
++    required bool success,
++    required String message,
++    Map? response,
++  }) {
++    showDialog<void>(
++      context: context,
++      builder: (ctx) => AlertDialog(
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
++        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
++        content: Column(
++          mainAxisSize: MainAxisSize.min,
++          children: [
++            Container(
++              width: 64,
++              height: 64,
++              decoration: BoxDecoration(
++                color: success
++                    ? const Color(0xFFDCFCE7)
++                    : const Color(0xFFFEE2E2),
++                shape: BoxShape.circle,
++              ),
++              child: Icon(
++                success ? Icons.check_circle_outline : Icons.error_outline,
++                color: success
++                    ? const Color(0xFF16A34A)
++                    : const Color(0xFFDC2626),
++                size: 36,
++              ),
++            ),
++            const SizedBox(height: 16),
++            Text(
++              success
++                  ? 'Production Recorded Successfully'
++                  : 'Production Failed',
++              textAlign: TextAlign.center,
++              style: TextStyle(
++                fontSize: 17,
++                fontWeight: FontWeight.w800,
++                color: success
++                    ? const Color(0xFF16A34A)
++                    : const Color(0xFFDC2626),
++              ),
++            ),
++            const SizedBox(height: 8),
++            Text(
++              message,
++              textAlign: TextAlign.center,
++              style: const TextStyle(
++                fontSize: 13,
++                color: Color(0xFF64748B),
++                height: 1.4,
++              ),
++            ),
++            if (success && response != null) ...[
++              const SizedBox(height: 16),
++              _resultInfo('Voucher', response['voucher_number']?.toString()),
++              _resultInfo('Output Item', response['output_item']?.toString()),
++              _resultInfo('Output Qty', response['output_quantity']?.toString()),
++              _resultInfo(
++                  'Components Used',
++                  response['components_consumed']?.toString()),
++              _resultInfo(
++                  'Total Cost',
++                  response['total_cost'] != null
++                      ? '₹${response['total_cost']}'
++                      : null),
++            ],
++            const SizedBox(height: 20),
++          ],
++        ),
++        actions: [
++          TextButton(
++            onPressed: () => Navigator.of(ctx).pop(),
++            child: const Text('CLOSE',
++                style: TextStyle(
++                    color: Color(0xFF2563EB), fontWeight: FontWeight.w700)),
++          ),
++        ],
++      ),
++    );
++  }
++
++  Widget _resultInfo(String label, String? value) {
++    if (value == null || value.isEmpty) return const SizedBox.shrink();
++    return Padding(
++      padding: const EdgeInsets.only(bottom: 6),
++      child: Row(
++        children: [
++          Text('$label: ',
++              style: const TextStyle(
++                  fontSize: 12,
++                  fontWeight: FontWeight.w600,
++                  color: Color(0xFF475569))),
++          Expanded(
++            child: Text(value,
++                style: const TextStyle(
++                    fontSize: 12, color: Color(0xFF1E293B))),
++          ),
++        ],
++      ),
++    );
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return Dialog(
++      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
++      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
++      child: ConstrainedBox(
++        constraints: BoxConstraints(
++          maxHeight: MediaQuery.of(context).size.height * 0.85,
++          maxWidth: 520,
++        ),
++        child: Column(
++          mainAxisSize: MainAxisSize.min,
++          crossAxisAlignment: CrossAxisAlignment.stretch,
++          children: [
++            // ── Header ────────────────────────────────────────────────────
++            Padding(
++              padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
++              child: Row(
++                children: [
++                  const Text(
++                    'Execute Production',
++                    style: TextStyle(
++                      fontSize: 20,
++                      fontWeight: FontWeight.w800,
++                      color: Color(0xFF1E293B),
++                    ),
++                  ),
++                  const Spacer(),
++                  IconButton(
++                    icon: const Icon(Icons.close, size: 20),
++                    onPressed:
++                        _producing ? null : () => Navigator.of(context).pop(),
++                    style: IconButton.styleFrom(
++                        foregroundColor: const Color(0xFF64748B)),
++                  ),
++                ],
++              ),
++            ),
++            const Divider(height: 16, indent: 20, endIndent: 20),
++
++            // ── Scrollable body ───────────────────────────────────────────
++            Flexible(
++              child: SingleChildScrollView(
++                padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    // Quantity Multiplier
++                    TextField(
++                      controller: _qtyController,
++                      keyboardType: TextInputType.number,
++                      decoration: InputDecoration(
++                        labelText: 'Quantity Multiplier',
++                        labelStyle: const TextStyle(
++                            fontSize: 13, color: Color(0xFF64748B)),
++                        border: OutlineInputBorder(
++                            borderRadius: BorderRadius.circular(8)),
++                        focusedBorder: OutlineInputBorder(
++                          borderRadius: BorderRadius.circular(8),
++                          borderSide: const BorderSide(
++                              color: Color(0xFF2563EB), width: 2),
++                        ),
++                        contentPadding: const EdgeInsets.symmetric(
++                            horizontal: 14, vertical: 14),
++                      ),
++                    ),
++                    const SizedBox(height: 4),
++                    const Text(
++                      'Scales all component requirements proportionally.',
++                      style: TextStyle(
++                          fontSize: 11, color: Color(0xFF94A3B8)),
++                    ),
++                    const SizedBox(height: 16),
++
++                    // Godown dropdown
++                    _godownsLoading
++                        ? const Center(
++                            child: Padding(
++                              padding: EdgeInsets.symmetric(vertical: 14),
++                              child:
++                                  CircularProgressIndicator(strokeWidth: 2),
++                            ),
++                          )
++                        : DropdownButtonFormField<String?>(
++                            initialValue: _selectedGodownId,
++                            isExpanded: true,
++                            decoration: InputDecoration(
++                              labelText: 'Select Godown',
++                              labelStyle: const TextStyle(
++                                  fontSize: 13, color: Color(0xFF64748B)),
++                              border: OutlineInputBorder(
++                                  borderRadius: BorderRadius.circular(8)),
++                              focusedBorder: OutlineInputBorder(
++                                borderRadius: BorderRadius.circular(8),
++                                borderSide: const BorderSide(
++                                    color: Color(0xFF2563EB), width: 2),
++                              ),
++                              contentPadding: const EdgeInsets.symmetric(
++                                  horizontal: 14, vertical: 14),
++                            ),
++                            hint: const Text('Select Godown'),
++                            items: _godowns
++                                .map((g) => DropdownMenuItem<String?>(
++                                      value: g['id']?.toString(),
++                                      child: Text(
++                                        g['name']?.toString() ?? '—',
++                                        overflow: TextOverflow.ellipsis,
++                                      ),
++                                    ))
++                                .toList(),
++                            onChanged: (v) {
++                              setState(() {
++                                _selectedGodownId = v;
++                                _racks = [];
++                                _selectedRackId = null;
++                              });
++                              if (v != null) _loadRacks(v);
++                            },
++                          ),
++                    const SizedBox(height: 4),
++                    const Text(
++                      'Where production output will be stored.',
++                      style: TextStyle(
++                          fontSize: 11, color: Color(0xFF94A3B8)),
++                    ),
++                    const SizedBox(height: 16),
++
++                    // Rack dropdown
++                    _racksLoading
++                        ? const Center(
++                            child: Padding(
++                              padding: EdgeInsets.symmetric(vertical: 14),
++                              child:
++                                  CircularProgressIndicator(strokeWidth: 2),
++                            ),
++                          )
++                        : DropdownButtonFormField<String?>(
++                            initialValue: _selectedRackId,
++                            isExpanded: true,
++                            decoration: InputDecoration(
++                              labelText: 'Select Rack',
++                              labelStyle: const TextStyle(
++                                  fontSize: 13,
++                                  color: Color(0xFF64748B)),
++                              border: OutlineInputBorder(
++                                  borderRadius: BorderRadius.circular(8)),
++                              focusedBorder: OutlineInputBorder(
++                                borderRadius: BorderRadius.circular(8),
++                                borderSide: const BorderSide(
++                                    color: Color(0xFF2563EB), width: 2),
++                              ),
++                              contentPadding: const EdgeInsets.symmetric(
++                                  horizontal: 14, vertical: 14),
++                            ),
++                            hint: Text(
++                              _selectedGodownId == null
++                                  ? 'Select a godown first'
++                                  : _racks.isEmpty
++                                      ? 'No racks available'
++                                      : 'Select Rack (Optional)',
++                              style: const TextStyle(
++                                  color: Color(0xFF94A3B8), fontSize: 13),
++                            ),
++                            items: _racks
++                                .map((r) => DropdownMenuItem<String?>(
++                                      value: r['id']?.toString(),
++                                      child: Text(
++                                        r['name']?.toString() ?? '—',
++                                        overflow: TextOverflow.ellipsis,
++                                      ),
++                                    ))
++                                .toList(),
++                            onChanged: _selectedGodownId == null
++                                ? null
++                                : (v) =>
++                                    setState(() => _selectedRackId = v),
++                          ),
++                    const SizedBox(height: 4),
++                    const Text(
++                      'Select a godown first.',
++                      style: TextStyle(
++                          fontSize: 11, color: Color(0xFF94A3B8)),
++                    ),
++
++                    // Error
++                    if (_error != null)
++                      Padding(
++                        padding: const EdgeInsets.only(top: 12),
++                        child: Container(
++                          padding: const EdgeInsets.symmetric(
++                              horizontal: 14, vertical: 10),
++                          decoration: BoxDecoration(
++                            color: const Color(0xFFFEF2F2),
++                            borderRadius: BorderRadius.circular(8),
++                            border: Border.all(
++                                color: const Color(0xFFFCA5A5)),
++                          ),
++                          child: Row(
++                            children: [
++                              const Icon(Icons.error_outline,
++                                  color: Color(0xFFDC2626), size: 18),
++                              const SizedBox(width: 8),
++                              Expanded(
++                                child: Text(
++                                  _error!,
++                                  style: const TextStyle(
++                                      fontSize: 12,
++                                      color: Color(0xFF991B1B)),
++                                ),
++                              ),
++                            ],
++                          ),
++                        ),
++                      ),
++
++                    const SizedBox(height: 8),
++                  ],
++                ),
++              ),
++            ),
++
++            // ── Footer ────────────────────────────────────────────────────
++            const Divider(height: 1),
++            Padding(
++              padding:
++                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
++              child: Row(
++                mainAxisAlignment: MainAxisAlignment.end,
++                children: [
++                  OutlinedButton(
++                    onPressed:
++                        _producing ? null : () => Navigator.of(context).pop(),
++                    style: OutlinedButton.styleFrom(
++                      foregroundColor: const Color(0xFF64748B),
++                      side: const BorderSide(color: Color(0xFFCBD5E1)),
++                      textStyle: const TextStyle(
++                          fontSize: 13,
++                          fontWeight: FontWeight.w700,
++                          letterSpacing: 0.6),
++                      padding: const EdgeInsets.symmetric(
++                          horizontal: 20, vertical: 12),
++                      shape: RoundedRectangleBorder(
++                          borderRadius: BorderRadius.circular(10)),
++                    ),
++                    child: const Text('CANCEL'),
++                  ),
++                  const SizedBox(width: 10),
++                  ElevatedButton.icon(
++                    onPressed: _producing ? null : _produce,
++                    icon: _producing
++                        ? const SizedBox(
++                            height: 14,
++                            width: 14,
++                            child: CircularProgressIndicator(
++                                strokeWidth: 2, color: Colors.white),
++                          )
++                        : const Icon(Icons.settings_outlined, size: 16),
++                    label: const Text('PRODUCE'),
++                    style: ElevatedButton.styleFrom(
++                      backgroundColor: const Color(0xFF2563EB),
++                      foregroundColor: Colors.white,
++                      textStyle: const TextStyle(
++                          fontSize: 13,
++                          fontWeight: FontWeight.w700,
++                          letterSpacing: 0.6),
++                      padding: const EdgeInsets.symmetric(
++                          horizontal: 24, vertical: 12),
++                      shape: RoundedRectangleBorder(
++                          borderRadius: BorderRadius.circular(10)),
++                      elevation: 0,
++                    ),
++                  ),
++                ],
++              ),
++            ),
++          ],
++        ),
++      ),
++    );
++  }
++}
++
++// ── Create BOM Dialog ────────────────────────────────────────────────────────
++
++/// Lightweight model for a single BOM component row in the form.
++class _BomComponentRow {
++  String? combinationId;
++  String? combinationName;
++  final TextEditingController qtyCtrl = TextEditingController(text: '1');
++  String? unitId;
++  final TextEditingController scrapCtrl = TextEditingController(text: '0');
++  // search state
++  String searchQuery = '';
++  List<Map<String, dynamic>> searchResults = [];
++  bool searching = false;
++
++  _BomComponentRow();
++
++  void dispose() {
++    qtyCtrl.dispose();
++    scrapCtrl.dispose();
++  }
++}
++
++class _CreateBomDialog extends StatefulWidget {
++  final String storeId;
++  final String combinationId;
++  final String productName;
++  final List<Map<String, String>> orderMethods;
++
++  const _CreateBomDialog({
++    required this.storeId,
++    required this.combinationId,
++    required this.productName,
++    required this.orderMethods,
++  });
++
++  @override
++  State<_CreateBomDialog> createState() => _CreateBomDialogState();
++}
++
++class _CreateBomDialogState extends State<_CreateBomDialog> {
++  // ── Form fields ────────────────────────────────────────────────────────────
++  final _outputQtyCtrl = TextEditingController(text: '1');
++  String? _selectedUnitId;
++  String? _selectedOrderMethod; // null = universal recipe
++
++  // ── Units ──────────────────────────────────────────────────────────────────
++  List<Map<String, dynamic>> _units = [];
++  bool _unitsLoading = true;
++
++  // ── Components ─────────────────────────────────────────────────────────────
++  final List<_BomComponentRow> _components = [_BomComponentRow()];
++
++  // ── Submission ─────────────────────────────────────────────────────────────
++  bool _saving = false;
++  String? _error;
++
++  @override
++  void initState() {
++    super.initState();
++    _loadUnits();
++  }
++
++  @override
++  void dispose() {
++    _outputQtyCtrl.dispose();
++    for (final c in _components) {
++      c.dispose();
++    }
++    super.dispose();
++  }
++
++  Future<void> _loadUnits() async {
++    try {
++      final list = await StoreOwnerApiService.getUnits(widget.storeId);
++      if (!mounted) return;
++      setState(() {
++        _units = list;
++        _unitsLoading = false;
++      });
++    } catch (_) {
++      if (mounted) setState(() => _unitsLoading = false);
++    }
++  }
++
++  Future<void> _searchCombinations(
++      _BomComponentRow row, String query) async {
++    if (query.trim().isEmpty) {
++      setState(() {
++        row.searchQuery = '';
++        row.searchResults = [];
++        row.searching = false;
++      });
++      return;
++    }
++    setState(() {
++      row.searchQuery = query;
++      row.searching = true;
++    });
++    try {
++      final data = await StoreOwnerApiService.searchProductCombinations(
++        storeId: widget.storeId,
++        query: query.trim(),
++      );
++      if (!mounted) return;
++      final results =
++          List<Map<String, dynamic>>.from(data['response'] as List? ?? []);
++      setState(() {
++        row.searchResults = results;
++        row.searching = false;
++      });
++    } catch (_) {
++      if (mounted) setState(() => row.searching = false);
++    }
++  }
++
++  Future<void> _save() async {
++    // Validate output qty
++    final outputQty = double.tryParse(_outputQtyCtrl.text.trim());
++    if (outputQty == null || outputQty <= 0) {
++      setState(() => _error = 'Enter a valid output quantity.');
++      return;
++    }
++    if (_selectedUnitId == null) {
++      setState(() => _error = 'Select an output unit.');
++      return;
++    }
++    // Validate components
++    for (int i = 0; i < _components.length; i++) {
++      final c = _components[i];
++      if (c.combinationId == null) {
++        setState(
++            () => _error = 'Select a raw material for Component #${i + 1}.');
++        return;
++      }
++      final qty = double.tryParse(c.qtyCtrl.text.trim());
++      if (qty == null || qty <= 0) {
++        setState(() =>
++            _error = 'Enter a valid quantity for Component #${i + 1}.');
++        return;
++      }
++    }
++
++    setState(() {
++      _saving = true;
++      _error = null;
++    });
++
++    try {
++      final componentPayload = _components.map((c) {
++        final map = <String, dynamic>{
++          'raw_combination_id': c.combinationId!,
++          'quantity': double.parse(c.qtyCtrl.text.trim()),
++          'scrap_percentage':
++              double.tryParse(c.scrapCtrl.text.trim()) ?? 0.0,
++        };
++        if (c.unitId != null) map['unit_id'] = c.unitId!;
++        return map;
++      }).toList();
++
++      final data = await StoreOwnerApiService.saveBom(
++        storeId: widget.storeId,
++        finishedCombinationId: widget.combinationId,
++        outputQuantity: outputQty,
++        outputUnitId: _selectedUnitId!,
++        orderMethodId: _selectedOrderMethod,
++        components: componentPayload,
++      );
++
++      if (!mounted) return;
++      setState(() => _saving = false);
++
++      final status = data['status'] as int?;
++      final success = status == 200 || status == 201;
++      final resp = data['response'];
++      final msg = (resp is Map ? resp['message'] : null)?.toString() ??
++          (success ? 'BOM created successfully.' : 'Failed to create BOM.');
++
++      _showResult(success: success, message: msg);
++    } catch (e) {
++      if (mounted) {
++        setState(() {
++          _error = e.toString();
++          _saving = false;
++        });
++      }
++    }
++  }
++
++  void _showResult({required bool success, required String message}) {
++    Navigator.of(context).pop(success); // pop dialog, signal refresh
++    showDialog<void>(
++      context: context,
++      builder: (ctx) => AlertDialog(
++        shape:
++            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
++        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
++        content: Column(
++          mainAxisSize: MainAxisSize.min,
++          children: [
++            Container(
++              width: 60,
++              height: 60,
++              decoration: BoxDecoration(
++                color: success
++                    ? const Color(0xFFDCFCE7)
++                    : const Color(0xFFFEE2E2),
++                shape: BoxShape.circle,
++              ),
++              child: Icon(
++                success ? Icons.check_circle_outline : Icons.error_outline,
++                color: success
++                    ? const Color(0xFF16A34A)
++                    : const Color(0xFFDC2626),
++                size: 34,
++              ),
++            ),
++            const SizedBox(height: 14),
++            Text(
++              success ? 'BOM Created!' : 'Failed',
++              style: TextStyle(
++                fontSize: 17,
++                fontWeight: FontWeight.w800,
++                color: success
++                    ? const Color(0xFF16A34A)
++                    : const Color(0xFFDC2626),
++              ),
++            ),
++            const SizedBox(height: 8),
++            Text(
++              message,
++              textAlign: TextAlign.center,
++              style: const TextStyle(
++                  fontSize: 13, color: Color(0xFF64748B), height: 1.4),
++            ),
++            const SizedBox(height: 20),
++          ],
++        ),
++        actions: [
++          TextButton(
++            onPressed: () => Navigator.of(ctx).pop(),
++            child: const Text('OK',
++                style: TextStyle(
++                    color: Color(0xFF2563EB),
++                    fontWeight: FontWeight.w700)),
++          ),
++        ],
++      ),
++    );
++  }
++
++  // ── UI ─────────────────────────────────────────────────────────────────────
++  @override
++  Widget build(BuildContext context) {
++    return Dialog(
++      shape:
++          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
++      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
++      child: ConstrainedBox(
++        constraints: BoxConstraints(
++          maxHeight: MediaQuery.of(context).size.height * 0.9,
++          maxWidth: 700,
++        ),
++        child: Column(
++          mainAxisSize: MainAxisSize.min,
++          crossAxisAlignment: CrossAxisAlignment.stretch,
++          children: [
++            // ── Header ────────────────────────────────────────────
++            Padding(
++              padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
++              child: Row(
++                children: [
++                  const Expanded(
++                    child: Text(
++                      'Create New Bill of Materials',
++                      style: TextStyle(
++                          fontSize: 19,
++                          fontWeight: FontWeight.w800,
++                          color: Color(0xFF1E293B)),
++                    ),
++                  ),
++                  IconButton(
++                    icon: const Icon(Icons.close, size: 20),
++                    onPressed:
++                        _saving ? null : () => Navigator.of(context).pop(false),
++                    style: IconButton.styleFrom(
++                        foregroundColor: const Color(0xFF64748B)),
++                  ),
++                ],
++              ),
++            ),
++            const Divider(height: 16, indent: 20, endIndent: 20),
++
++            // ── Scrollable body ────────────────────────────────────
++            Flexible(
++              child: SingleChildScrollView(
++                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    // ── FINISHED PRODUCT ──────────────────────────
++                    _sectionLabel('FINISHED PRODUCT'),
++                    TextField(
++                      readOnly: true,
++                      controller: TextEditingController(
++                          text: widget.productName),
++                      decoration: InputDecoration(
++                        labelText: 'Finished Product Combination',
++                        labelStyle: const TextStyle(
++                            fontSize: 13, color: Color(0xFF94A3B8)),
++                        border: OutlineInputBorder(
++                            borderRadius: BorderRadius.circular(8)),
++                        filled: true,
++                        fillColor: const Color(0xFFF8FAFC),
++                        contentPadding: const EdgeInsets.symmetric(
++                            horizontal: 14, vertical: 14),
++                      ),
++                    ),
++                    const SizedBox(height: 4),
++                    const Text(
++                      'Combination is autofilled and cannot be changed.',
++                      style: TextStyle(
++                          fontSize: 11, color: Color(0xFF94A3B8)),
++                    ),
++                    const SizedBox(height: 18),
++
++                    // ── OUTPUT DETAILS ────────────────────────────
++                    _sectionLabel('OUTPUT DETAILS'),
++                    // Row 1: Output Qty + Unit side-by-side
++                    Row(
++                      crossAxisAlignment: CrossAxisAlignment.start,
++                      children: [
++                        // Output qty
++                        SizedBox(
++                          width: 110,
++                          child: TextField(
++                            controller: _outputQtyCtrl,
++                            keyboardType:
++                                const TextInputType.numberWithOptions(
++                                    decimal: true),
++                            decoration: InputDecoration(
++                              labelText: 'Output Qty',
++                              labelStyle: const TextStyle(
++                                  fontSize: 13,
++                                  color: Color(0xFF64748B)),
++                              border: OutlineInputBorder(
++                                  borderRadius:
++                                      BorderRadius.circular(8)),
++                              focusedBorder: OutlineInputBorder(
++                                borderRadius: BorderRadius.circular(8),
++                                borderSide: const BorderSide(
++                                    color: Color(0xFF2563EB), width: 2),
++                              ),
++                              contentPadding:
++                                  const EdgeInsets.symmetric(
++                                      horizontal: 12, vertical: 14),
++                            ),
++                          ),
++                        ),
++                        const SizedBox(width: 10),
++                        // Unit dropdown
++                        Expanded(
++                          child: _unitsLoading
++                              ? const Center(
++                                  child: Padding(
++                                    padding:
++                                        EdgeInsets.symmetric(vertical: 14),
++                                    child: CircularProgressIndicator(
++                                        strokeWidth: 2),
++                                  ),
++                                )
++                              : DropdownButtonFormField<String?>(
++                                  initialValue: _selectedUnitId,
++                                  isExpanded: true,
++                                  decoration: InputDecoration(
++                                    labelText: 'Select unit',
++                                    labelStyle: const TextStyle(
++                                        fontSize: 13,
++                                        color: Color(0xFF64748B)),
++                                    border: OutlineInputBorder(
++                                        borderRadius:
++                                            BorderRadius.circular(8)),
++                                    focusedBorder: OutlineInputBorder(
++                                      borderRadius:
++                                          BorderRadius.circular(8),
++                                      borderSide: const BorderSide(
++                                          color: Color(0xFF2563EB),
++                                          width: 2),
++                                    ),
++                                    contentPadding:
++                                        const EdgeInsets.symmetric(
++                                            horizontal: 12, vertical: 14),
++                                  ),
++                                  items: _units
++                                      .map((u) =>
++                                          DropdownMenuItem<String?>(
++                                            value: u['id']?.toString(),
++                                            child: Text(
++                                              '${u['code'] ?? ''} — ${u['description'] ?? ''}',
++                                              overflow:
++                                                  TextOverflow.ellipsis,
++                                            ),
++                                          ))
++                                      .toList(),
++                                  onChanged: (v) => setState(
++                                      () => _selectedUnitId = v),
++                                ),
++                        ),
++                      ],
++                    ),
++                    const SizedBox(height: 10),
++                    // Row 2: Universal Recipe full-width
++                    DropdownButtonFormField<String?>(
++                      initialValue: _selectedOrderMethod,
++                      isExpanded: true,
++                      decoration: InputDecoration(
++                        labelText: 'Universal Recipe (optional)',
++                        labelStyle: const TextStyle(
++                            fontSize: 13,
++                            color: Color(0xFF64748B)),
++                        border: OutlineInputBorder(
++                            borderRadius:
++                                BorderRadius.circular(8)),
++                        focusedBorder: OutlineInputBorder(
++                          borderRadius: BorderRadius.circular(8),
++                          borderSide: const BorderSide(
++                              color: Color(0xFF2563EB), width: 2),
++                        ),
++                        contentPadding: const EdgeInsets.symmetric(
++                            horizontal: 12, vertical: 14),
++                      ),
++                      items: [
++                        const DropdownMenuItem<String?>(
++                          value: null,
++                          child: Text('Universal Recipe',
++                              overflow: TextOverflow.ellipsis),
++                        ),
++                        for (final m in widget.orderMethods)
++                          DropdownMenuItem<String?>(
++                            value: m['id'],
++                            child: Text(m['name'] ?? '',
++                                overflow: TextOverflow.ellipsis),
++                          ),
++                      ],
++                      onChanged: (v) =>
++                          setState(() => _selectedOrderMethod = v),
++                    ),
++                    const SizedBox(height: 20),
++
++                    // ── RAW MATERIAL COMPONENTS ───────────────────
++                    _sectionLabel(
++                        'RAW MATERIAL COMPONENTS'),
++                    for (int i = 0; i < _components.length; i++)
++                      _buildComponentCard(i),
++
++                    // ADD COMPONENT
++                    TextButton.icon(
++                      onPressed: () => setState(
++                          () => _components.add(_BomComponentRow())),
++                      icon: const Icon(Icons.add,
++                          size: 16, color: Color(0xFF2563EB)),
++                      label: const Text(
++                        'ADD COMPONENT',
++                        style: TextStyle(
++                          fontSize: 12,
++                          fontWeight: FontWeight.w700,
++                          color: Color(0xFF2563EB),
++                        ),
++                      ),
++                    ),
++
++                    // Error
++                    if (_error != null)
++                      Padding(
++                        padding: const EdgeInsets.only(top: 8, bottom: 4),
++                        child: Container(
++                          padding: const EdgeInsets.symmetric(
++                              horizontal: 14, vertical: 10),
++                          decoration: BoxDecoration(
++                            color: const Color(0xFFFEF2F2),
++                            borderRadius: BorderRadius.circular(8),
++                            border: Border.all(
++                                color: const Color(0xFFFCA5A5)),
++                          ),
++                          child: Row(
++                            children: [
++                              const Icon(Icons.error_outline,
++                                  color: Color(0xFFDC2626), size: 18),
++                              const SizedBox(width: 8),
++                              Expanded(
++                                child: Text(_error!,
++                                    style: const TextStyle(
++                                        fontSize: 12,
++                                        color: Color.fromRGBO(153, 27, 27, 1))),
++                              ),
++                            ],
++                          ),
++                        ),
++                      ),
++                    const SizedBox(height: 12),
++                  ],
++                ),
++              ),
++            ),
++
++            // ── Footer ────────────────────────────────────────────
++            const Divider(height: 1),
++            Padding(
++              padding:
++                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
++              child: Row(
++                mainAxisAlignment: MainAxisAlignment.end,
++                children: [
++                  OutlinedButton(
++                    onPressed: _saving
++                        ? null
++                        : () => Navigator.of(context).pop(false),
++                    style: OutlinedButton.styleFrom(
++                      foregroundColor: const Color(0xFF64748B),
++                      side: const BorderSide(color: Color(0xFFCBD5E1)),
++                      textStyle: const TextStyle(
++                          fontSize: 13, fontWeight: FontWeight.w700),
++                      padding: const EdgeInsets.symmetric(
++                          horizontal: 20, vertical: 12),
++                      shape: RoundedRectangleBorder(
++                          borderRadius: BorderRadius.circular(10)),
++                    ),
++                    child: const Text('CANCEL'),
++                  ),
++                  const SizedBox(width: 10),
++                  ElevatedButton.icon(
++                    onPressed: _saving ? null : _save,
++                    icon: _saving
++                        ? const SizedBox(
++                            height: 14,
++                            width: 14,
++                            child: CircularProgressIndicator(
++                                strokeWidth: 2, color: Colors.white),
++                          )
++                        : const Icon(Icons.shopping_cart_outlined,
++                            size: 16),
++                    label: const Text('SAVE BOM'),
++                    style: ElevatedButton.styleFrom(
++                      backgroundColor: const Color(0xFF2563EB),
++                      foregroundColor: Colors.white,
++                      textStyle: const TextStyle(
++                          fontSize: 13, fontWeight: FontWeight.w700),
++                      padding: const EdgeInsets.symmetric(
++                          horizontal: 24, vertical: 12),
++                      shape: RoundedRectangleBorder(
++                          borderRadius: BorderRadius.circular(10)),
++                      elevation: 0,
++                    ),
++                  ),
++                ],
++              ),
++            ),
++          ],
++        ),
++      ),
++    );
++  }
++
++  Widget _sectionLabel(String label) {
++    return Padding(
++      padding: const EdgeInsets.only(bottom: 10),
++      child: Text(
++        label,
++        style: const TextStyle(
++          fontSize: 10,
++          fontWeight: FontWeight.w700,
++          letterSpacing: 1.1,
++          color: Color(0xFF94A3B8),
++        ),
++      ),
++    );
++  }
++
++  Widget _buildComponentCard(int index) {
++    final row = _components[index];
++    return Container(
++      margin: const EdgeInsets.only(bottom: 12),
++      decoration: BoxDecoration(
++        color: const Color(0xFFF8FAFC),
++        borderRadius: BorderRadius.circular(12),
++        border: Border.all(color: const Color(0xFFE2E8F0)),
++      ),
++      padding: const EdgeInsets.all(14),
++      child: Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          // Title + delete
++          Row(
++            children: [
++              Text(
++                'Component #${index + 1}',
++                style: const TextStyle(
++                  fontSize: 13,
++                  fontWeight: FontWeight.w700,
++                  color: Color(0xFF1E293B),
++                ),
++              ),
++              const Spacer(),
++              if (_components.length > 1)
++                IconButton(
++                  icon: const Icon(Icons.delete_outline,
++                      size: 18, color: Color(0xFF94A3B8)),
++                  onPressed: () => setState(() {
++                    row.dispose();
++                    _components.removeAt(index);
++                  }),
++                  padding: EdgeInsets.zero,
++                  constraints: const BoxConstraints(),
++                ),
++            ],
++          ),
++          const SizedBox(height: 10),
++
++          // Raw Material search (full-width)
++          Column(
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              if (row.combinationId != null)
++                GestureDetector(
++                  onTap: () => setState(() {
++                    row.combinationId = null;
++                    row.combinationName = null;
++                    row.searchResults = [];
++                    row.searchQuery = '';
++                  }),
++                  child: Container(
++                    padding: const EdgeInsets.symmetric(
++                        horizontal: 12, vertical: 13),
++                    decoration: BoxDecoration(
++                      color: const Color(0xFFEFF6FF),
++                      borderRadius: BorderRadius.circular(8),
++                      border: Border.all(
++                          color: const Color(0xFF2563EB),
++                          width: 1.5),
++                    ),
++                    child: Row(
++                      children: [
++                        Expanded(
++                          child: Text(
++                            row.combinationName ?? '—',
++                            style: const TextStyle(
++                              fontSize: 13,
++                              fontWeight: FontWeight.w700,
++                              color: Color(0xFF1E293B),
++                            ),
++                            overflow: TextOverflow.ellipsis,
++                          ),
++                        ),
++                        const Icon(Icons.close,
++                            size: 14, color: Color(0xFF2563EB)),
++                      ],
++                    ),
++                  ),
++                )
++              else
++                _SearchField(
++                  hint: 'Raw Material Combination',
++                  searching: row.searching,
++                  results: row.searchResults,
++                  onChanged: (q) => _searchCombinations(row, q),
++                  onSelected: (item) => setState(() {
++                    row.combinationId = item['id']?.toString();
++                    row.combinationName =
++                        item['product_name']?.toString();
++                    row.searchResults = [];
++                    row.searchQuery = '';
++                  }),
++                ),
++              const SizedBox(height: 4),
++              const Text(
++                'The ingredient/input product combination.',
++                style: TextStyle(
++                    fontSize: 10, color: Color(0xFF94A3B8)),
++              ),
++            ],
++          ),
++          const SizedBox(height: 10),
++          // Qty + Unit + Scrap % in a compact row below
++          Row(
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              // Qty
++              Expanded(
++                flex: 2,
++                child: TextField(
++                  controller: row.qtyCtrl,
++                  keyboardType:
++                      const TextInputType.numberWithOptions(decimal: true),
++                  decoration: InputDecoration(
++                    labelText: 'Qty',
++                    labelStyle: const TextStyle(
++                        fontSize: 12, color: Color(0xFF64748B)),
++                    border: OutlineInputBorder(
++                        borderRadius: BorderRadius.circular(8)),
++                    focusedBorder: OutlineInputBorder(
++                      borderRadius: BorderRadius.circular(8),
++                      borderSide: const BorderSide(
++                          color: Color(0xFF2563EB), width: 2),
++                    ),
++                    contentPadding: const EdgeInsets.symmetric(
++                        horizontal: 10, vertical: 14),
++                  ),
++                ),
++              ),
++              const SizedBox(width: 8),
++              // Unit (optional)
++              Expanded(
++                flex: 3,
++                child: _unitsLoading
++                    ? const SizedBox(height: 52)
++                    : DropdownButtonFormField<String?>(
++                        initialValue: row.unitId,
++                        isExpanded: true,
++                        decoration: InputDecoration(
++                          labelText: 'Unit (optional)',
++                          labelStyle: const TextStyle(
++                              fontSize: 12, color: Color(0xFF64748B)),
++                          border: OutlineInputBorder(
++                              borderRadius: BorderRadius.circular(8)),
++                          focusedBorder: OutlineInputBorder(
++                            borderRadius: BorderRadius.circular(8),
++                            borderSide: const BorderSide(
++                                color: Color(0xFF2563EB), width: 2),
++                          ),
++                          contentPadding: const EdgeInsets.symmetric(
++                              horizontal: 10, vertical: 14),
++                        ),
++                        hint: const Text('Auto',
++                            style: TextStyle(fontSize: 12)),
++                        items: [
++                          const DropdownMenuItem<String?>(
++                            value: null,
++                            child: Text('Auto',
++                                overflow: TextOverflow.ellipsis),
++                          ),
++                          for (final u in _units)
++                            DropdownMenuItem<String?>(
++                              value: u['id']?.toString(),
++                              child: Text(u['code']?.toString() ?? '—',
++                                  overflow: TextOverflow.ellipsis),
++                            ),
++                        ],
++                        onChanged: (v) => setState(() => row.unitId = v),
++                      ),
++              ),
++              const SizedBox(width: 8),
++              // Scrap %
++              Expanded(
++                flex: 2,
++                child: TextField(
++                  controller: row.scrapCtrl,
++                  keyboardType:
++                      const TextInputType.numberWithOptions(decimal: true),
++                  decoration: InputDecoration(
++                    labelText: 'Scrap %',
++                    labelStyle: const TextStyle(
++                        fontSize: 12, color: Color(0xFF64748B)),
++                    border: OutlineInputBorder(
++                        borderRadius: BorderRadius.circular(8)),
++                    focusedBorder: OutlineInputBorder(
++                      borderRadius: BorderRadius.circular(8),
++                      borderSide: const BorderSide(
++                          color: Color(0xFF2563EB), width: 2),
++                    ),
++                    contentPadding: const EdgeInsets.symmetric(
++                        horizontal: 10, vertical: 14),
++                  ),
++                ),
++              ),
++            ],
++          ),
++          const SizedBox(height: 4),
++          const Text(
++            'Auto from inventory batch if blank',
++            style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
++          ),
++        ],
++      ),
++    );
++  }
++}
++
++/// A search-as-you-type field that shows a results overlay.
++class _SearchField extends StatefulWidget {
++  final String hint;
++  final bool searching;
++  final List<Map<String, dynamic>> results;
++  final void Function(String) onChanged;
++  final void Function(Map<String, dynamic>) onSelected;
++
++  const _SearchField({
++    required this.hint,
++    required this.searching,
++    required this.results,
++    required this.onChanged,
++    required this.onSelected,
++  });
++
++  @override
++  State<_SearchField> createState() => _SearchFieldState();
++}
++
++class _SearchFieldState extends State<_SearchField> {
++  final _ctrl = TextEditingController();
++
++  @override
++  void dispose() {
++    _ctrl.dispose();
++    super.dispose();
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.start,
++      children: [
++        TextField(
++          controller: _ctrl,
++          onChanged: widget.onChanged,
++          decoration: InputDecoration(
++            labelText: widget.hint,
++            labelStyle: const TextStyle(
++                fontSize: 12, color: Color(0xFF64748B)),
++            border:
++                OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
++            focusedBorder: OutlineInputBorder(
++              borderRadius: BorderRadius.circular(8),
++              borderSide:
++                  const BorderSide(color: Color(0xFF2563EB), width: 2),
++            ),
++            contentPadding:
++                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
++            suffixIcon: widget.searching
++                ? const Padding(
++                    padding: EdgeInsets.all(12),
++                    child: SizedBox(
++                        height: 14,
++                        width: 14,
++                        child: CircularProgressIndicator(strokeWidth: 2)),
++                  )
++                : const Icon(Icons.arrow_drop_down,
++                    color: Color(0xFF94A3B8)),
++          ),
++        ),
++        if (widget.results.isNotEmpty)
++          Container(
++            margin: const EdgeInsets.only(top: 2),
++            constraints: const BoxConstraints(maxHeight: 220),
++            decoration: BoxDecoration(
++              color: Colors.white,
++              borderRadius: BorderRadius.circular(8),
++              border: Border.all(color: const Color(0xFFE2E8F0)),
++              boxShadow: [
++                BoxShadow(
++                  color: Colors.black.withValues(alpha: 0.08),
++                  blurRadius: 8,
++                  offset: const Offset(0, 4),
++                ),
++              ],
++            ),
++            child: ListView.builder(
++              shrinkWrap: true,
++              padding: EdgeInsets.zero,
++              itemCount: widget.results.length,
++              itemBuilder: (_, i) {
++                final item = widget.results[i];
++                final name = item['product_name']?.toString() ?? '—';
++                return InkWell(
++                  onTap: () {
++                    _ctrl.text = name;
++                    widget.onSelected(item);
++                  },
++                  child: Padding(
++                    padding: const EdgeInsets.symmetric(
++                        horizontal: 14, vertical: 10),
++                    child: Text(name,
++                        style: const TextStyle(
++                            fontSize: 13, color: Color(0xFF1E293B))),
++                  ),
++                );
++              },
++            ),
++          ),
++      ],
++    );
++  }
++}
+\ No newline at end of file
+diff --git a/lib/services/store_owner_api_service.dart b/lib/services/store_owner_api_service.dart
+index b08e98d..004cc69 100644
+--- a/lib/services/store_owner_api_service.dart
++++ b/lib/services/store_owner_api_service.dart
+@@ -1402,6 +1402,41 @@ class StoreOwnerApiService {
+     }
+   }
+ 
++  /// Fetch all active order methods with their IDs.
++  /// POST /order-method/
++  static Future<List<Map<String, String>>> getOrderMethods(
++      String storeId) async {
++    try {
++      final response = await ApiService.post(
++        '/order-method/',
++        body: {
++          'customer_user_id': '',
++          'store_access': true,
++          'store_id': storeId,
++          'query': {},
++        },
++        useBearerToken: true,
++      );
++      if (response['statusCode'] == 200 && response['data'] != null) {
++        final data = response['data'];
++        final raw = data['response'];
++        if (raw is List) {
++          return raw
++              .whereType<Map>()
++              .where((m) => m['id'] != null && m['order_method_name'] != null)
++              .map((m) => {
++                    'id': m['id'].toString(),
++                    'name': m['order_method_name'].toString(),
++                  })
++              .toList();
++        }
++      }
++      return [];
++    } catch (_) {
++      return []; // non-fatal
++    }
++  }
++
+   /// Fetch orders filtered by status (paginated)
+   /// POST /orders/
+   ///
+@@ -1516,4 +1551,137 @@ class StoreOwnerApiService {
+       throw Exception('Failed to fetch BOM details: $e');
+     }
+   }
++
++  /// Fetch racks filtered by a specific godown.
++  /// POST /racks/  (with godown query filter)
++  static Future<List<Map<String, dynamic>>> getRacksByGodown({
++    required String storeId,
++    required String godownId,
++  }) async {
++    try {
++      final response = await ApiService.post(
++        '/racks/',
++        body: {
++          'store_id': storeId,
++          'store_access': true,
++          'create': false,
++          'query': {
++            'godown': godownId,
++            'is_active': true,
++          },
++        },
++        useBearerToken: true,
++      );
++      if (response['statusCode'] == 200 && response['data'] != null) {
++        final data = response['data'];
++        if (data['status'] == 200 && data['response'] != null) {
++          return List<Map<String, dynamic>>.from(data['response']);
++        }
++      }
++      return [];
++    } catch (e) {
++      throw Exception('Failed to fetch racks: $e');
++    }
++  }
++
++  /// Execute production from a BOM.
++  /// POST /bom-operations/  { "produce": true, ... }
++  static Future<Map<String, dynamic>> produceFromBom({
++    required String bomId,
++    required String storeId,
++    required String godownId,
++    required int quantityMultiplier,
++    required String date, // 'YYYY-MM-DD'
++    String? rackId,
++  }) async {
++    try {
++      final body = <String, dynamic>{
++        'produce': true,
++        'bom_id': bomId,
++        'store_id': storeId,
++        'godown_id': godownId,
++        'quantity_multiplier': quantityMultiplier,
++        'date': date,
++      };
++      if (rackId != null && rackId.isNotEmpty) body['rack_id'] = rackId;
++
++      final response = await ApiService.post(
++        '/bom-operations/',
++        body: body,
++        useBearerToken: true,
++      );
++      if (response['data'] != null) {
++        return Map<String, dynamic>.from(response['data']);
++      }
++      return {};
++    } catch (e) {
++      throw Exception('Failed to execute production: $e');
++    }
++  }
++
++  /// Search product combinations by query string.
++  /// POST /search-product-combinations/
++  static Future<Map<String, dynamic>> searchProductCombinations({
++    required String storeId,
++    required String query,
++    int page = 1,
++    int pageSize = 10,
++  }) async {
++    try {
++      final response = await ApiService.post(
++        '/search-product-combinations/',
++        body: {
++          'query': query,
++          'store_access': true,
++          'store_id': storeId,
++          'page': page,
++          'page_size': pageSize,
++        },
++        useBearerToken: true,
++      );
++      if (response['data'] != null) {
++        return Map<String, dynamic>.from(response['data']);
++      }
++      return {};
++    } catch (e) {
++      throw Exception('Failed to search combinations: $e');
++    }
++  }
++
++  /// Create a new BOM.
++  /// POST /bom-operations/  { "create": true, ... }
++  static Future<Map<String, dynamic>> saveBom({
++    required String storeId,
++    required String finishedCombinationId,
++    required double outputQuantity,
++    required String outputUnitId,
++    String? orderMethodId, // universal recipe: null = all methods
++    required List<Map<String, dynamic>> components,
++    // each: { raw_combination_id, quantity, unit_id (opt), scrap_percentage }
++  }) async {
++    try {
++      final body = <String, dynamic>{
++        'create': true,
++        'store_id': storeId,
++        'store_access': true,
++        'finished_combination_id': finishedCombinationId,
++        'output_quantity': outputQuantity,
++        'output_unit_id': outputUnitId,
++        'components': components,
++      };
++      if (orderMethodId != null) body['order_method_id'] = orderMethodId;
++
++      final response = await ApiService.post(
++        '/bom-operations/',
++        body: body,
++        useBearerToken: true,
++      );
++      if (response['data'] != null) {
++        return Map<String, dynamic>.from(response['data']);
++      }
++      return {};
++    } catch (e) {
++      throw Exception('Failed to save BOM: $e');
++    }
++  }
+ }
+-- 
+2.52.0.windows.1
+

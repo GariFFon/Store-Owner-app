@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:exanor/screens/order_details_screen.dart' as exanor_order_details;
 import 'dart:ui';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -288,7 +289,14 @@ class NotificationService {
     // 2. Play Order Sound
     playOrderSound();
 
-    // Show a premium glassmorphic SnackBar
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color primaryColor = const Color(0xFF2563EB); // Modern Blue tone
+    final Color bgColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF); // Slate dark vs very light blue
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double horizontalMargin = screenWidth > 600 ? (screenWidth - 450) / 2 : 16.0;
+
+    // Show a premium SnackBar styled like the requested design
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Material(
@@ -296,158 +304,154 @@ class NotificationService {
           child: InkWell(
             onTap: () {
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              _handleNotificationTap(message);
+              handleNotificationTap(message);
               // Stop sound when notification is tapped/dismissed
               stopSound();
             },
             borderRadius: BorderRadius.circular(24),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF1E1E1E).withOpacity(0.90)
-                        : Colors.white.withOpacity(0.95),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.grey.withOpacity(0.2),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 24,
-                        offset: const Offset(0, 12),
-                        spreadRadius: 2,
-                      ),
-                    ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: primaryColor.withOpacity(0.3),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.08), // Softer, colored shadow instead of black
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                    spreadRadius: 0,
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // 1. Icon Container with Gradient
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Theme.of(context).colorScheme.primary,
-                              const Color(0xFF8B5CF6), // Violet accent
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primary.withOpacity(0.4),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // 1. Icon Container
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.shopping_bag_rounded, // Better icon for "New Order"
+                      color: primaryColor,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+
+                  // 2. Text Content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (notification.title != null)
+                          Text(
+                            notification.title!,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              letterSpacing: 0.2,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
                             ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.notifications_active_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        if (notification.title != null && notification.body != null)
+                          const SizedBox(height: 4),
+                        if (notification.body != null)
+                          Text(
+                            notification.body!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.3,
+                              color: isDark ? Colors.white70 : const Color(0xFF475569),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
 
-                      // 2. Vertical Divider
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Theme.of(context).dividerColor.withOpacity(0.15),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // 3. Text Content
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (notification.title != null)
-                              Text(
-                                notification.title!,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                  letterSpacing: 0.2,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            if (notification.title != null &&
-                                notification.body != null)
-                              const SizedBox(height: 4),
-                            if (notification.body != null)
-                              Text(
-                                notification.body!,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  height: 1.3,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface.withOpacity(0.65),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 20,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // 4. Dismiss Button
+                  // 3. Action Buttons (View & Close)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () {
                             ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                            stopSound(); // Stop sound on dismiss
+                            stopSound();
+                            handleNotificationTap(message); // Navigate to order
                           },
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(20),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
+                              horizontal: 12,
+                              vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.error.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
+                              color: primaryColor,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryColor.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                )
+                              ],
                             ),
-                            child: Text(
-                              'Dismiss',
+                            child: const Text(
+                              'View',
                               style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                                fontSize: 11,
+                                color: Colors.white,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                letterSpacing: 0.2,
+                                letterSpacing: 0.3,
                               ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Cancel / Cross Button
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            stopSound();
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: isDark ? Colors.white70 : Colors.black54,
                             ),
                           ),
                         ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -455,23 +459,43 @@ class NotificationService {
         backgroundColor: Colors.transparent,
         elevation: 0,
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        margin: EdgeInsets.fromLTRB(horizontalMargin, 0, horizontalMargin, 24),
         padding: EdgeInsets.zero,
-        duration: const Duration(seconds: 6), // 6 seconds duration
+        duration: const Duration(seconds: 8), // 8 seconds duration
       ),
     );
   }
 
   /// Handle notification tap
-  static void _handleNotificationTap(RemoteMessage message) {
+  static void handleNotificationTap(RemoteMessage message) {
     developer.log(
-      '👆 NotificationService: Notification tapped - opening app',
+      '👆 NotificationService: Notification tapped - handling navigation',
       name: 'Notification',
     );
 
-    // Simply dismiss the notification snackbar/dialog
-    // The app is already open since this is called from foreground notifications
-    // No additional navigation is needed
+    final context = _navigatorKey?.currentContext;
+    if (context != null) {
+      final data = message.data;
+      final String? orderId = data['orderId'] ?? data['order_id'];
+      final String? storeId = data['storeId'] ?? data['store_id'];
+
+      if (orderId != null && orderId.isNotEmpty) {
+        developer.log('Navigating directly to order: $orderId', name: 'Notification');
+        // If orderId is provided, push the OrderDetailsScreen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => exanor_order_details.OrderDetailsScreen(
+              orderId: orderId,
+              storeId: storeId ?? '', // Requires storeId
+            ),
+          ),
+        );
+      } else {
+        // Fallback: switch tab
+        developer.log('Order ID not found, jumping to Orders tab', name: 'Notification');
+        EventBus().fire(NavigateToTabEvent('orders'));
+      }
+    }
   }
 
   /// Show a custom dialog for important notifications
@@ -521,7 +545,7 @@ class NotificationService {
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  _handleNotificationTap(message);
+                  handleNotificationTap(message);
                 },
                 child: const Text('View'),
               ),

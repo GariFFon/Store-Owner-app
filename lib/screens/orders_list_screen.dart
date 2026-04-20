@@ -333,6 +333,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.black,
       ),
       child: Scaffold(
         key: _scaffoldKey,
@@ -443,7 +444,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                             'MENU',
                             style: TextStyle(
                               fontSize: 10,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w700,
                               color: Colors.blueGrey[400],
                               letterSpacing: 1.2,
                             ),
@@ -478,10 +479,10 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             TranslatedText(
-                              'Store Orders',
+                              (_storeName ?? 'Store Orders').split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}' : '').join(' '),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF1E293B),
@@ -503,11 +504,11 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                 ),
                               ),
                               child: TranslatedText(
-                                'HISTORY',
+                                'ORDER HISTORY',
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
-                                  color: Colors.blue,
+                                  color: Colors.blue[800],
                                   letterSpacing: 1.2,
                                 ),
                               ),
@@ -526,7 +527,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                               _selectedDateRange != null ? 'CLEAR' : 'DATE',
                               style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w700,
                                 color: _selectedDateRange != null
                                     ? Colors.red[400]
                                     : Colors.blueGrey[400],
@@ -594,7 +595,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                               'SEARCH',
                               style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w700,
                                 color: Colors.blueGrey[400],
                                 letterSpacing: 1.2,
                               ),
@@ -641,6 +642,55 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                           ],
                         ),
                       ),
+                      if (Theme.of(context).platform == TargetPlatform.windows) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 70,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TranslatedText(
+                                'REFRESH',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 1.2,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: () => _fetchOrders(),
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.blueGrey.withOpacity(0.1),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.refresh_rounded,
+                                    size: 24,
+                                    color: Colors.blueGrey[700],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
 
@@ -742,7 +792,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                   opt['label'] ?? '',
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: isSelected ? Colors.white : Colors.blueGrey[700],
                   ),
                 ),
@@ -1021,7 +1071,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                   userName,
                                   style: const TextStyle(
                                     fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w600,
                                     color: Colors.black87,
                                     letterSpacing: -0.3,
                                   ),
@@ -1073,7 +1123,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                 .toUpperCase(),
                             style: TextStyle(
                               fontSize: 9,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: statusColor,
                               letterSpacing: 0.5,
                             ),
@@ -1299,7 +1349,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                               total,
                               style: const TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.black87,
                               ),
                             ),
@@ -1411,3 +1461,4 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     );
   }
 }
+

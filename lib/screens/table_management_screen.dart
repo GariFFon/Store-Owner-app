@@ -454,97 +454,192 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
         ]),
       );
 
-  // ── Build ────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: const Color(0xFFF1F5F9), // Match the bg color
       body: Column(
         children: [
-          _buildAppBar(),
-          Expanded(child: _buildBody()),
+          _buildExpandedBanner(),
+          Expanded(
+            child: Transform.translate(
+              offset: const Offset(0, -20),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                child: Container(
+                  color: Colors.white,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      Expanded(child: _buildBody()),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildExpandedBanner() {
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
     return Container(
-      color: Colors.white,
-      child: SafeArea(
-        bottom: false,
-        child: Column(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
           children: [
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Transform.rotate(
+                angle: -math.pi / 6,
+                child: Icon(
+                  Icons.table_restaurant_outlined,
+                  size: 180,
+                  color: watermarkColor.withOpacity(0.6),
+                ),
+              ),
+            ),
+            // Content
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: EdgeInsets.fromLTRB(
+                12,
+                MediaQuery.of(context).padding.top + 8,
+                12,
+                48, // generous bottom padding to allow for overlap
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 20, color: Color(0xFF334155)),
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    style: IconButton.styleFrom(
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Table Management',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF1E293B),
-                            letterSpacing: -0.5,
+                  // Back Button
+                  InkWell(
+                    onTap: () => Navigator.pop(context),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.blueGrey.withOpacity(0.5),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: 2),
+                          child: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.black87,
+                            size: 20,
                           ),
                         ),
-                        Text(
-                          "Manage your store's dining tables, reservations, and sections.",
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Title
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Table Management',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF94A3B8),
-                            height: 1.3,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B),
+                            letterSpacing: -0.5,
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                          ),
+                          child: Text(
+                            "${_tables.length} TABLES",
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.blue,
+                              letterSpacing: 1.2,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  // Refresh
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded,
-                        size: 22, color: Color(0xFF5B4FE8)),
-                    onPressed: _fetchTables,
-                  ),
-                  const SizedBox(width: 4),
-                  // Add Table
-                  ElevatedButton.icon(
-                    onPressed: _showCreateDialog,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Add\nTable',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5B4FE8),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                  // Add Button
+                  SizedBox(
+                    width: 70,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'ADD',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.blueGrey[400],
+                            letterSpacing: 1.2,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        InkWell(
+                          onTap: _showCreateDialog,
+                          borderRadius: BorderRadius.circular(30),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blueGrey.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.add_rounded,
+                              size: 24,
+                              color: Colors.blueGrey[700],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
           ],
         ),
       ),
@@ -558,17 +653,17 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
     if (_error != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline_rounded,
-                  size: 52, color: Color(0xFFCBD5E1)),
-              const SizedBox(height: 12),
-              Text(_error!,
-                  style: const TextStyle(
-                      fontSize: 14, color: Color(0xFF64748B)),
-                  textAlign: TextAlign.center),
+              Icon(Icons.error_outline_rounded, size: 60, color: Colors.red[300]),
+              const SizedBox(height: 16),
+              Text(
+                _error!,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: _fetchTables,
@@ -589,18 +684,11 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.table_restaurant_outlined,
-                size: 64, color: Color(0xFFCBD5E1)),
-            const SizedBox(height: 12),
-            const Text('No tables yet',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E293B))),
-            const SizedBox(height: 6),
-            const Text('Tap "Add Table" to create your first table.',
-                style:
-                    TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
+            const Icon(Icons.table_restaurant_outlined, size: 64, color: Color(0xFFE2E8F0)),
+            const SizedBox(height: 16),
+            const Text('No tables yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+            const SizedBox(height: 8),
+            const Text('Tap the + icon above to create your first table.', style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _showCreateDialog,
@@ -622,19 +710,34 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
     return RefreshIndicator(
       onRefresh: _fetchTables,
       color: const Color(0xFF5B4FE8),
-      child: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.85,
-        ),
-        itemCount: _tables.length,
-        itemBuilder: (_, i) => _TableCard(
-          table: _tables[i],
-          onEdit: () => _showEditDialog(_tables[i]),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          int crossAxisCount = 2;
+          if (constraints.maxWidth > 1200) {
+            crossAxisCount = 5;
+          } else if (constraints.maxWidth > 900) {
+            crossAxisCount = 4;
+          } else if (constraints.maxWidth > 600) {
+            crossAxisCount = 3;
+          } else if (constraints.maxWidth < 360) {
+            crossAxisCount = 1;
+          }
+          
+          return GridView.builder(
+            padding: const EdgeInsets.all(20),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 20,
+              mainAxisSpacing: 20,
+              childAspectRatio: 0.85,
+            ),
+            itemCount: _tables.length,
+            itemBuilder: (_, i) => _TableCard(
+              table: _tables[i],
+              onEdit: () => _showEditDialog(_tables[i]),
+            ),
+          );
+        },
       ),
     );
   }
@@ -654,188 +757,183 @@ class _TableCard extends StatelessWidget {
     final additional = table['additional_data'] as Map? ?? {};
     final tableNumber = table['table_number']?.toString() ?? '—';
     final seats = additional['seats'] ?? 0;
-    final section =
-        additional['section']?.toString() ?? '—';
+    final section = additional['section']?.toString() ?? '—';
     final isActive = table['is_active'] == true;
     final isReserved = table['is_reserved'] == true;
 
-    final statusColor = !isActive
+    final Color primaryColor = !isActive
         ? const Color(0xFF94A3B8)
         : isReserved
-            ? const Color(0xFFD97706)
-            : const Color(0xFF16A34A);
-    final statusLabel =
-        !isActive ? 'Inactive' : isReserved ? 'Reserved' : 'Available';
-    final ringColor = !isActive
-        ? const Color(0xFFCBD5E1)
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF10B981);
+            
+    final Color bgColor = !isActive
+        ? const Color(0xFFF8FAFC)
         : isReserved
-            ? const Color(0xFFD97706)
-            : const Color(0xFF16A34A);
+            ? const Color(0xFFFFFBEB)
+            : const Color(0xFFF0FDF4);
+            
+    final String statusLabel = !isActive ? 'Inactive' : isReserved ? 'Reserved' : 'Available';
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: primaryColor.withOpacity(0.2),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Edit button
-          Positioned(
-            top: 10,
-            right: 10,
-            child: GestureDetector(
-              onTap: onEdit,
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.edit_outlined,
-                    size: 15, color: Color(0xFF64748B)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // Background Accent
+            Positioned(
+              right: -20,
+              bottom: -20,
+              child: Icon(
+                Icons.table_restaurant_rounded,
+                size: 100,
+                color: bgColor.withOpacity(0.6),
               ),
             ),
-          ),
-
-          // Content
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Seat icons + ring
-                _TableVisual(
-                  tableNumber: tableNumber,
-                  ringColor: ringColor,
-                  seats: seats is int ? seats : int.tryParse(seats.toString()) ?? 0,
-                ),
-
-                const SizedBox(height: 10),
-
-                // Status dot + label
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: statusColor,
-                        shape: BoxShape.circle,
+            
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Top Row (Status & Edit)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              statusLabel.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: primaryColor,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      statusLabel,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: statusColor,
+                      InkWell(
+                        onTap: onEdit,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.tune_rounded,
+                            size: 16,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 4),
-
-                // Seats | Section
-                Text(
-                  '$seats Seat${seats == 1 ? '' : 's'} | $section Section',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
+                    ],
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                  
+                  // Center / Main Info
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TABLE',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF94A3B8),
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      Text(
+                        tableNumber,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF1E293B),
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  // Bottom Info
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.people_alt_rounded, size: 14, color: Color(0xFF94A3B8)),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$seats',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          section.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF475569),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
-
-// ── Table visual: ring + table number + seat icons ──────────────────────────
-class _TableVisual extends StatelessWidget {
-  final String tableNumber;
-  final Color ringColor;
-  final int seats;
-
-  const _TableVisual({
-    required this.tableNumber,
-    required this.ringColor,
-    required this.seats,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 120,
-      height: 120,
-      child: CustomPaint(
-        painter: _TablePainter(
-          ringColor: ringColor,
-          seats: seats,
-        ),
-        child: Center(
-          child: Text(
-            tableNumber,
-            style: TextStyle(
-              fontSize: tableNumber.length > 4 ? 14 : 18,
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFF1E293B),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TablePainter extends CustomPainter {
-  final Color ringColor;
-  final int seats;
-
-  _TablePainter({required this.ringColor, required this.seats});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final ringR = size.width * 0.36;
-    const seatR = 7.0;
-    const orbitR = 52.0;
-
-    // Ring
-    final ringPaint = Paint()
-      ..color = ringColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5;
-    canvas.drawCircle(Offset(cx, cy), ringR, ringPaint);
-
-    // Seat dots around the ring
-    final seatPaint = Paint()..color = ringColor;
-    final count = seats.clamp(0, 8);
-    for (int i = 0; i < count; i++) {
-      final angle = (2 * math.pi / count) * i - math.pi / 2;
-      final sx = cx + orbitR * math.cos(angle);
-      final sy = cy + orbitR * math.sin(angle);
-      canvas.drawCircle(Offset(sx, sy), seatR, seatPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _TablePainter old) =>
-      old.ringColor != ringColor || old.seats != seats;
 }

@@ -37,7 +37,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   List<dynamic> _storeBankDetails = [];
   String? _errorMessage;
   Timer? _statusTimer;
-  bool _isUpdatingStatus = false;
   bool _isLoadingStatusOptions = true; // Initialize to true
 
   @override
@@ -144,8 +143,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     String? bankId,
     double? amountPaid,
   }) async {
-    setState(() => _isUpdatingStatus = true);
-
     try {
       final requestBody = {
         "order_id": widget.orderId,
@@ -193,10 +190,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: TranslatedText('Error: ${e.toString()}')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isUpdatingStatus = false);
       }
     }
   }
@@ -441,7 +434,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                               color: theme.colorScheme.onSurface,
                             ),
                           ),
@@ -522,7 +515,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                               fontSize: 13, // Smaller text size
                             ),
                           ),
@@ -648,8 +641,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
                                 color: Color(0xFF1E293B), // Slate 800
                                 letterSpacing: -0.5,
                                 height: 1.0,
@@ -672,7 +665,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                               'ORDER DETAILS',
                               style: TextStyle(
                                 fontSize: 9,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                                 color: Color(0xFF1565C0),
                                 letterSpacing: 1.2,
                               ),
@@ -762,700 +755,364 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 
-  Widget _buildDashedDivider(ThemeData theme) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final boxWidth = constraints.constrainWidth();
-        const dashWidth = 4.0;
-        const dashHeight = 1.0;
-        final dashCount = (boxWidth / (2 * dashWidth)).floor();
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Flex(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            direction: Axis.horizontal,
-            children: List.generate(dashCount, (_) {
-              return SizedBox(
-                width: dashWidth,
-                height: dashHeight,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(color: Colors.grey[300]),
-                ),
-              );
-            }),
-          ),
-        );
-      },
-    );
-  }
-
   void _showUpdateStatusSheet() {
     _fetchStoreBankDetails();
 
-    // Move state variables outside StatefulBuilder to prevent recreation
-    String? selectedStatusId;
-    String? selectedStatusValue;
+    String? expandedStatusId; // Only set if requires payment
+    String? updatingStatusId; // To show spinner directly on the card
     String? selectedBankId;
     final TextEditingController amountController = TextEditingController();
 
-    // Pre-fill amount with Grand Total
     final double grandTotal =
         double.tryParse(_orderData?['grand_total']?.toString() ?? '0') ?? 0.0;
     amountController.text = grandTotal.toStringAsFixed(2);
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateSheet) {
-            final theme = Theme.of(context);
+    final isTablet = MediaQuery.of(context).size.width > 600;
 
-            final isOrderReturned =
-                selectedStatusValue != null &&
-                (selectedStatusValue!.contains('order_returned') ||
-                    selectedStatusValue!.contains('order_partially_returned'));
+    Widget buildFloatingOptions(BuildContext context, StateSetter setStateSheet) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: isTablet ? 400 : 500,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+             if (_statusOptions.isEmpty)
+               Container(
+                 padding: const EdgeInsets.all(24),
+                 margin: const EdgeInsets.only(bottom: 16),
+                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                 child: const Center(
+                   child: TranslatedText('No further actions available.', style: TextStyle(color: Color(0xFF94A3B8)))
+                 )
+               )
+             else
+               Flexible(
+                 child: ListView.builder(
+                   shrinkWrap: true,
+                   physics: const BouncingScrollPhysics(),
+                   itemCount: _statusOptions.length + 1,
+                   itemBuilder: (context, index) {
+                     if (index == _statusOptions.length) {
+                       return AnimatedContainer(
+                         duration: const Duration(milliseconds: 250),
+                         curve: Curves.easeOutCubic,
+                         height: MediaQuery.of(context).viewInsets.bottom,
+                       );
+                     }
+                     final option = _statusOptions[index];
+                     final isExpanded = expandedStatusId == option['id'];     
+                     final isUpdatingThis = updatingStatusId == option['id'];
+                     final statusValue = option['status'] as String;
+                     final statusColor = _getStatusColorFromString(statusValue);
 
-            final isOrderCompleted =
-                selectedStatusValue != null &&
-                selectedStatusValue!.contains('order_completed');
+                     final isOrderReturned = statusValue.contains('order_returned') || statusValue.contains('order_partially_returned');
+                     final isOrderCompleted = statusValue.contains('order_completed');
+                     final isOrderPartiallyPaid = statusValue.contains('order_partially_paid');
+                     final requiresPaymentInfo = isOrderReturned || isOrderCompleted || isOrderPartiallyPaid;
+                     
+                     // Include partial return so they can input the refund amount
+                     final requiresAmount = isOrderCompleted || isOrderPartiallyPaid || statusValue.contains('order_partially_returned');
+                     
+                     final isCancel = statusValue.contains('order_cancelled');
+                     final isPartialReturn = statusValue.contains('order_partially_returned');
 
-            final isOrderPartiallyPaid =
-                selectedStatusValue != null &&
-                selectedStatusValue!.contains('order_partially_paid');
+                     void proceedUpdate() {
+                        setStateSheet(() => updatingStatusId = option['id']);
+                        final amount = requiresAmount ? double.tryParse(amountController.text) : null;
+                        _updateOrderStatus(statusValue, option['id'], bankId: selectedBankId, amountPaid: amount).whenComplete(() {
+                           if(mounted) { try { setStateSheet(() => updatingStatusId = null); } catch(_) {} }
+                        });
+                     }
 
-            final showPaymentOptions =
-                isOrderReturned || isOrderCompleted || isOrderPartiallyPaid;
-            final showAmountInput = isOrderCompleted || isOrderPartiallyPaid;
+                     void handleAction() {
+                        if (isCancel || isPartialReturn) {
+                           showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                 title: TranslatedText(isCancel ? 'Cancel Order?' : 'Confirm Partial Return', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                 content: TranslatedText(
+                                    isCancel 
+                                       ? 'Are you absolutely sure you want to cancel this order? This action cannot be reversed.' 
+                                       : 'You are processing a partial return for ₹${amountController.text}. Do you want to proceed?',
+                                    style: const TextStyle(color: Color(0xFF64748B))
+                                 ),
+                                 backgroundColor: Colors.white,
+                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                 actions: [
+                                    TextButton(
+                                       onPressed: () => Navigator.pop(ctx),
+                                       child: const TranslatedText('No, Go Back', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700)),
+                                    ),
+                                    ElevatedButton(
+                                       style: ElevatedButton.styleFrom(
+                                          backgroundColor: statusColor,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          elevation: 0,
+                                       ),
+                                       onPressed: () {
+                                          Navigator.pop(ctx);
+                                          proceedUpdate();
+                                       },
+                                       child: const TranslatedText('Yes, Confirm', style: TextStyle(fontWeight: FontWeight.w600)),
+                                    )
+                                 ]
+                              )
+                           );
+                        } else {
+                           proceedUpdate();
+                        }
+                     }
 
-            return Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.85,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Handle
-                    Center(
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 12, bottom: 8),
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
+                     return AnimatedContainer(
+                       duration: const Duration(milliseconds: 250),
+                       curve: Curves.easeOutCubic,
+                       margin: const EdgeInsets.only(bottom: 12),
+                       decoration: BoxDecoration(
+                         color: Color.alphaBlend(statusColor.withOpacity(isExpanded ? 0.08 : 0.03), Colors.white),
+                         borderRadius: BorderRadius.circular(12),
+                         boxShadow: [
+                           BoxShadow(
+                             color: isExpanded ? statusColor.withOpacity(0.12) : Colors.black.withOpacity(0.04),
+                             blurRadius: isExpanded ? 16 : 8,
+                             offset: Offset(0, isExpanded ? 6 : 2),
+                           ),
+                         ],
+                         border: isExpanded ? Border.all(color: statusColor.withOpacity(0.3), width: 1.5) : Border.all(color: statusColor.withOpacity(0.15), width: 1.0),
+                       ),
+                       child: ClipRRect(
+                         borderRadius: BorderRadius.circular(12),
+                         child: Material(
+                           color: Colors.transparent,
+                           child: Column(
+                             children: [
+                               // Header (Only Header handles expansion toggle)
+                               InkWell(
+                                 onTap: isUpdatingThis ? null : () {
+                                    if (requiresPaymentInfo || requiresAmount) {
+                                       setStateSheet(() {
+                                         if (expandedStatusId == option['id']) {
+                                           expandedStatusId = null;
+                                         } else {
+                                           expandedStatusId = option['id'];
+                                           if (selectedBankId == null && _storeBankDetails.isNotEmpty) {
+                                              selectedBankId = _storeBankDetails.first['id'];
+                                           }
+                                         }
+                                       });
+                                    } else {
+                                       handleAction(); // Trigger cancel confirmation, etc.
+                                    }
+                                 },
+                                 child: Padding(
+                                   padding: EdgeInsets.symmetric(horizontal: isExpanded ? 24 : 16, vertical: isExpanded ? 20 : 16),
+                                   child: Row(
+                                     children: [
+                                       Container(
+                                         padding: const EdgeInsets.all(10),
+                                         decoration: BoxDecoration(
+                                           color: isExpanded ? statusColor.withOpacity(0.15) : Colors.transparent,
+                                           shape: BoxShape.circle,
+                                         ),
+                                         child: Icon(_getStatusIcon(statusValue), color: statusColor, size: 20),
+                                       ),
+                                       const SizedBox(width: 16),
+                                       Expanded(
+                                         child: TranslatedText(
+                                           option['status_title_for_seller'] ?? statusValue,
+                                           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Color(0xFF0F172A)),
+                                         )
+                                       ),
+                                       if (isUpdatingThis)
+                                         SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: statusColor))
+                                       else if (requiresPaymentInfo || requiresAmount)
+                                         Icon(isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: const Color(0xFF94A3B8))
+                                     ]
+                                   )
+                                 )
+                               ),
 
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          TranslatedText(
-                            'Update Status',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF1E293B),
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: Colors.grey,
-                            ),
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.grey.shade100,
-                              padding: const EdgeInsets.all(8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(height: 1, color: Colors.grey.withOpacity(0.2)),
-
-                    if (_isUpdatingStatus)
-                      Expanded(
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const CircularProgressIndicator(),
-                              const SizedBox(height: 16),
-                              TranslatedText(
-                                'Updating order...',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      Flexible(
-                        child: SingleChildScrollView(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Status Selection List
-                                ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: _statusOptions.length,
-                                  separatorBuilder: (context, index) =>
-                                      const SizedBox(height: 12),
-                                  itemBuilder: (context, index) {
-                                    final option = _statusOptions[index];
-                                    final isSelected =
-                                        selectedStatusId == option['id'];
-                                    final statusColor =
-                                        _getStatusColorFromString(
-                                          option['status'],
-                                        );
-
-                                    return InkWell(
-                                      onTap: () {
-                                        setStateSheet(() {
-                                          selectedStatusId = option['id'];
-                                          selectedStatusValue =
-                                              option['status'];
-                                        });
-                                      },
-                                      borderRadius: BorderRadius.circular(16),
-                                      child: AnimatedContainer(
-                                        duration: const Duration(
-                                          milliseconds: 200,
-                                        ),
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? Colors.white
-                                              : const Color(0xFFF8FAFC),
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          border: Border.all(
-                                            color: isSelected
-                                                ? statusColor
-                                                : Colors.transparent,
-                                            width: 2,
-                                          ),
-                                          boxShadow: isSelected
-                                              ? [
-                                                  BoxShadow(
-                                                    color: statusColor
-                                                        .withOpacity(0.15),
-                                                    blurRadius: 12,
-                                                    offset: const Offset(0, 4),
+                               // Expanded Content (Does not toggle collapse on accidental clicks)
+                               AnimatedSize(
+                                 duration: const Duration(milliseconds: 250),
+                                 curve: Curves.easeOutCubic,
+                                 alignment: Alignment.topCenter,
+                                 child: !isExpanded ? const SizedBox(width: double.infinity) : Column(
+                                   children: [
+                                     Padding(
+                                       padding: const EdgeInsets.only(left: 24, right: 24, bottom: 24),
+                                       child: Column(
+                                         crossAxisAlignment: CrossAxisAlignment.start,
+                                         children: [
+                                           if (requiresAmount) ...[
+                                              const TranslatedText('AMOUNT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: Color(0xFF94A3B8))),
+                                              const SizedBox(height: 8),
+                                              TextField(
+                                                controller: amountController,
+                                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                                                decoration: InputDecoration(
+                                                  prefixText: '₹ ',
+                                                  prefixStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF94A3B8)),
+                                                  filled: true,
+                                                  fillColor: Colors.white,
+                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                                                   ),
-                                                ]
-                                              : [],
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            // Icon Box
-                                            Container(
-                                              padding: const EdgeInsets.all(10),
-                                              decoration: BoxDecoration(
-                                                color: isSelected
-                                                    ? statusColor.withOpacity(
-                                                        0.1,
-                                                      )
-                                                    : Colors.white,
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: isSelected
-                                                      ? statusColor.withOpacity(
-                                                          0.2,
-                                                        )
-                                                      : Colors.grey.shade200,
+                                                  enabledBorder: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                                  ),
+                                                  focusedBorder: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    borderSide: const BorderSide(color: Color(0xFF94A3B8)), // Soft grey instead of bright blue
+                                                  ),
                                                 ),
                                               ),
-                                              child: Icon(
-                                                _getStatusIcon(
-                                                  option['status'],
+                                              const SizedBox(height: 6),
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                                child: TranslatedText(
+                                                  isOrderCompleted ? 'Total: ₹${grandTotal.toStringAsFixed(2)}' : 'Max: ₹${grandTotal.toStringAsFixed(2)}',
+                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
                                                 ),
-                                                color: isSelected
-                                                    ? statusColor
-                                                    : Colors.grey.shade400,
-                                                size: 20,
                                               ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  TranslatedText(
-                                                    option['status_title_for_seller'] ??
-                                                        option['status'],
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      fontSize: 15,
-                                                      color: isSelected
-                                                          ? const Color(
-                                                              0xFF0F172A,
-                                                            )
-                                                          : Colors
-                                                                .grey
-                                                                .shade600,
-                                                    ),
-                                                  ),
-                                                  if (isSelected &&
-                                                      option['description'] !=
-                                                          null)
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            top: 4,
-                                                          ),
-                                                      child: TranslatedText(
-                                                        option['description'],
-                                                        style: TextStyle(
-                                                          color: statusColor,
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (isSelected)
+                                              const SizedBox(height: 24),
+                                           ],
+                          
+                                           if (requiresPaymentInfo) ...[
+                                              TranslatedText(isOrderReturned ? 'REFUND VIA' : 'PAYMENT VIA', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: Color(0xFF94A3B8))),
+                                              const SizedBox(height: 8),
                                               Container(
-                                                padding: const EdgeInsets.all(
-                                                  4,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: statusColor,
-                                                  shape: BoxShape.circle,
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: statusColor
-                                                          .withOpacity(0.4),
-                                                      blurRadius: 6,
-                                                      offset: const Offset(
-                                                        0,
-                                                        2,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: const Icon(
-                                                  Icons.check,
-                                                  color: Colors.white,
-                                                  size: 14,
-                                                ),
+                                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                                                child: DropdownButtonHideUnderline(
+                                                  child: DropdownButton<String>(
+                                                    isExpanded: true,
+                                                    value: selectedBankId,
+                                                    hint: TranslatedText(isOrderReturned ? 'Select Refund Account' : 'Select Payment Account', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+                                                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
+                                                    style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.w700),
+                                                    items: _storeBankDetails.map((bank) {
+                                                       final name = bank['account_holder_name'] ?? bank['bank_name'] ?? 'Unknown';
+                                                       return DropdownMenuItem<String>(value: bank['id'], child: Text(name));
+                                                    }).toList(),
+                                                    onChanged: (val) => setStateSheet(() => selectedBankId = val),
+                                                  )
+                                                )
                                               ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
+                                              const SizedBox(height: 32),
+                                           ],
 
-                                // Payment & Action Section
-                                if (selectedStatusId != null) ...[
-                                  const SizedBox(height: 24),
+                                           SizedBox(
+                                                 width: double.infinity,
+                                                 child: ElevatedButton(
+                                                   style: ElevatedButton.styleFrom(
+                                                     backgroundColor: statusColor,
+                                                 foregroundColor: Colors.white,
+                                                 padding: const EdgeInsets.symmetric(vertical: 18),
+                                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                 elevation: 0,
+                                               ),
+                                               onPressed: isUpdatingThis ? null : handleAction,
+                                               child: isUpdatingThis ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const TranslatedText('Confirm Update', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                             )
+                                           )
+                                         ]
+                                       )
+                                     )
+                                   ]
+                                 )
+                               )
+                             ]
+                           )
+                         )
+                       )
+                     );
+                   }
+                 )
+               ),
 
-                                  // Payment Receipt Card
-                                  if (showAmountInput || showPaymentOptions)
-                                    Container(
-                                      margin: const EdgeInsets.only(bottom: 24),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: Colors.grey.shade200,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                              0.04,
-                                            ),
-                                            blurRadius: 16,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          // Header Pattern
-                                          Container(
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                              color: theme.colorScheme.primary
-                                                  .withOpacity(0.1),
-                                              borderRadius:
-                                                  const BorderRadius.vertical(
-                                                    top: Radius.circular(20),
-                                                  ),
-                                            ),
-                                          ),
+               const SizedBox(height: 8),
+               SizedBox(
+                 width: double.infinity,
+                 child: ElevatedButton(
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: Colors.white,
+                     foregroundColor: const Color(0xFF0F172A),
+                     padding: const EdgeInsets.symmetric(vertical: 18),
+                     shape: RoundedRectangleBorder(
+                       borderRadius: BorderRadius.circular(12),
+                       side: const BorderSide(color: Color(0xFFE2E8F0))
+                     ),
+                     elevation: 0,
+                   ),
+                   onPressed: () => Navigator.pop(context),
+                   child: const TranslatedText('Cancel', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                 )
+               )
+          ]
+        )
+      );
+    }
 
-                                          if (showAmountInput)
-                                            Padding(
-                                              padding: const EdgeInsets.all(20),
-                                              child: Column(
-                                                children: [
-                                                  TranslatedText(
-                                                    'AMOUNT TO COLLECT',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      letterSpacing: 1.2,
-                                                      color:
-                                                          Colors.grey.shade500,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  IntrinsicWidth(
-                                                    child: TextField(
-                                                      controller:
-                                                          amountController,
-                                                      keyboardType:
-                                                          const TextInputType.numberWithOptions(
-                                                            decimal: true,
-                                                          ),
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: const TextStyle(
-                                                        fontSize: 32,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: Color(
-                                                          0xFF0F172A,
-                                                        ),
-                                                        height: 1.2,
-                                                      ),
-                                                      decoration:
-                                                          const InputDecoration(
-                                                            prefixText: '₹',
-                                                            prefixStyle:
-                                                                TextStyle(
-                                                                  fontSize: 32,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w800,
-                                                                  color: Color(
-                                                                    0xFF94A3B8,
-                                                                  ),
-                                                                ),
-                                                            border: InputBorder
-                                                                .none,
-                                                            isDense: true,
-                                                            contentPadding:
-                                                                EdgeInsets.zero,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          top: 8,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 10,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color:
-                                                          Colors.grey.shade100,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            20,
-                                                          ),
-                                                    ),
-                                                    child: TranslatedText(
-                                                      isOrderCompleted
-                                                          ? 'Total: ₹${grandTotal.toStringAsFixed(2)}'
-                                                          : 'Max: ₹${grandTotal.toStringAsFixed(2)}',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: Colors
-                                                            .grey
-                                                            .shade600,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-
-                                          if (showAmountInput &&
-                                              showPaymentOptions)
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 20,
-                                                  ),
-                                              child: Row(
-                                                children: List.generate(
-                                                  30,
-                                                  (index) => Expanded(
-                                                    child: Container(
-                                                      margin:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 2,
-                                                          ),
-                                                      height: 1,
-                                                      color:
-                                                          Colors.grey.shade200,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-
-                                          if (showPaymentOptions)
-                                            Padding(
-                                              padding: const EdgeInsets.all(20),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  TranslatedText(
-                                                    isOrderReturned
-                                                        ? 'REFUND VIA'
-                                                        : 'PAYMENT VIA',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      letterSpacing: 1.2,
-                                                      color:
-                                                          Colors.grey.shade500,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 16,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(
-                                                        0xFFF1F5F9,
-                                                      ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
-                                                          ),
-                                                      border: Border.all(
-                                                        color: const Color(
-                                                          0xFFE2E8F0,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    child: DropdownButtonHideUnderline(
-                                                      child: DropdownButton<String>(
-                                                        isExpanded: true,
-                                                        value: selectedBankId,
-                                                        hint: TranslatedText(
-                                                          isOrderReturned
-                                                              ? 'Select Refund Account'
-                                                              : 'Select Payment Account',
-                                                          style: TextStyle(
-                                                            color: Colors
-                                                                .grey
-                                                                .shade500,
-                                                            fontSize: 14,
-                                                            fontWeight:
-                                                                FontWeight.w500,
-                                                          ),
-                                                        ),
-                                                        icon: const Icon(
-                                                          Icons
-                                                              .keyboard_arrow_down_rounded,
-                                                          color: Color(
-                                                            0xFF64748B,
-                                                          ),
-                                                        ),
-                                                        style: const TextStyle(
-                                                          color: Color(
-                                                            0xFF0F172A,
-                                                          ),
-                                                          fontSize: 15,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                        items: _storeBankDetails.map((
-                                                          bank,
-                                                        ) {
-                                                          final name =
-                                                              bank['account_holder_name'] ??
-                                                              bank['bank_name'] ??
-                                                              'Unknown';
-                                                          return DropdownMenuItem<
-                                                            String
-                                                          >(
-                                                            value: bank['id'],
-                                                            child: Text(name),
-                                                          );
-                                                        }).toList(),
-                                                        onChanged: (value) {
-                                                          setStateSheet(() {
-                                                            selectedBankId =
-                                                                value;
-                                                          });
-                                                        },
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-
-                                  /* Gradient Action Button */
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          theme.colorScheme.primary,
-                                          theme.colorScheme.primary
-                                              .withBlue(255)
-                                              .withOpacity(0.8),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: theme.colorScheme.primary
-                                              .withOpacity(0.3),
-                                          blurRadius: 12,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.transparent,
-                                        foregroundColor: Colors.white,
-                                        shadowColor: Colors.transparent,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        final amount = double.tryParse(
-                                          amountController.text,
-                                        );
-                                        _updateOrderStatus(
-                                          selectedStatusValue!,
-                                          selectedStatusId!,
-                                          bankId: selectedBankId,
-                                          amountPaid: amount,
-                                        );
-                                      },
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const TranslatedText(
-                                            'Update Status',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          const Icon(
-                                            Icons.arrow_forward_rounded,
-                                            size: 20,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 12),
-
-                                  /* Cancel Button */
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.grey.shade500,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                      ),
-                                      child: const TranslatedText(
-                                        'Cancel',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+    if (isTablet) {
+      showGeneralDialog(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'Dismiss',
+        barrierColor: Colors.black.withOpacity(0.5),
+        transitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return SafeArea(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 24, bottom: 24, top: 24),
+                child: StatefulBuilder(
+                  builder: (context, setStateSheet) => Material(color: Colors.transparent, child: buildFloatingOptions(context, setStateSheet))
+                )
+              )
+            )
+          );
+        },
+        transitionBuilder: (context, animation, secondaryAnimation, child) {
+           final tween = Tween(begin: const Offset(1, 0), end: Offset.zero).chain(CurveTween(curve: Curves.easeOutCubic));
+           return SlideTransition(position: animation.drive(tween), child: child);
+        }
+      );
+    } else {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        barrierColor: Colors.black.withOpacity(0.5),
+        builder: (context) {
+           return StatefulBuilder(
+             builder: (context, setStateSheet) {
+               return SafeArea(
+                 child: Padding(
+                   padding: const EdgeInsets.only(
+                      bottom: 16,
+                      left: 16, right: 16
+                   ),
+                   child: Align(
+                     alignment: Alignment.bottomCenter,
+                     child: buildFloatingOptions(context, setStateSheet),
+                   )
+                 )
+               );
+             }
+           );
+        }
+      );
+    }
   }
 
   Widget _buildErrorView(ThemeData theme) {
@@ -1631,165 +1288,201 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   Widget _buildOrderInfoCard(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25), // Strong dark matte shadow
-            blurRadius: 6, // Tight but visible blur
-            offset: const Offset(0, 3), // Distinct offset
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            "ORDER INFORMATION",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: const Color(0xFF64748B),
+            ),
           ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04), // Lighter, modern shadow
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
-              const SizedBox(width: 10),
-              TranslatedText(
-                'Order Information',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  letterSpacing: -0.5,
-                  color: theme.colorScheme.onSurface,
-                ),
+            ],
+            border: Border.all(color: Colors.grey.withOpacity(0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildInfoRow(
+                theme,
+                'Customer',
+                _orderData!['user_name'] ??
+                    _orderData!['customer_name'] ??
+                    _orderData!['user_first_name'] ??
+                    _orderData!['name'] ??
+                    (_orderData!['billing_details'] != null
+                        ? _orderData!['billing_details']['name']
+                        : null) ??
+                    'Guest Customer',
+                Icons.person_rounded,
+              ),
+              Divider(
+                color: theme.colorScheme.outline.withOpacity(0.08),
+                height: 24,
+                thickness: 1,
+              ),
+              _buildInfoRow(
+                theme,
+                'Phone',
+                _orderData!['customer_phone_number']?.toString() ??
+                    _orderData!['user_phone'] ??
+                    _orderData!['customer_phone'] ??
+                    _orderData!['phone'] ??
+                    (_orderData!['billing_details'] != null
+                        ? _orderData!['billing_details']['phone']
+                        : null) ??
+                    'N/A',
+                Icons.phone_rounded,
+                onTap: () {
+                  final phoneStr = _orderData!['customer_phone_number']?.toString() ??
+                      _orderData!['user_phone']?.toString() ??
+                      _orderData!['customer_phone']?.toString() ??
+                      _orderData!['phone']?.toString() ??
+                      (_orderData!['billing_details'] != null
+                          ? _orderData!['billing_details']['phone']?.toString()
+                          : null);
+                  if (phoneStr != null && phoneStr != 'N/A' && phoneStr.trim().isNotEmpty) {
+                    final uri = Uri(scheme: 'tel', path: phoneStr.trim());
+                    launchUrl(uri);
+                  }
+                },
+              ),
+              Divider(
+                color: theme.colorScheme.outline.withOpacity(0.08),
+                height: 24,
+                thickness: 1,
+              ),
+              _buildInfoRow(
+                theme,
+                'Store',
+                _orderData!['store_name'] ?? 'N/A',
+                Icons.store_rounded,
+              ),
+              Divider(
+                color: theme.colorScheme.outline.withOpacity(0.08),
+                height: 24,
+                thickness: 1,
+              ),
+              _buildInfoRow(
+                theme,
+                'Order Method',
+                _orderData!['order_method_name'] ?? 'N/A',
+                Icons.delivery_dining_rounded,
+              ),
+              Divider(
+                color: theme.colorScheme.outline.withOpacity(0.08),
+                height: 24,
+                thickness: 1,
+              ),
+              _buildInfoRow(
+                theme,
+                'Token Number',
+                _orderData!['token_number']?.toString() ?? 'N/A',
+                Icons.confirmation_number_rounded,
+              ),
+
+              Divider(
+                color: theme.colorScheme.outline.withOpacity(0.08),
+                height: 24,
+                thickness: 1,
+              ),
+              _buildInfoRow(
+                theme,
+                'Total Items',
+                '${_orderData!['total_items'] ?? 0}',
+                Icons.shopping_bag_rounded,
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildInfoRow(
-            theme,
-            'Customer',
-            _orderData!['user_name'] ??
-                _orderData!['customer_name'] ??
-                _orderData!['user_first_name'] ??
-                _orderData!['name'] ??
-                (_orderData!['billing_details'] != null
-                    ? _orderData!['billing_details']['name']
-                    : null) ??
-                'Guest Customer',
-            Icons.person_rounded,
-          ),
-          Divider(
-            color: theme.colorScheme.outline.withOpacity(0.08),
-            height: 24,
-            thickness: 1,
-          ),
-          _buildInfoRow(
-            theme,
-            'Store',
-            _orderData!['store_name'] ?? 'N/A',
-            Icons.store_rounded,
-          ),
-          Divider(
-            color: theme.colorScheme.outline.withOpacity(0.08),
-            height: 24,
-            thickness: 1,
-          ),
-          _buildInfoRow(
-            theme,
-            'Order Method',
-            _orderData!['order_method_name'] ?? 'N/A',
-            Icons.delivery_dining_rounded,
-          ),
-          Divider(
-            color: theme.colorScheme.outline.withOpacity(0.08),
-            height: 24,
-            thickness: 1,
-          ),
-          _buildInfoRow(
-            theme,
-            'Total Items',
-            '${_orderData!['total_items'] ?? 0}',
-            Icons.shopping_bag_rounded,
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildProductsSection(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25), // Strong dark matte shadow
-            blurRadius: 6, // Tight but visible blur
-            offset: const Offset(0, 3), // Distinct offset
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            "PRODUCTS ORDERED",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: const Color(0xFF64748B),
+            ),
           ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 10),
-              TranslatedText(
-                'Products Ordered',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  letterSpacing: -0.5,
-                  color: theme.colorScheme.onSurface,
-                ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04), // Lighter, modern shadow
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
+            border: Border.all(color: Colors.grey.withOpacity(0.05)),
           ),
-
-          const SizedBox(height: 16), // Added spacing
-
-          if (_isLoadingProducts)
-            const Center(child: CircularProgressIndicator())
-          else if (_products.isEmpty)
-            Center(
-              child: TranslatedText(
-                'No products found',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_isLoadingProducts)
+                const Center(child: CircularProgressIndicator())
+              else if (_products.isEmpty)
+                Center(
+                  child: TranslatedText(
+                    'No products found',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                )
+              else
+                ListView.separated(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _products.length,
+                  separatorBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: theme.colorScheme.outline.withOpacity(0.08),
+                    ),
+                  ),
+                  itemBuilder: (context, index) {
+                    final product = _products[index];
+                    return _buildProductItem(theme, product);
+                  },
                 ),
-              ),
-            )
-          else
-            ListView.separated(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _products.length,
-              separatorBuilder: (context, index) => _buildDashedDivider(theme),
-              itemBuilder: (context, index) {
-                final product = _products[index];
-                return _buildProductItem(theme, product);
-              },
-            ),
-        ],
-      ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1839,21 +1532,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
     final String? imageUrl = product['img_url'] ?? product['image_url'] ?? product['product_image'];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04), // Lighter, modern shadow
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1862,47 +1542,46 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Product Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageUrl,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.inventory_2_outlined,
-                            color: theme.colorScheme.primary.withOpacity(0.4),
-                            size: 20,
-                          ),
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                  border: Border.all(color: theme.colorScheme.outline.withOpacity(0.05)),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: imageUrl != null && imageUrl.isNotEmpty
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                color: theme.colorScheme.primary.withOpacity(0.05),
+                                child: Icon(Icons.inventory_2_outlined, color: theme.colorScheme.primary.withOpacity(0.4), size: 24),
+                              ),
+                        )
+                      : Container(
+                          color: theme.colorScheme.primary.withOpacity(0.05),
+                          child: Icon(Icons.inventory_2_outlined, color: theme.colorScheme.primary.withOpacity(0.4), size: 24),
                         ),
-                      )
-                    : Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.inventory_2_outlined,
-                          color: theme.colorScheme.primary.withOpacity(0.4),
-                          size: 20,
-                        ),
-                      ),
+                ),
               ),
-              const SizedBox(width: 12),
-              // Product Name, Qty & Unit Price
+              const SizedBox(width: 16),
+              // Product Details & Pricing layout
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     Text(
                       productName,
@@ -1915,7 +1594,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     // Per piece price
                     Text(
                       '₹${unitPrice.toStringAsFixed(2)} each',
@@ -1926,7 +1605,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    // Quantity
+                    // Quantity Badge
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -1947,7 +1626,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              // Total Price
+              // Right Column: Total Price pinned exactly at the top
               Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -1955,9 +1634,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                   Text(
                     '₹${calculatedItemTotal.toStringAsFixed(2)}',
                     style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600, // Demoted boldness
                       fontSize: 15,
-                      color: const Color(0xFF1E293B), // Dark slate
+                      color: const Color(0xFF334155),
                     ),
                   ),
                 ],
@@ -1966,36 +1645,48 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           ),
           if (cgst > 0 || sgst > 0 || igst > 0 || cess > 0) ...[
             const SizedBox(height: 12),
-            Theme(
-              data: theme.copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: const EdgeInsets.only(bottom: 8),
-                dense: true,
-                visualDensity: VisualDensity.compact,
-                title: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline_rounded,
-                      size: 14,
-                      color: theme.colorScheme.onSurface.withOpacity(0.5),
-                    ),
-                    const SizedBox(width: 6),
-                    TranslatedText(
-                      'Tax Breakdown',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC), // Slate 50
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)), // Slate 200
+              ),
+              child: Theme(
+                data: theme.copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                  childrenPadding: const EdgeInsets.only(left: 12, right: 12, bottom: 12),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  iconColor: const Color(0xFF64748B),
+                  collapsedIconColor: const Color(0xFF94A3B8),
+                  title: Row(
+                    children: [
+                      Icon(
+                        Icons.receipt_long_outlined,
+                        size: 16,
+                        color: const Color(0xFF64748B),
                       ),
-                    ),
-                  ],
-                ),
-                children: [
-                  _buildTaxRow(theme, 'Base Price', amountExcludingTax),
+                      const SizedBox(width: 6),
+                      TranslatedText(
+                        'Tax Summary',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: const Color(0xFF475569),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  children: [
+                    _buildTaxRow(theme, 'Base Price', amountExcludingTax),
                   if (cgst > 0) _buildTaxRow(theme, 'CGST', cgst),
                   if (sgst > 0) _buildTaxRow(theme, 'SGST', sgst),
                   if (igst > 0) _buildTaxRow(theme, 'IGST', igst),
                   if (cess > 0) _buildTaxRow(theme, 'Cess', cess),
-                  _buildDashedDivider(theme),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Divider(height: 1, color: theme.colorScheme.outline.withOpacity(0.1)),
+                  ),
                   // Use Calculated Total here as well
                   _buildTaxRow(
                     theme,
@@ -2006,6 +1697,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ],
               ),
             ),
+          ),
           ],
         ],
       ),
@@ -2027,7 +1719,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             label,
             style: isTotal
                 ? theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w500,
                   )
                 : theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(0.6),
@@ -2038,7 +1730,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             '₹${amount.toStringAsFixed(2)}',
             style: isTotal
                 ? theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF1E293B),
                   )
                 : theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(0.6),
@@ -2053,142 +1746,130 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Widget _buildBillingDetailsCard(ThemeData theme) {
     final billing = _orderData!['billing_details'] as Map<String, dynamic>;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25), // Strong dark matte shadow
-            blurRadius: 6, // Tight but visible blur
-            offset: const Offset(0, 3), // Distinct offset
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            "BILLING DETAILS",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: const Color(0xFF64748B),
+            ),
           ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 10),
-              TranslatedText(
-                'Billing Address',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  letterSpacing: -0.5,
-                  color: theme.colorScheme.onSurface,
-                ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
+            border: Border.all(color: Colors.grey.withOpacity(0.05)),
           ),
-          const SizedBox(height: 12),
-          Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.location_on_rounded,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TranslatedText(
-                      billing['area'] ?? 'N/A',
-                      style: theme.textTheme.bodyMedium,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.location_on_rounded,
+                    size: 20,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TranslatedText(
+                          billing['area'] ?? 'N/A',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        TranslatedText(
+                          '${billing['state'] ?? ''} - ${billing['pincode'] ?? ''}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    TranslatedText(
-                      '${billing['state'] ?? ''} - ${billing['pincode'] ?? ''}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildPaymentDetailsCard(ThemeData theme) {
     final payment = _orderData!['payment_details'] as Map<String, dynamic>;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25), // Strong dark matte shadow
-            blurRadius: 6, // Tight but visible blur
-            offset: const Offset(0, 3), // Distinct offset
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            "PAYMENT DETAILS",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: const Color(0xFF64748B),
+            ),
           ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04), // Lighter, modern shadow
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
-              const SizedBox(width: 10),
-              TranslatedText(
-                'Payment Details',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  letterSpacing: -0.5,
-                  color: theme.colorScheme.onSurface,
-                ),
+            ],
+            border: Border.all(color: Colors.grey.withOpacity(0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildInfoRow(
+                theme,
+                'Payment Method',
+                payment['payment_method_name'] ?? 'N/A',
+                Icons.payment_rounded,
+              ),
+              Divider(
+                color: theme.colorScheme.outline.withOpacity(0.08),
+                height: 24,
+                thickness: 1,
+              ),
+              _buildInfoRow(
+                theme,
+                'Status',
+                payment['payment_status'] ?? 'N/A',
+                Icons.check_circle_outline_rounded,
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildInfoRow(
-            theme,
-            'Payment Method',
-            payment['payment_method_name'] ?? 'N/A',
-            Icons.payment_rounded,
-          ),
-          Divider(
-            color: theme.colorScheme.outline.withOpacity(0.08),
-            height: 24,
-            thickness: 1,
-          ),
-          _buildInfoRow(
-            theme,
-            'Status',
-            payment['payment_status'] ?? 'N/A',
-            Icons.check_circle_outline_rounded,
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -2197,135 +1878,131 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final platformFees = _orderData!['platform_fees'] as List? ?? [];
     final grandTotal = _orderData!['grand_total'] ?? 0.0;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25), // Strong dark matte shadow
-            blurRadius: 6, // Tight but visible blur
-            offset: const Offset(0, 3), // Distinct offset
-          ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 10),
-              TranslatedText(
-                'Price Breakdown',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  letterSpacing: -0.5,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          _buildDashedDivider(theme),
-
-          // Cart Total Items
-          ...cartTotal.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TranslatedText(
-                    item['title'] ?? '',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  TranslatedText(
-                    '₹${(item['value'] ?? 0.0).toStringAsFixed(2)}',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            "PRICE BREAKDOWN",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: const Color(0xFF64748B),
             ),
           ),
-
-          // Platform Fees
-          if (platformFees.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ...platformFees.map((item) {
-              // Only show numeric platform fees
-              if (item['value'] is num ||
-                  (item['value'] is String &&
-                      double.tryParse(item['value']) != null)) {
-                final String title = item['title'] ?? '';
-                final bool isDiscount =
-                    title.toLowerCase().contains('discount') ||
-                    title.toLowerCase().contains('coupon') ||
-                    title.toLowerCase().contains('off');
-
-                return Padding(
+        ),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04), // Lighter, modern shadow
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+            border: Border.all(color: Colors.grey.withOpacity(0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cart Total Items
+              ...cartTotal.map(
+                (item) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       TranslatedText(
-                        title,
+                        item['title'] ?? '',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isDiscount
-                              ? Colors.green[700]
-                              : theme.colorScheme.onSurface.withOpacity(0.7),
-                          fontWeight: isDiscount ? FontWeight.w600 : null,
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
                       TranslatedText(
-                        '₹${(double.tryParse(item['value'].toString()) ?? 0.0).toStringAsFixed(2)}',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isDiscount ? Colors.green[700] : null,
-                          fontWeight: isDiscount ? FontWeight.w700 : null,
-                        ),
+                        '₹${(item['value'] ?? 0.0).toStringAsFixed(2)}',
+                        style: theme.textTheme.bodyMedium,
                       ),
                     ],
                   ),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
-          ],
-
-          _buildDashedDivider(theme),
-
-          // Grand Total
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TranslatedText(
-                'Grand Total',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
                 ),
               ),
-              TranslatedText(
-                '₹${grandTotal.toStringAsFixed(2)}',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
+
+              // Platform Fees
+              if (platformFees.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...platformFees.map((item) {
+                  // Only show numeric platform fees
+                  if (item['value'] is num ||
+                      (item['value'] is String &&
+                          double.tryParse(item['value']) != null)) {
+                    final String title = item['title'] ?? '';
+                    final bool isDiscount =
+                        title.toLowerCase().contains('discount') ||
+                        title.toLowerCase().contains('coupon') ||
+                        title.toLowerCase().contains('off');
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TranslatedText(
+                            title,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: isDiscount
+                                  ? Colors.green[700]
+                                  : theme.colorScheme.onSurface.withOpacity(0.7),
+                              fontWeight: isDiscount ? FontWeight.w500 : null,
+                            ),
+                          ),
+                          TranslatedText(
+                            '₹${(double.tryParse(item['value'].toString()) ?? 0.0).toStringAsFixed(2)}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: isDiscount ? Colors.green[700] : null,
+                              fontWeight: isDiscount ? FontWeight.w600 : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
+              ],
+
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Divider(height: 1, color: theme.colorScheme.outline.withOpacity(0.1)),
+              ),
+
+              // Grand Total
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TranslatedText(
+                    'Grand Total',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TranslatedText(
+                    '₹${grandTotal.toStringAsFixed(2)}',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -2333,91 +2010,82 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final history = _orderData!['transaction_history'] as List;
     final amountDue = double.tryParse(_orderData!['amount_due']?.toString() ?? '0') ?? 0.0;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            "TRANSACTION HISTORY",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: const Color(0xFF64748B),
+            ),
           ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TranslatedText(
-                        'Transaction History',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                          letterSpacing: -0.5,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Amount due pill
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: amountDue > 0 ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: amountDue > 0 ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TranslatedText(
-                      amountDue > 0 ? 'Due: ' : 'Paid',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: amountDue > 0 ? Colors.red[700] : Colors.green[700],
-                      ),
-                    ),
-                    if (amountDue > 0)
-                      TranslatedText(
-                        ' ₹${amountDue.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red[700],
-                        ),
-                      ),
-                  ],
-                ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04), // Lighter, modern shadow
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
+            border: Border.all(color: Colors.grey.withOpacity(0.05)),
           ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(),
+                  ),
+                  const SizedBox(width: 8),
+                  // Amount due pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: amountDue > 0 ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: amountDue > 0 ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TranslatedText(
+                          amountDue > 0 ? 'Due: ' : 'Paid',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: amountDue > 0 ? Colors.red[700] : Colors.green[700],
+                          ),
+                        ),
+                        if (amountDue > 0)
+                          TranslatedText(
+                            ' ₹${amountDue.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.red[700],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (amountDue > 0) const SizedBox(height: 16),
           const SizedBox(height: 16),
           // Timeline of transactions
           ...history.asMap().entries.map((entry) {
@@ -2475,7 +2143,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                 child: TranslatedText(
                                   txn['voucher_label'] ?? txn['voucher_type'] ?? 'Transaction',
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w500,
                                     fontSize: 15,
                                   ),
                                 ),
@@ -2483,7 +2151,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                               TranslatedText(
                                 '₹${netAmount.toStringAsFixed(2)}',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w500,
                                   fontSize: 15,
                                   color: color,
                                 ),
@@ -2533,6 +2201,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           }),
         ],
       ),
+    ),
+      ],
     );
   }
 
@@ -2540,9 +2210,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     ThemeData theme,
     String label,
     String value,
-    IconData icon,
-  ) {
-    return Row(
+    IconData icon, {
+    VoidCallback? onTap,
+  }) {
+    Widget rowContent = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 20, color: theme.colorScheme.primary.withOpacity(0.7)),
         const SizedBox(width: 12),
@@ -2561,13 +2233,32 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 value,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: onTap != null ? theme.colorScheme.primary : const Color(0xFF1E293B), // Slate 800
                 ),
               ),
             ],
           ),
         ),
+        if (onTap != null)
+          Icon(Icons.call_rounded, size: 18, color: theme.colorScheme.primary.withOpacity(0.8)),
       ],
     );
+
+    if (onTap != null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2.0),
+            child: rowContent,
+          ),
+        ),
+      );
+    }
+
+    return rowContent;
   }
 
   Widget _buildLiveStatusBanner(ThemeData theme) {
@@ -2680,7 +2371,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                               'Unknown',
                           style: const TextStyle(
                             fontSize: 18,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: Colors.white,
                             letterSpacing: -0.5,
                           ),
@@ -2775,7 +2466,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   textAlign: TextAlign.end,
                                   style: const TextStyle(
                                     fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w600,
                                     color: Colors.white,
                                   ),
                                 ),
@@ -2899,27 +2590,27 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   Color _getStatusColorFromString(String? status) {
     status = status?.toLowerCase() ?? '';
-    if (status.contains('placed') || status.contains('confirmed')) {
-      return const Color(0xFF2563EB);
-    } else if (status.contains('preparing') || status.contains('processing')) {
-      return const Color(0xFFEA580C);
+    if (status.contains('placed') || status.contains('confirmed') || status.contains('accepted')) {
+      return const Color(0xFF2563EB); // Blue
+    } else if (status.contains('preparing') || status.contains('processing') || status.contains('partially_paid')) {
+      return const Color(0xFFEA580C); // Orange
     } else if (status.contains('ready') || status.contains('completed')) {
-      return const Color(0xFF059669);
-    } else if (status.contains('cancelled') || status.contains('rejected')) {
-      return const Color(0xFFDC2626);
+      return const Color(0xFF059669); // Green
+    } else if (status.contains('cancelled') || status.contains('rejected') || status.contains('return')) {
+      return const Color(0xFFDC2626); // Red
     }
-    return const Color(0xFF7C3AED);
+    return const Color(0xFF7C3AED); // Purple fallback
   }
 
   LinearGradient _getStatusGradient(String? status) {
     status = status?.toLowerCase() ?? '';
-    if (status.contains('placed') || status.contains('confirmed')) {
+    if (status.contains('placed') || status.contains('confirmed') || status.contains('accepted')) {
       return const LinearGradient(
         colors: [Color(0xFF2563EB), Color(0xFF3B82F6)], // Royal Blue to Blue
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
-    } else if (status.contains('preparing') || status.contains('processing')) {
+    } else if (status.contains('preparing') || status.contains('processing') || status.contains('partially_paid')) {
       return const LinearGradient(
         colors: [Color(0xFFEA580C), Color(0xFFF97316)], // Orange to Amber
         begin: Alignment.topLeft,
@@ -2931,7 +2622,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
-    } else if (status.contains('cancelled') || status.contains('rejected')) {
+    } else if (status.contains('cancelled') || status.contains('rejected') || status.contains('return')) {
       return const LinearGradient(
         colors: [Color(0xFFDC2626), Color(0xFFEF4444)], // Red to Rose
         begin: Alignment.topLeft,
@@ -2947,14 +2638,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   IconData _getStatusIcon(String? status) {
     status = status?.toLowerCase() ?? '';
-    if (status.contains('placed') || status.contains('confirmed')) {
+    if (status.contains('placed') || status.contains('confirmed') || status.contains('accepted')) {
       return Icons.check_circle_outline_rounded;
     } else if (status.contains('preparing') || status.contains('processing')) {
       return Icons.soup_kitchen_rounded;
+    } else if (status.contains('partially_paid')) {
+      return Icons.account_balance_wallet_outlined;
     } else if (status.contains('ready') || status.contains('completed')) {
       return Icons.done_all_rounded;
     } else if (status.contains('cancelled') || status.contains('rejected')) {
       return Icons.cancel_outlined;
+    } else if (status.contains('return')) {
+      return Icons.keyboard_return_rounded;
     }
     return Icons.info_outline_rounded;
   }
@@ -3068,7 +2763,7 @@ class _ProductReviewItemState extends State<_ProductReviewItem> {
             const Expanded(
               child: TranslatedText(
                 'Thanks for your review!',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -3266,7 +2961,7 @@ class _ReviewCarouselState extends State<_ReviewCarousel> {
               'Reviewing ${_currentIndex + 1}/${widget.products.length}',
               style: widget.theme.textTheme.bodySmall?.copyWith(
                 color: widget.theme.colorScheme.onSurface.withOpacity(0.6),
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const Spacer(),
@@ -3343,3 +3038,4 @@ class _ReviewCarouselState extends State<_ReviewCarousel> {
     );
   }
 }
+
