@@ -4,6 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/screens/financial_year_detail_screen.dart';
 import 'package:exanor/screens/tax_compliance_detail_screen.dart';
+import 'package:exanor/screens/account_groups_screen.dart';
+import 'package:exanor/screens/accounts_screen.dart';
+import 'package:exanor/screens/parties_screen.dart';
+import 'package:exanor/screens/opening_balances_screen.dart';
 import 'package:intl/intl.dart';
 
 class AccountingProScreen extends StatefulWidget {
@@ -658,6 +662,70 @@ class _AccountingProScreenState extends State<AccountingProScreen>
               _showFyPickerSheet(context, destination: _FyDestination.financialReports);
             } else if (cat.id == 'tax_compliance') {
               _showFyPickerSheet(context, destination: _FyDestination.taxCompliance);
+            } else if (cat.id == 'account_groups') {
+              // Get the active (or first) financial year for detail calls
+              final activeFy = _financialYears.firstWhere(
+                (fy) => fy['is_active'] == true,
+                orElse: () => _financialYears.isNotEmpty ? _financialYears.first : {},
+              );
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AccountGroupsScreen(
+                    storeId: widget.storeId,
+                    financialYearId: activeFy['id']?.toString() ?? '',
+                    fyLabel: activeFy['label']?.toString() ?? '',
+                  ),
+                ),
+              );
+            } else if (cat.id == 'accounts') {
+              final activeFy = _financialYears.firstWhere(
+                (fy) => fy['is_active'] == true,
+                orElse: () =>
+                    _financialYears.isNotEmpty ? _financialYears.first : {},
+              );
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AccountsScreen(
+                    storeId: widget.storeId,
+                    financialYearId: activeFy['id']?.toString() ?? '',
+                    fyLabel: activeFy['label']?.toString() ?? '',
+                  ),
+                ),
+              );
+            } else if (cat.id == 'parties') {
+              final activeFy = _financialYears.firstWhere(
+                (fy) => fy['is_active'] == true,
+                orElse: () =>
+                    _financialYears.isNotEmpty ? _financialYears.first : {},
+              );
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PartiesScreen(
+                    storeId: widget.storeId,
+                    financialYearId: activeFy['id']?.toString() ?? '',
+                    fyLabel: activeFy['label']?.toString() ?? '',
+                  ),
+                ),
+              );
+            } else if (cat.id == 'opening_balances') {
+              final activeFy = _financialYears.firstWhere(
+                (fy) => fy['is_active'] == true,
+                orElse: () =>
+                    _financialYears.isNotEmpty ? _financialYears.first : {},
+              );
+              final fys = _financialYears
+                  .map((e) => e as Map<String, dynamic>)
+                  .toList();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => OpeningBalancesScreen(
+                    storeId: widget.storeId,
+                    financialYears: fys,
+                    initialFyId: activeFy['id']?.toString() ?? '',
+                    initialFyLabel: activeFy['label']?.toString() ?? '',
+                  ),
+                ),
+              );
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
