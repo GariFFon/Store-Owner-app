@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:exanor/services/invoice_print_service.dart';
 import 'package:exanor/services/bluetooth_print_service.dart';
 import 'package:exanor/components/translation_widget.dart';
+import 'package:exanor/screens/receipt_kot_editor_screen.dart';
 
 class PosPrintOptionsDialog extends StatefulWidget {
   final String orderId;
@@ -755,6 +756,24 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                     iconColor: const Color(0xFFF59E0B),
                     iconBgColor: const Color(0xFFFFFBEB),
                     onTap: () => _handlePrint('ticket'),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Customize Layout
+                  _buildActionTile(
+                    title: 'Customize Layout',
+                    subtitle: 'Edit receipt & KOT sections, auto-cut, break lines',
+                    icon: Icons.design_services_rounded,
+                    iconColor: const Color(0xFF8B5CF6),
+                    iconBgColor: const Color(0xFFF5F3FF),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ReceiptKotEditorScreen(),
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 24),

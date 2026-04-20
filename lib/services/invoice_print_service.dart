@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/services/api_service.dart';
+import 'package:exanor/models/receipt_layout_config.dart';
 import 'package:http/http.dart' as http;
 
 class InvoicePrintService {
@@ -455,6 +456,46 @@ class InvoicePrintService {
     }
 
     return await pdf.save();
+  }
+
+  // ─── Auto-Cut ESC/POS Commands ─────────────────────────────────
+
+  /// Get ESC/POS auto-cut command bytes
+  /// GS V 66 n — Select cut mode and cut paper
+  /// n = number of feed lines before cut (0-255)
+  static Uint8List getAutoCutBytes({int feedLines = 3}) {
+    // ESC/POS: GS V 66 n (partial cut with n lines feed)
+    return Uint8List.fromList([0x1D, 0x56, 0x42, feedLines]);
+  }
+
+  /// Get ESC/POS full cut command bytes
+  static Uint8List getFullCutBytes() {
+    // ESC/POS: GS V 0 (full cut)
+    return Uint8List.fromList([0x1D, 0x56, 0x00]);
+  }
+
+  /// Get feed and cut bytes (useful for ensuring content clears the cutter)
+  static Uint8List getFeedAndCutBytes({int feedLines = 3}) {
+    final bytes = <int>[];
+    // Feed n lines
+    for (int i = 0; i < feedLines; i++) {
+      bytes.addAll([0x0A]); // LF - line feed
+    }
+    // Partial cut
+    bytes.addAll([0x1D, 0x56, 0x42, 0x00]);
+    return Uint8List.fromList(bytes);
+  }
+
+  /// Check if auto-cut is enabled in settings
+  static Future<bool> isAutoCutEnabled() async {
+    final config = await ReceiptLayoutConfig.load('receipt');
+    return config.autoCutEnabled;
+  }
+
+  /// Get auto-cut feed lines from config
+  static Future<int> getAutoCutFeedLines() async {
+    final config = await ReceiptLayoutConfig.load('receipt');
+    return config.autoCutFeedLines;
   }
 
   static Future<void> _generateAndPrintPdf(

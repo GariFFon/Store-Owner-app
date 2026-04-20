@@ -19,3 +19,8 @@ class EventBus {
 class OrderPlacedEvent {}
 
 class OrderStatusUpdatedEvent {}
+
+class NavigateToTabEvent {
+  final String tabName;
+  NavigateToTabEvent(this.tabName);
+}

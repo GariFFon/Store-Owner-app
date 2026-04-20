@@ -367,7 +367,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
       body: Column(
         children: [
           _buildHeader(theme),
-          _buildSearchBar(),
           Expanded(child: _buildBody(theme)),
         ],
       ),
@@ -376,7 +375,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   // ── Header ────────────────────────────────────────────────────────────────
   Widget _buildHeader(ThemeData theme) {
-    final String badge;
+    String badge;
     if (_isSearchMode) {
       badge = _activeQuery.isEmpty ? 'Searching…' : '"$_activeQuery"';
     } else if (_hasMore) {
@@ -385,256 +384,302 @@ class _ProductsScreenState extends State<ProductsScreen> {
       badge = '${_products.length} products';
     }
 
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
+        color: lightBlueBg,
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF94A3B8).withValues(alpha: 0.35),
+            color: const Color(0xFF94A3B8).withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-            12, MediaQuery.of(context).padding.top + 8, 12, 12),
-        child: Row(
+      child: ClipRect(
+        child: Stack(
           children: [
-            // Back button
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'MENU',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.blueGrey[400],
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: Colors.blueGrey,
-                    size: 26,
-                  ),
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  style: IconButton.styleFrom(
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                ),
-              ],
+            // Watermark
+            Positioned(
+              right: -20,
+              bottom: -40,
+              child: Icon(
+                Icons.inventory_2_outlined,
+                size: 140,
+                color: watermarkColor.withOpacity(0.6),
+              ),
             ),
-            const SizedBox(width: 12),
-
-            // Title
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Content
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                MediaQuery.of(context).padding.top + 8,
+                12,
+                16,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text(
-                    'Product',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
-                      letterSpacing: -0.5,
-                      height: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
+                  // Back Button
+                  InkWell(
+                    onTap: () => Navigator.pop(context),
+                    borderRadius: BorderRadius.circular(10),
                     child: Container(
-                      key: ValueKey(badge),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2),
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: _isSearchMode
-                            ? Colors.indigo.withValues(alpha: 0.1)
-                            : Colors.blue.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(4),
+                        color: Colors.white.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: _isSearchMode
-                              ? Colors.indigo.withValues(alpha: 0.3)
-                              : Colors.blue.withValues(alpha: 0.2),
+                          color: Colors.blueGrey.withOpacity(0.5),
+                          width: 1.5,
                         ),
                       ),
-                      child: Text(
-                        badge,
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          color: _isSearchMode
-                              ? Colors.indigo[700]
-                              : Colors.blue[800],
-                          letterSpacing: 0.8,
+                      child: const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: 2),
+                          child: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.black87,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  // Title OR inline Search Field
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _isSearchMode
+                          ? _buildSearchInline()
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  'Products',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1E293B),
+                                    letterSpacing: -0.5,
+                                    height: 1.0,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  child: Container(
+                                    key: ValueKey(badge),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: Colors.blue.withOpacity(0.2),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      badge.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.blue[800],
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                  // Action Buttons (Search, Add, Refresh)
+                  if (!_isSearchMode)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(width: 8),
+                        // Search Icon
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.blueGrey.withOpacity(0.2),
+                            ),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.search_rounded, size: 20),
+                            color: Colors.blueGrey[700],
+                            onPressed: () {
+                              setState(() {
+                                _isSearchMode = true;
+                                _searchFocusNode.requestFocus();
+                              });
+                            },
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(8),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Add Product Icon
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.blueGrey.withOpacity(0.2),
+                            ),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.add_rounded, size: 20),
+                            color: Colors.blueGrey[700],
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                barrierColor: Colors.black.withValues(alpha: 0.3),
+                                builder: (_) => _AddProductDialog(storeId: widget.storeId),
+                              );
+                            },
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(8),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    // Only exit button when searching
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.blueGrey.withOpacity(0.2),
+                            ),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 20),
+                            color: Colors.blueGrey[700],
+                            onPressed: _exitSearchMode,
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(8),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
-
-            // Refresh (only in listing mode)
-            if (!_isSearchMode)
-              IconButton(
-                icon: Icon(Icons.refresh_rounded,
-                    color: Colors.blueGrey[600], size: 24),
-                onPressed: () => _fetchProducts(reset: true),
-                tooltip: 'Refresh',
-              ),
           ],
         ),
       ),
     );
   }
 
-  // ── Search bar + Add Product button ───────────────────────────────────────
-  Widget _buildSearchBar() {
+  // ── Inline Search TextField ───────────────────────────────────────────────
+  Widget _buildSearchInline() {
     final bool hasText = _searchController.text.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+    return Container(
+      key: const ValueKey('search_input'),
+      height: 48, // Slightly taller for premium feel
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24), // Pill-shaped fully rounded
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04), // Soft shadow 
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.withOpacity(0.15), width: 1.5),
+      ),
       child: Row(
         children: [
-          // Search field
-          Expanded(
-            child: Container(
-              height: 46,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-                border: Border.all(
-                  color: _isSearchMode
-                      ? Colors.indigo.withValues(alpha: 0.4)
-                      : Colors.grey[200]!,
-                  width: _isSearchMode ? 1.5 : 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  // Search icon / spinner
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: _isSearching
-                          ? const SizedBox(
-                              key: ValueKey('spinner'),
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                    Color(0xFF1565C0)),
-                              ),
-                            )
-                          : const Icon(
-                              key: ValueKey('icon'),
-                              Icons.search_rounded,
-                              color: Color(0xFF1565C0),
-                              size: 20,
-                            ),
-                    ),
-                  ),
-
-                  // Text field
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      onChanged: _onSearchChanged,
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w500),
-                      textAlignVertical: TextAlignVertical.center,
-                      decoration: InputDecoration(
-                        hintText: 'Search products...',
-                        hintStyle: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 8),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _isSearching
+                  ? const SizedBox(
+                      key: ValueKey('spinner'),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
                       ),
-                    ),
-                  ),
-
-                  // Clear button
-                  if (hasText)
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded,
-                          size: 18, color: Colors.grey),
-                      onPressed: _clearSearch,
-                      padding: const EdgeInsets.all(8),
-                      constraints: const BoxConstraints(),
                     )
-                  else
-                    const SizedBox(width: 8),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Add Product button
-          GestureDetector(
-            onTap: () {
-              showDialog(
-                context: context,
-                barrierColor: Colors.black.withValues(alpha: 0.3),
-                builder: (_) => _AddProductDialog(storeId: widget.storeId),
-              );
-            },
-            child: Container(
-              height: 46,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                  SizedBox(width: 4),
-                  Text(
-                    'Add Product',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                  : const Icon(
+                      key: ValueKey('icon'),
+                      Icons.search_rounded,
+                      color: Color(0xFF64748B),
+                      size: 20,
                     ),
-                  ),
-                ],
+            ),
+          ),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              onChanged: _onSearchChanged,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1E293B),
+              ),
+              textAlignVertical: TextAlignVertical.center,
+              decoration: InputDecoration(
+                hintText: 'Search products...',
+                hintStyle: TextStyle(
+                  color: Colors.grey[400],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                ),
               ),
             ),
           ),
+          if (hasText)
+            Container(
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.close_rounded,
+                  size: 16,
+                  color: Color(0xFF64748B),
+                ),
+                onPressed: _clearSearch,
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(),
+              ),
+            )
+          else
+            const SizedBox(width: 12),
         ],
       ),
     );
@@ -655,23 +700,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
 
     if (_errorMessage != null && _products.isEmpty) {
-      return _buildErrorState(_errorMessage!, () => _fetchProducts(reset: true));
+      return _buildErrorState(
+        _errorMessage!,
+        () => _fetchProducts(reset: true),
+      );
     }
 
     if (_products.isEmpty) {
       return _buildEmptyState('No products found', null);
     }
 
-    final itemCount = _products.length +
+    final itemCount =
+        _products.length +
         (_isLoadingMore ? 1 : 0) +
         (!_isLoadingMore && !_hasMore ? 1 : 0);
 
     return RefreshIndicator(
       onRefresh: () => _fetchProducts(reset: true),
-      child: ListView.builder(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 120),
+      child: _buildResponsiveGrid(
         itemCount: itemCount,
         itemBuilder: (context, index) {
           if (index == _products.length) {
@@ -693,27 +739,25 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     if (!_isSearching && _searchResults.isEmpty) {
       return _buildEmptyState(
-          'No results for "$_activeQuery"',
-          'Try a different keyword');
+        'No results for "$_activeQuery"',
+        'Try a different keyword',
+      );
     }
 
-    final itemCount = _searchResults.length +
+    final itemCount =
+        _searchResults.length +
         (_isSearchLoadingMore ? 1 : 0) +
         (!_isSearchLoadingMore && !_hasMoreSearch ? 1 : 0);
 
     return RefreshIndicator(
       onRefresh: () => _runSearch(query: _activeQuery),
       color: const Color(0xFF2563EB),
-      child: ListView.builder(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 120),
+      child: _buildResponsiveGrid(
         itemCount: itemCount,
         itemBuilder: (context, index) {
           if (index == _searchResults.length) {
             if (_isSearchLoadingMore) return _buildLoadingMoreCell();
-            return _buildEndOfListCell(_searchResults.length,
-                label: 'result');
+            return _buildEndOfListCell(_searchResults.length, label: 'result');
           }
           return _buildProductCard(_searchResults[index], theme);
         },
@@ -721,12 +765,45 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
+  Widget _buildResponsiveGrid({
+    required int itemCount,
+    required Widget Function(BuildContext, int) itemBuilder,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int crossAxisCount = 1; // 1 column for phone (Full width list view)
+        if (constraints.maxWidth > 1200) {
+          crossAxisCount = 4;
+        } else if (constraints.maxWidth > 900) {
+          crossAxisCount = 3;
+        } else if (constraints.maxWidth > 600) {
+          crossAxisCount = 2;
+        } // Otherwise default 1 for Mobile 
+
+        final ratio = crossAxisCount == 1 ? 0.95 : 0.85; // A beautiful large Instagram-like ratio for phone, and 0.85 squarish for grid.
+
+        return GridView.builder(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: ratio,
+          ),
+          itemCount: itemCount,
+          itemBuilder: itemBuilder,
+        );
+      },
+    );
+  }
+
   // ── Common cells ──────────────────────────────────────────────────────────
   Widget _buildLoadingMoreCell() {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 20),
-      child: Center(
-          child: CircularProgressIndicator(strokeWidth: 2.5)),
+      child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
     );
   }
 
@@ -777,22 +854,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inventory_2_outlined,
-              size: 60, color: Colors.grey[400]),
+          Icon(Icons.inventory_2_outlined, size: 60, color: Colors.grey[400]),
           const SizedBox(height: 12),
           Text(
             title,
             style: TextStyle(
-                color: Colors.grey[700],
-                fontSize: 15,
-                fontWeight: FontWeight.w600),
+              color: Colors.grey[700],
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style:
-                  TextStyle(color: Colors.grey[400], fontSize: 13),
+              style: TextStyle(color: Colors.grey[400], fontSize: 13),
             ),
           ],
         ],
@@ -802,55 +878,59 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   /// Shimmer-style skeleton shown while the first search page is loading.
   Widget _buildSearchSkeleton() {
-    return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
-      itemCount: 5,
+    return _buildResponsiveGrid(
+      itemCount: 6,
       itemBuilder: (context, index) {
         return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.grey[100]!),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey[100]!, width: 1.5),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Image placeholder
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(10),
+              Expanded(
+                flex: 5,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 14),
+              // Details
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _shimmerBox(width: double.infinity, height: 14),
-                    const SizedBox(height: 8),
-                    _shimmerBox(width: 140, height: 11),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _shimmerBox(width: 80, height: 11),
-                        const SizedBox(width: 8),
-                        _shimmerBox(width: 70, height: 11),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _shimmerBox(width: 85, height: 20),
-                        const SizedBox(width: 6),
-                        _shimmerBox(width: 80, height: 20),
-                      ],
-                    ),
-                  ],
+                flex: 6,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _shimmerBox(width: double.infinity, height: 14),
+                      const SizedBox(height: 8),
+                      _shimmerBox(width: 120, height: 11),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Expanded(child: _shimmerBox(width: 60, height: 26)),
+                          const SizedBox(width: 4),
+                          Expanded(child: _shimmerBox(width: 60, height: 26)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          _shimmerBox(width: 50, height: 20),
+                          const SizedBox(width: 4),
+                          _shimmerBox(width: 60, height: 20),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -876,44 +956,42 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final name = product['product_name'] ?? 'Unknown Product';
     final parentCat = _capitalize(product['parent_category'] ?? '');
     final childCat = _capitalize(product['child_category'] ?? '');
-    final categoryLabel = [parentCat, childCat]
-        .where((s) => s.isNotEmpty && s.toLowerCase() != 'undefined')
-        .join(' › ');
+    final categoryLabel = [
+      parentCat,
+      childCat,
+    ].where((s) => s.isNotEmpty && s.toLowerCase() != 'undefined').join(' › ');
 
     final imgUrl = product['img_url'] as String?;
     final isPosEnabled = product['is_accessible_pos'] == true;
     final isOnline = product['is_accessible_online'] == true;
     final status = product['status'] as String?;
-    final totalLeft =
-        (product['total_left'] as num?)?.toDouble() ?? 0.0;
-    final totalSold =
-        (product['total_sold'] as num?)?.toDouble() ?? 0.0;
+    final totalLeft = (product['total_left'] as num?)?.toDouble() ?? 0.0;
+    final totalSold = (product['total_sold'] as num?)?.toDouble() ?? 0.0;
     final brandName = product['brand_name'] as String?;
-    final showBrand = brandName != null &&
+    final showBrand =
+        brandName != null &&
         brandName.isNotEmpty &&
         brandName.toLowerCase() != 'undefined';
 
     final bool hasImage = imgUrl != null && imgUrl.isNotEmpty;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: Colors.grey[100]!),
+        border: Border.all(color: Colors.grey[200]!, width: 1.5),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
           onTap: () {
             Navigator.push(
               context,
@@ -925,141 +1003,157 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ),
               ),
             ).then((_) {
-              // Refresh the list when returning from detail
-              // so any price/toggle changes are reflected
               if (mounted) _fetchProducts(reset: true);
             });
           },
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Product image
-                if (hasImage)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: CustomCachedNetworkImage(
-                      imgUrl: imgUrl!,
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                else
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.inventory_2_outlined,
-                        color: Colors.grey[400], size: 28),
-                  ),
-                const SizedBox(width: 14),
-
-                // Info column
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E293B),
-                          height: 1.25,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-
-                      // Category / Brand
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 2,
-                        children: [
-                          if (categoryLabel.isNotEmpty)
-                            Text(
-                              categoryLabel,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[500],
-                                fontWeight: FontWeight.w500,
-                              ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Product Image (Unobstructed, taking all remaining space)
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    hasImage
+                        ? CustomCachedNetworkImage(
+                            imgUrl: imgUrl!,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            color: const Color(
+                              0xFFF8FAFC,
+                            ), // slightly softer empty grey
+                            child: Icon(
+                              Icons.shopping_bag_outlined,
+                              color: Colors.grey[300],
+                              size: 56,
                             ),
-                          if (showBrand)
-                            Text(
-                              '• $brandName',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blueGrey[400],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Stock + Sales
-                      Row(
-                        children: [
-                          _statChip(
-                            icon: Icons.inventory_rounded,
-                            label:
-                                '${totalLeft.toStringAsFixed(0)} in stock',
-                            color: totalLeft > 0
-                                ? const Color(0xFF0891B2)
-                                : Colors.red,
                           ),
-                          const SizedBox(width: 8),
-                          _statChip(
-                            icon: Icons.shopping_cart_outlined,
-                            label:
-                                'Sales: ${totalSold.toStringAsFixed(0)}',
-                            color: Colors.orange[700]!,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Badges
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          _badge(
-                            label: isPosEnabled
-                                ? 'POS Enabled'
-                                : 'POS Disabled',
-                            color: isPosEnabled
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                          _badge(
-                            label: isOnline
-                                ? 'Online Access'
-                                : 'No Online',
-                            color: isOnline
-                                ? Colors.blue
-                                : Colors.grey,
-                          ),
-                          if (status != null)
-                            _badge(
-                              label: _capitalize(status),
-                              color: _statusColor(status),
-                              outlined: true,
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+
+              // Fixed height equivalent details at the bottom
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min, // perfectly hugs the content to keep images same size
+                  children: [
+                    // Name (1 line strictly to avoid layout disparity)
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
+                        height: 1.25,
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Category & Brand
+                    Text(
+                      showBrand
+                          ? (categoryLabel.isNotEmpty
+                                ? '$categoryLabel • $brandName'
+                                : brandName!)
+                          : categoryLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blueGrey[400],
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Systematic Info Bar (Stats + Badges)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.1)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Left side: Stats
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.inventory_2_rounded,
+                                size: 14,
+                                color: totalLeft > 0 ? const Color(0xFF0F766E) : Colors.red,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${totalLeft.toStringAsFixed(0)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: totalLeft > 0 ? const Color(0xFF0F766E) : Colors.red,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Icon(
+                                Icons.sell_rounded,
+                                size: 14,
+                                color: Colors.orange[700],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${totalSold.toStringAsFixed(0)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                          // Right side: Badges
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              reverse: true, // Align right if short, scroll left if long
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isPosEnabled)
+                                    _softBadge('POS', const Color(0xFF10B981)),
+                                  if (isPosEnabled) const SizedBox(width: 6),
+
+                                  if (isOnline)
+                                    _softBadge('Online', const Color(0xFF3B82F6)),
+                                  if (isOnline) const SizedBox(width: 6),
+
+                                  if (status != null && status.isNotEmpty)
+                                    _softBadge(
+                                      _capitalize(status),
+                                      _statusColor(status),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // NO EXTRA PARENTHESIS HERE
+            ],
           ),
         ),
       ),
@@ -1067,46 +1161,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   // ── Small widgets ─────────────────────────────────────────────────────────
-  Widget _statChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w600, color: color),
-        ),
-      ],
-    );
-  }
-
-  Widget _badge({
-    required String label,
-    required Color color,
-    bool outlined = false,
-  }) {
+  Widget _softBadge(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: outlined
-            ? Colors.transparent
-            : color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border:
-            outlined ? Border.all(color: color.withValues(alpha: 0.5)) : null,
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        label,
+        label.toUpperCase(),
         style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: color.withOpacity(0.9),
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -1183,8 +1251,7 @@ class _AddProductDialogState extends State<_AddProductDialog> {
       _isLoadingMore = false;
     });
     try {
-      final resp =
-          await StoreOwnerApiService.searchProductCombinationTemplates(
+      final resp = await StoreOwnerApiService.searchProductCombinationTemplates(
         storeId: widget.storeId,
         query: q,
         page: 1,
@@ -1193,9 +1260,7 @@ class _AddProductDialogState extends State<_AddProductDialog> {
       final items = resp['response'];
       final pagination = resp['pagination'] as Map? ?? {};
       setState(() {
-        _results = items != null
-            ? List<Map<String, dynamic>>.from(items)
-            : [];
+        _results = items != null ? List<Map<String, dynamic>>.from(items) : [];
         _hasMore = pagination['has_next'] == true;
         _currentPage = 1;
         _isSearching = false;
@@ -1211,8 +1276,7 @@ class _AddProductDialogState extends State<_AddProductDialog> {
     setState(() => _isLoadingMore = true);
     final nextPage = _currentPage + 1;
     try {
-      final resp =
-          await StoreOwnerApiService.searchProductCombinationTemplates(
+      final resp = await StoreOwnerApiService.searchProductCombinationTemplates(
         storeId: widget.storeId,
         query: _lastQuery,
         page: nextPage,
@@ -1253,7 +1317,8 @@ class _AddProductDialogState extends State<_AddProductDialog> {
             backgroundColor: const Color(0xFF059669),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       } else {
@@ -1273,8 +1338,7 @@ class _AddProductDialogState extends State<_AddProductDialog> {
         content: Text(msg),
         backgroundColor: Colors.red.shade700,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -1287,20 +1351,24 @@ class _AddProductDialogState extends State<_AddProductDialog> {
     final viewInsets = mq.viewInsets;
     final screenHeight = mq.size.height;
     // Space available above the keyboard, minus status bar, nav bar, and dialog margins
-    final availableHeight = screenHeight
-        - viewInsets.bottom
-        - mq.padding.top
-        - mq.padding.bottom
-        - 96; // 40 top margin + 40 bottom margin + 16 extra breathing room
-    final resultsMaxHeight =
-        (availableHeight - 64 - 80 - 32).clamp(80.0, screenHeight);
-
+    final availableHeight =
+        screenHeight -
+        viewInsets.bottom -
+        mq.padding.top -
+        mq.padding.bottom -
+        96; // 40 top margin + 40 bottom margin + 16 extra breathing room
+    final resultsMaxHeight = (availableHeight - 64 - 80 - 32).clamp(
+      80.0,
+      screenHeight,
+    );
 
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
       child: AnimatedPadding(
         // This is the key: bottom padding = keyboard height → dialog slides up
-        padding: viewInsets + const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+        padding:
+            viewInsets +
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
         duration: const Duration(milliseconds: 100),
         curve: Curves.decelerate,
         child: MediaQuery.removeViewInsets(
@@ -1337,13 +1405,17 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                         gradient: LinearGradient(
                           colors: [Color(0xFF1E40AF), Color(0xFF2563EB)],
                         ),
-                        borderRadius:
-                            BorderRadius.vertical(top: Radius.circular(20)),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.add_box_rounded,
-                              color: Colors.white, size: 22),
+                          const Icon(
+                            Icons.add_box_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                           const SizedBox(width: 10),
                           const Expanded(
                             child: Text(
@@ -1356,8 +1428,11 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                color: Colors.white70, size: 20),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white70,
+                              size: 20,
+                            ),
                             onPressed: () => Navigator.of(context).pop(),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -1375,11 +1450,15 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                         textInputAction: TextInputAction.search,
                         onSubmitted: _search,
                         style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                         decoration: InputDecoration(
                           hintText: 'Type product name & press Enter…',
                           hintStyle: TextStyle(
-                              color: Colors.grey[400], fontSize: 13),
+                            color: Colors.grey[400],
+                            fontSize: 13,
+                          ),
                           prefixIcon: const Icon(
                             Icons.search_rounded,
                             color: Color(0xFF2563EB),
@@ -1394,7 +1473,8 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                          Color(0xFF2563EB)),
+                                        Color(0xFF2563EB),
+                                      ),
                                     ),
                                   ),
                                 )
@@ -1402,21 +1482,27 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                           filled: true,
                           fillColor: const Color(0xFFF8FAFC),
                           contentPadding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 4),
+                            vertical: 12,
+                            horizontal: 4,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFE2E8F0)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFE2E8F0)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                                color: Color(0xFF2563EB), width: 1.5),
+                              color: Color(0xFF2563EB),
+                              width: 1.5,
+                            ),
                           ),
                         ),
                       ),
@@ -1429,7 +1515,9 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                         child: Text(
                           'Search the global product catalogue and add items directly to your store.',
                           style: TextStyle(
-                              color: Colors.grey[500], fontSize: 13),
+                            color: Colors.grey[500],
+                            fontSize: 13,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       )
@@ -1438,7 +1526,8 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                         padding: EdgeInsets.symmetric(vertical: 32),
                         child: Center(
                           child: CircularProgressIndicator(
-                              color: Color(0xFF2563EB)),
+                            color: Color(0xFF2563EB),
+                          ),
                         ),
                       )
                     else if (_results.isEmpty)
@@ -1446,13 +1535,18 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                         child: Column(
                           children: [
-                            Icon(Icons.search_off_rounded,
-                                size: 40, color: Colors.grey[300]),
+                            Icon(
+                              Icons.search_off_rounded,
+                              size: 40,
+                              color: Colors.grey[300],
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               'No products found for "$_lastQuery"',
                               style: TextStyle(
-                                  color: Colors.grey[500], fontSize: 13),
+                                color: Colors.grey[500],
+                                fontSize: 13,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           ],
@@ -1460,8 +1554,9 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                       )
                     else
                       ConstrainedBox(
-                        constraints:
-                            BoxConstraints(maxHeight: resultsMaxHeight),
+                        constraints: BoxConstraints(
+                          maxHeight: resultsMaxHeight,
+                        ),
                         child: ListView.builder(
                           controller: _scrollController,
                           shrinkWrap: true,
@@ -1471,8 +1566,7 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                             if (i == _results.length) {
                               if (_isLoadingMore) {
                                 return const Padding(
-                                  padding:
-                                      EdgeInsets.symmetric(vertical: 14),
+                                  padding: EdgeInsets.symmetric(vertical: 14),
                                   child: Center(
                                     child: SizedBox(
                                       width: 20,
@@ -1488,7 +1582,8 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                               if (!_hasMore && _results.isNotEmpty) {
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      vertical: 12),
+                                    vertical: 12,
+                                  ),
                                   child: Center(
                                     child: Text(
                                       '${_results.length} product${_results.length == 1 ? '' : 's'} found',
@@ -1505,8 +1600,8 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                             }
                             return Padding(
                               padding: EdgeInsets.only(
-                                  bottom:
-                                      i < _results.length - 1 ? 8 : 0),
+                                bottom: i < _results.length - 1 ? 8 : 0,
+                              ),
                               child: _buildTemplateCard(_results[i]),
                             );
                           },
@@ -1524,8 +1619,7 @@ class _AddProductDialogState extends State<_AddProductDialog> {
 
   Widget _buildTemplateCard(Map<String, dynamic> t) {
     final id = t['id'] as String;
-    final name =
-        t['product_combination_template_name'] as String? ?? 'Unknown';
+    final name = t['product_combination_template_name'] as String? ?? 'Unknown';
     final imgUrl = t['img_url'] as String?;
     final parent = t['parent_category'] as String? ?? '';
     final child = t['child_category'] as String? ?? '';
@@ -1541,24 +1635,21 @@ class _AddProductDialogState extends State<_AddProductDialog> {
     String cap(String s) => s.isEmpty
         ? s
         : s
-            .split(' ')
-            .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-            .join(' ');
+              .split(' ')
+              .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+              .join(' ');
 
-    final catLabel = [cap(parent), cap(child)]
-        .where((s) => s.isNotEmpty && s.toLowerCase() != 'undefined')
-        .join(' › ');
+    final catLabel = [
+      cap(parent),
+      cap(child),
+    ].where((s) => s.isNotEmpty && s.toLowerCase() != 'undefined').join(' › ');
 
     return Container(
       decoration: BoxDecoration(
-        color: isAdded
-            ? const Color(0xFFF0FDF4)
-            : const Color(0xFFF8FAFC),
+        color: isAdded ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isAdded
-              ? const Color(0xFF86EFAC)
-              : const Color(0xFFE2E8F0),
+          color: isAdded ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0),
         ),
       ),
       child: Padding(
@@ -1619,12 +1710,13 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                            color: const Color(0xFFBFDBFE)),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
                       ),
                       child: Text(
                         'GST: ${gstPct.toStringAsFixed(0)}%',
@@ -1658,8 +1750,11 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.check_rounded,
-                                  color: Colors.white, size: 14),
+                              Icon(
+                                Icons.check_rounded,
+                                color: Colors.white,
+                                size: 14,
+                              ),
                               SizedBox(width: 4),
                               Text(
                                 'Added',
@@ -1687,9 +1782,7 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                                       Color(0xFF1D4ED8),
                                     ],
                                   ),
-                            color: isAdding
-                                ? const Color(0xFFE2E8F0)
-                                : null,
+                            color: isAdding ? const Color(0xFFE2E8F0) : null,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Center(
@@ -1699,9 +1792,9 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                                     height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor:
-                                          AlwaysStoppedAnimation<Color>(
-                                              Color(0xFF2563EB)),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Color(0xFF2563EB),
+                                      ),
                                     ),
                                   )
                                 : const Text(

@@ -472,60 +472,114 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       if (productType.isNotEmpty && !_isUndefined(productType)) productType,
     ];
 
+    const lightBlueBg = Color(0xFFEFF6FF);
+    const watermarkColor = Color(0xFFDBEAFE);
 
     return Container(
       width: double.infinity,
-      color: Colors.white,
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: BoxDecoration(
+        color: lightBlueBg,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF94A3B8).withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRect(
+        child: Stack(
           children: [
-            // Back + Title row
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
+            // Watermark
+            Positioned(
+              right: -30,
+              top: -10,
+              child: Icon(
+                Icons.local_mall_outlined,
+                size: 160,
+                color: watermarkColor.withOpacity(0.6),
+              ),
+            ),
+            // Content
+            SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 22, color: Color(0xFF334155)),
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    style: IconButton.styleFrom(
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1E293B),
-                        letterSpacing: -0.3,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Back Button
+                        InkWell(
+                          onTap: () => Navigator.pop(context),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.blueGrey.withOpacity(0.5),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: const Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(right: 2),
+                                child: Icon(
+                                  Icons.arrow_back_ios_new_rounded,
+                                  color: Colors.black87,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Title
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                  height: 1.2,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              if (chips.isNotEmpty)
+                                Text(
+                                  chips.join('  •  '),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.2,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 4),
                 ],
               ),
             ),
-            // Category chips
-            if (chips.isNotEmpty)
-              Padding(
-                padding:
-                    const EdgeInsets.only(left: 44, bottom: 10, right: 12),
-                child: Wrap(
-                  spacing: 6,
-                  children: chips
-                      .map((c) => _chip(c))
-                      .toList(),
-                ),
-              ),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0)),
           ],
         ),
       ),
@@ -534,19 +588,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _chip(String label) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: Colors.white.withOpacity(0.7),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey[300]!),
+        border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1.2),
       ),
       child: Text(
         label,
         style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF475569)),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF334155),
+          letterSpacing: 0.2,
+        ),
       ),
     );
   }
@@ -726,38 +781,50 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _buildMobileTabSelector() {
     const tabs = ['Inventory', 'Reviews', 'Manufacturing'];
-    return Row(
-      children: List.generate(tabs.length, (i) {
-        final selected = _tabController.index == i;
-        return GestureDetector(
-          onTap: () => _tabController.animateTo(i),
-          child: Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: selected
-                  ? const Color(0xFF2563EB)
-                  : Colors.grey[100],
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: List.generate(tabs.length, (i) {
+          final selected = _tabController.index == i;
+          return GestureDetector(
+            onTap: () => _tabController.animateTo(i),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
                 color: selected
                     ? const Color(0xFF2563EB)
-                    : Colors.grey[300]!,
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(24), // Pill-shaped
+                border: Border.all(
+                  color: selected
+                      ? const Color(0xFF2563EB)
+                      : Colors.grey.withOpacity(0.3),
+                ),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        )
+                      ]
+                    : [],
+              ),
+              child: Text(
+                tabs[i],
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  color: selected ? Colors.white : const Color(0xFF64748B),
+                ),
               ),
             ),
-            child: Text(
-              tabs[i],
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color:
-                    selected ? Colors.white : const Color(0xFF64748B),
-              ),
-            ),
-          ),
-        );
-      }),
+          );
+        }),
+      ),
     );
   }
 
@@ -913,15 +980,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: color.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.15)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -929,21 +996,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       child: Column(
         children: [
           Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF64748B),
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: color.withOpacity(0.8),
+              letterSpacing: 0.5,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             value,
             style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
               color: color,
+              height: 1.0,
             ),
           ),
         ],
@@ -952,31 +1021,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   }
 
   Widget _sectionHeader(String title, {Widget? trailing}) {
+    final titleWidget = Text(
+      title,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF475569),
+        letterSpacing: 1.0,
+      ),
+    );
+
     if (trailing == null) {
-      return Text(
-        title,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF94A3B8),
-          letterSpacing: 1.3,
-        ),
+      return Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 4),
+        child: titleWidget,
       );
     }
-    return Row(
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF94A3B8),
-            letterSpacing: 1.3,
-          ),
-        ),
-        const Spacer(),
-        trailing,
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          titleWidget,
+          const Spacer(),
+          trailing,
+        ],
+      ),
     );
   }
 
@@ -1178,18 +1248,31 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _detailCard(List<Widget> rows) {
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.blueGrey.withOpacity(0.1)),
       ),
       child: Column(
         children: [
           for (int i = 0; i < rows.length; i++) ...[
             rows[i],
             if (i < rows.length - 1)
-              const Divider(
-                  height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: Colors.blueGrey.withOpacity(0.05),
+                indent: 16,
+                endIndent: 16,
+              ),
           ],
         ],
       ),
@@ -1198,27 +1281,28 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _detailRow(String label, String value) {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 100,
+          Expanded(
+            flex: 2,
             child: Text(
               label,
               style: const TextStyle(
                 fontSize: 13,
                 color: Color(0xFF64748B),
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
           Expanded(
+            flex: 3,
             child: Text(
               value.isEmpty ? '—' : value,
               style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF1E293B),
               ),
               textAlign: TextAlign.right,
@@ -1231,10 +1315,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _accessCard(Map<String, dynamic> p) {
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.blueGrey.withOpacity(0.1)),
       ),
       child: Column(
         children: [
@@ -1244,24 +1336,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             p['is_accessible_online'] == true,
             onChanged: (v) => _updateToggle('is_accessible_online', v),
           ),
-          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, thickness: 1, color: Colors.blueGrey.withOpacity(0.05), indent: 16, endIndent: 16),
           _accessRow(
             'POS Access',
             null,
             p['is_accessible_pos'] == true,
             onChanged: (v) => _updateToggle('is_accessible_pos', v),
           ),
-          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, thickness: 1, color: Colors.blueGrey.withOpacity(0.05), indent: 16, endIndent: 16),
           _accessRow(
             'Auto Produce',
-            'Automatically trigger BOM production when\nstock is depleted',
+            'Trigger production on stock depletion',
             p['auto_produce'] == true,
             onChanged: (v) => _updateToggle('auto_produce', v),
           ),
-          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, thickness: 1, color: Colors.blueGrey.withOpacity(0.05), indent: 16, endIndent: 16),
           _accessRow(
-            'Inventory Management Required',
-            'Require inventory stock monitoring for execution',
+            'Inventory Management',
+            'Require inventory stock limits',
             p['is_inventory_management_required'] == true,
             onChanged: (v) =>
                 _updateToggle('is_inventory_management_required', v),
@@ -1278,7 +1370,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     required ValueChanged<bool> onChanged,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
           Expanded(
@@ -1288,20 +1380,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFF1E293B),
                   ),
                 ),
-                if (subtitle != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      subtitle,
-                      style: const TextStyle(
-                          fontSize: 11, color: Color(0xFF94A3B8)),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.blueGrey.shade400,
+                      fontWeight: FontWeight.w500,
+                      height: 1.3,
                     ),
                   ),
+                ],
               ],
             ),
           ),
@@ -1394,16 +1489,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     final left = (inv['total_stocks_left'] as num?)?.toDouble() ?? 0.0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 20),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.blueGrey.withOpacity(0.1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -1411,8 +1507,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Barcode section ─────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+          Container(
+            color: const Color(0xFFF8FAFC),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1424,37 +1521,53 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                         'BARCODE',
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF94A3B8),
-                          letterSpacing: 1.3,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF64748B),
+                          letterSpacing: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 12),
                       // Barcode graphic
-                      SizedBox(
-                        height: 48,
-                        child: CustomPaint(
-                          painter: _BarcodePainter(barcode),
-                          child: Container(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      // Barcode text (split in rows of 24)
-                      Text(
-                        _breakEvery(barcode, 24),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontFamily: 'monospace',
-                          color: Color(0xFF475569),
-                          height: 1.4,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: 48,
+                              child: CustomPaint(
+                                painter: _BarcodePainter(barcode),
+                                child: Container(),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Barcode text (split in rows of 24)
+                            Text(
+                              _breakEvery(barcode, 24),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF334155),
+                                letterSpacing: 2.0,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (originalBarcode.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 8),
                         Text(
                           'Original: $originalBarcode',
                           style: const TextStyle(
                             fontSize: 10,
+                            fontWeight: FontWeight.w600,
                             color: Color(0xFF94A3B8),
                           ),
                         ),
@@ -1462,46 +1575,64 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 // Print button
-                OutlinedButton.icon(
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Print barcode — coming soon')),
-                    );
-                  },
-                  icon: const Icon(Icons.print_outlined, size: 16),
-                  label: const Text('PRINT'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2563EB),
-                    side: const BorderSide(color: Color(0xFF2563EB)),
-                    textStyle: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w700),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Print barcode — coming soon')),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.print_rounded, size: 16, color: Color(0xFF2563EB)),
+                          SizedBox(width: 6),
+                          Text(
+                            'PRINT',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2563EB),
+                                letterSpacing: 0.5),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
 
           // ── Purchased / Sold / Left ─────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
                 Expanded(
                     child: _stockCard('Purchased', purchased,
                         const Color(0xFF2563EB))),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
                     child: _stockCard(
                         'Sold', sold, Colors.orange[700]!)),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
                     child: _stockCard(
                         'Left',
@@ -1513,14 +1644,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 20),
 
           // ── Financial grid ──────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: _buildFinancialGrid(inv),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -1528,28 +1661,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _stockCard(String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: color.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.15)),
       ),
       child: Column(
         children: [
           Text(
-            label,
+            label.toUpperCase(),
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: color.withOpacity(0.8),
+              letterSpacing: 0.5,
             ),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
               color: color,
+              height: 1.0,
             ),
           ),
         ],

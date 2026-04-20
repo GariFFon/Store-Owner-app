@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/services/api_service.dart';
+import 'package:exanor/models/receipt_layout_config.dart';
+import 'package:exanor/services/invoice_print_service.dart';
 
 class BluetoothPrintService {
   static final BlueThermalPrinter _bluetooth = BlueThermalPrinter.instance;
@@ -434,33 +436,81 @@ class BluetoothPrintService {
     final storeInfo = data['store_info'] ?? {};
     final userInfo = data['user_info'] ?? {};
     final products = data['products'] as List? ?? [];
-    final isNarrow = widthInMm <= 50.8;
-    final lineWidth = isNarrow ? 32 : 48;
 
-    _bluetooth.printCustom("KITCHEN TICKET", 0, 1);
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
-    _bluetooth.printCustom("Store: ${storeInfo['name'] ?? ''}", 0, 0);
-    _bluetooth.printCustom("Order ID: ${storeInfo['order_number'] ?? ''}", 0, 0);
+    final config = await ReceiptLayoutConfig.load('kot');
+    final int lineWidth = config.paperWidthChars;
+    final int bSize = config.globalFontSize;
+    print('[BluetoothPrint] KOT config loaded: width=$lineWidth, fontSize=$bSize, sections=${config.enabledSections.map((s) => s.id).toList()}');
 
-    if (userInfo['name'] != null && userInfo['name'] != 'unnamed user') {
-      _bluetooth.printCustom("Customer: ${userInfo['name']}", 0, 0);
-    }
-    _bluetooth.printCustom("Date: ${DateTime.now().toString().substring(0, 16)}", 0, 0);
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
-    _bluetooth.printCustom("ITEMS:", 0, 0);
-
-    for (int i = 0; i < products.length; i++) {
-      final p = products[i];
-      _printWrappedLine("${p['quantity']}x ${p['product_name']}", lineWidth);
-      if (i < products.length - 1) {
-        _bluetooth.printCustom(" ", 0, 0);
+    void printBreakLine() {
+      if (config.showBreakLine) {
+        String bl = config.breakLineStyle == 'solid' ? '_' : config.breakLineStyle == 'dotted' ? '.' : config.breakLineStyle == 'double' ? '=' : '-';
+        _bluetooth.printCustom(bl * lineWidth, bSize, 0);
+      } else {
+        _bluetooth.printCustom(" ", bSize, 0);
       }
     }
 
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
+    for (final section in config.enabledSections) {
+      final opts = section.options;
+      switch (section.id) {
+        case 'kot_header':
+          final title = opts['title'] ?? 'KITCHEN TICKET';
+          _bluetooth.printCustom(title, bSize == 0 ? 1 : bSize + 1, 1);
+          printBreakLine();
+          break;
+        case 'store_name':
+          _bluetooth.printCustom("Store: ${storeInfo['name'] ?? ''}", bSize, 0);
+          break;
+        case 'order_info':
+          if (opts['showOrderId'] == true) {
+            _bluetooth.printCustom("Order ID: ${storeInfo['order_number'] ?? ''}", bSize, 0);
+          }
+          if (opts['showCustomerName'] == true && userInfo['name'] != null && userInfo['name'] != 'unnamed user') {
+            _bluetooth.printCustom("Customer: ${userInfo['name']}", bSize, 0);
+          }
+          if (opts['showDate'] == true) {
+            _bluetooth.printCustom("Date: ${DateTime.now().toString().substring(0, 16)}", bSize, 0);
+          }
+          printBreakLine();
+          break;
+        case 'items_list':
+          _bluetooth.printCustom("ITEMS:", bSize, 0);
+          for (int i = 0; i < products.length; i++) {
+            final p = products[i];
+            String qty = opts['showQuantity'] == true ? "${p['quantity']}x " : "";
+            _printWrappedLine("$qty${p['product_name']}", lineWidth, align: 0, size: bSize);
+            if (i < products.length - 1) {
+              _bluetooth.printCustom(" ", bSize, 0);
+            }
+          }
+          printBreakLine();
+          break;
+        case 'special_instructions':
+           // Future feature for instructions
+          break;
+        case 'kot_footer':
+          final text = opts['text'] ?? '';
+          if (text.isNotEmpty) _bluetooth.printCustom(text, bSize, 1);
+          break;
+      }
+    }
+
     _bluetooth.printNewLine();
     _bluetooth.printNewLine();
     _bluetooth.printNewLine();
+
+    // Auto-cut support
+    if (config.autoCutEnabled) {
+      try {
+        for (int i = 0; i < config.autoCutFeedLines; i++) {
+          _bluetooth.printNewLine();
+        }
+        _bluetooth.writeBytes(InvoicePrintService.getAutoCutBytes(feedLines: config.autoCutFeedLines));
+      } catch (e) {
+        print('Auto-cut command failed: $e');
+      }
+    }
   }
 
   static Future<void> _printInvoice(Map<String, dynamic> data, double widthInMm) async {
@@ -471,108 +521,133 @@ class BluetoothPrintService {
     final platformFees = data['platform_fees'] as List? ?? [];
     final grandTotal = data['grand_total'] ?? 0;
     final qrCodeUrl = data['qr_code_url'] ?? '';
-    final isNarrow = widthInMm <= 50.8;
-    final lineWidth = isNarrow ? 32 : 48;
+
+    final config = await ReceiptLayoutConfig.load('receipt');
+    final int lineWidth = config.paperWidthChars;
+    final int bSize = config.globalFontSize;
+    print('[BluetoothPrint] Receipt config loaded: width=$lineWidth, fontSize=$bSize, sections=${config.enabledSections.map((s) => s.id).toList()}');
     
     // Width configurations
-    final int qtyW = isNarrow ? 6 : 8;
-    final int amtW = isNarrow ? 8 : 12;
+    final int qtyW = lineWidth <= 32 ? 6 : 8;
+    final int amtW = lineWidth <= 32 ? 8 : 12;
 
-    // Store header (Title uses size 2, rest 0)
-    _bluetooth.printCustom(storeInfo['name'] ?? '', 1, 1);
-    if (storeInfo['address'] != null) {
-      _printWrappedLine(storeInfo['address'], lineWidth, align: 1);
-    }
-    if (storeInfo['phone'] != null) {
-      _bluetooth.printCustom("Ph: ${storeInfo['phone']}", 0, 1);
-    }
-    if (storeInfo['gst_number'] != null) {
-      _bluetooth.printCustom("GSTIN: ${storeInfo['gst_number']}", 0, 1);
-    }
-
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
-
-    // Bill info (size 0)
-    _printWrappedLine("Bill No: ${storeInfo['bill_number'] ?? ''}", lineWidth);
-    _printWrappedLine("Token No: ${storeInfo['token_number'] ?? ''}", lineWidth);
-    _bluetooth.printCustom("Date: ${DateTime.now().toString().substring(0, 16)}", 0, 0);
-
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
-
-    _printWrappedLine("Customer: ${userInfo['name'] ?? 'Guest'}", lineWidth);
-    if (userInfo['phone'] != null) {
-      _bluetooth.printCustom("Phone: ${userInfo['phone']}", 0, 0);
-    }
-
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
-
-    // Table header (Bold)
-    try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 1])); } catch (_) {}
-    _printTabularItem("Item", "Qty", "Amt", lineWidth, qtyW, amtW);
-    try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 0])); } catch (_) {}
-
-    _bluetooth.printCustom(" ", 0, 0);
-
-    // Products
-    for (int i = 0; i < products.length; i++) {
-      final p = products[i];
-      final pricing = p['pricing_details'] ?? {};
-      final name = p['product_name'] ?? '';
-      final qty = "${p['quantity'] ?? 0}";
-      final amt = "${pricing['selling_amount_including_tax'] ?? 0}";
-      _printTabularItem(name, qty, amt, lineWidth, qtyW, amtW);
-
-      if (i < products.length - 1) {
-        _bluetooth.printCustom(" ", 0, 0);
+    void printBreakLine() {
+      if (config.showBreakLine) {
+        String bl = config.breakLineStyle == 'solid' ? '_' : config.breakLineStyle == 'dotted' ? '.' : config.breakLineStyle == 'double' ? '=' : '-';
+        _bluetooth.printCustom(bl * lineWidth, bSize, 0);
+      } else {
+        _bluetooth.printCustom(" ", bSize, 0);
       }
     }
 
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
-
-    // Cart totals
-    for (final item in cartTotal) {
-      _printTabularRight("${item['title'] ?? ''}", "${item['value'] ?? 0}", lineWidth, amtW);
+    for (final section in config.enabledSections) {
+      final opts = section.options;
+      switch (section.id) {
+        case 'store_name': // Also acts as header
+          _bluetooth.printCustom(storeInfo['name'] ?? '', bSize == 0 ? 1 : bSize + 1, 1);
+          if (opts['showAddress'] == true && storeInfo['address'] != null) {
+            _printWrappedLine(storeInfo['address'], lineWidth, align: 1, size: bSize);
+          }
+          if (opts['showPhone'] == true && storeInfo['phone'] != null) {
+            _bluetooth.printCustom("Ph: ${storeInfo['phone']}", bSize, 1);
+          }
+          if (opts['showGST'] == true && storeInfo['gst_number'] != null) {
+            _bluetooth.printCustom("GSTIN: ${storeInfo['gst_number']}", bSize, 1);
+          }
+          printBreakLine();
+          break;
+        case 'bill_info':
+          if (opts['showBillNo'] == true) _printWrappedLine("Bill No: ${storeInfo['bill_number'] ?? ''}", lineWidth, size: bSize);
+          if (opts['showTokenNo'] == true) _printWrappedLine("Token No: ${storeInfo['token_number'] ?? ''}", lineWidth, size: bSize);
+          if (opts['showDate'] == true) _bluetooth.printCustom("Date: ${DateTime.now().toString().substring(0, 16)}", bSize, 0);
+          printBreakLine();
+          break;
+        case 'customer_info':
+          if (opts['showName'] == true) _printWrappedLine("Customer: ${userInfo['name'] ?? 'Guest'}", lineWidth, size: bSize);
+          if (opts['showPhone'] == true && userInfo['phone'] != null) {
+            _bluetooth.printCustom("Phone: ${userInfo['phone']}", bSize, 0);
+          }
+          printBreakLine();
+          break;
+        case 'products_table':
+          if (opts['showHeader'] == true) {
+            try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 1])); } catch (_) {}
+            _printTabularItem("Item", "Qty", "Amt", lineWidth, qtyW, amtW, size: bSize);
+            try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 0])); } catch (_) {}
+            _bluetooth.printCustom(" ", bSize, 0);
+          }
+          for (int i = 0; i < products.length; i++) {
+            final p = products[i];
+            final pricing = p['pricing_details'] ?? {};
+            final name = p['product_name'] ?? '';
+            final qty = "${p['quantity'] ?? 0}";
+            final amt = "${pricing['selling_amount_including_tax'] ?? 0}";
+            _printTabularItem(name, qty, amt, lineWidth, qtyW, amtW, size: bSize);
+            if (i < products.length - 1) _bluetooth.printCustom(" ", bSize, 0);
+          }
+          printBreakLine();
+          break;
+        case 'cart_totals':
+          for (final item in cartTotal) {
+            _printTabularRight("${item['title'] ?? ''}", "${item['value'] ?? 0}", lineWidth, amtW, size: bSize);
+          }
+          break;
+        case 'platform_fees':
+          for (final item in platformFees) {
+            _printTabularRight("${item['title'] ?? ''}", "${item['value'] ?? 0}", lineWidth, amtW, size: bSize);
+          }
+          printBreakLine();
+          break;
+        case 'grand_total':
+          try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 1])); } catch (_) {}
+          _printTabularRight("GRAND TOTAL", "$grandTotal", lineWidth, amtW, size: bSize == 0 ? 1 : bSize + 1);
+          try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 0])); } catch (_) {}
+          printBreakLine();
+          break;
+        case 'qr_code':
+          if (qrCodeUrl.isNotEmpty) {
+            _bluetooth.printNewLine();
+            _bluetooth.printQRcode(qrCodeUrl, 250, 250, 1);
+            _bluetooth.printNewLine();
+          }
+          break;
+        case 'footer_message':
+          final text = opts['text'] ?? config.footerText;
+          if (text.isNotEmpty) _bluetooth.printCustom(text, bSize, 1);
+          break;
+      }
     }
-
-    // Platform fees
-    for (final item in platformFees) {
-      _printTabularRight("${item['title'] ?? ''}", "${item['value'] ?? 0}", lineWidth, amtW);
-    }
-
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
-
-    // Grand total
-    _printTabularRight("GRAND TOTAL", "$grandTotal", lineWidth, amtW);
-
-    _bluetooth.printCustom(_dashedLine(lineWidth), 0, 0);
-
-    // QR Code
-    if (qrCodeUrl.isNotEmpty) {
-      _bluetooth.printNewLine();
-      _bluetooth.printQRcode(qrCodeUrl, 250, 250, 1);
-      _bluetooth.printNewLine();
-    }
-
-    _bluetooth.printCustom("Thank you for your visit!", 0, 1);
 
     _bluetooth.printNewLine();
     _bluetooth.printNewLine();
     _bluetooth.printNewLine();
+
+    // Auto-cut support
+    if (config.autoCutEnabled) {
+      try {
+        for (int i = 0; i < config.autoCutFeedLines; i++) {
+          _bluetooth.printNewLine();
+        }
+        _bluetooth.writeBytes(InvoicePrintService.getAutoCutBytes(feedLines: config.autoCutFeedLines));
+      } catch (e) {
+        print('Auto-cut command failed: $e');
+      }
+    }
   }
 
   /// Print text wrapping if it exceeds lineWidth
-  static void _printWrappedLine(String text, int width, {int align = 0}) {
+  static void _printWrappedLine(String text, int width, {int align = 0, int size = 0}) {
     int start = 0;
     while (start < text.length) {
       int end = start + width;
       if (end > text.length) end = text.length;
-      _bluetooth.printCustom(text.substring(start, end), 0, align);
+      _bluetooth.printCustom(text.substring(start, end), size, align);
       start += width;
     }
   }
 
   /// Format 3 columns: Item (wrap) | Qty | Amt
-  static void _printTabularItem(String name, String qty, String amt, int totalWidth, int qtyW, int amtW) {
+  static void _printTabularItem(String name, String qty, String amt, int totalWidth, int qtyW, int amtW, {int size = 0}) {
     int nameW = totalWidth - qtyW - amtW;
     
     // Split name into chunks
@@ -593,27 +668,27 @@ class BluetoothPrintService {
     if (!fits) {
       // Print the full item name on its own lines
       for (int i = 0; i < nameChunks.length; i++) {
-        _bluetooth.printCustom(nameChunks[i], 0, 0);
+        _bluetooth.printCustom(nameChunks[i], size, 0);
       }
       // Print Qty and Amt gracefully right-aligned on the *next* line
       String secondLine = " ".padRight(nameW) + qty.padLeft(qtyW) + amt.padLeft(amtW);
-      _bluetooth.printCustom(secondLine, 0, 0);
+      _bluetooth.printCustom(secondLine, size, 0);
     } else {
       // First line prints name chunk + qty + amt
       String firstLine = nameChunks[0].padRight(nameW) + 
                          qty.padLeft(qtyW) + 
                          amt.padLeft(amtW);
-      _bluetooth.printCustom(firstLine, 0, 0);
+      _bluetooth.printCustom(firstLine, size, 0);
 
       // Subsequent lines print the rest of the name
       for (int i = 1; i < nameChunks.length; i++) {
-        _bluetooth.printCustom(nameChunks[i], 0, 0);
+        _bluetooth.printCustom(nameChunks[i], size, 0);
       }
     }
   }
 
   /// Format 2 columns: Title (wrap) | Amount
-  static void _printTabularRight(String title, String rightVal, int totalWidth, int rightW) {
+  static void _printTabularRight(String title, String rightVal, int totalWidth, int rightW, {int size = 0}) {
     int titleW = totalWidth - rightW;
     
     List<String> titleChunks = [];
@@ -632,19 +707,19 @@ class BluetoothPrintService {
     if (!fits) {
       // Print title first fully
       for (int i = 0; i < titleChunks.length; i++) {
-        _bluetooth.printCustom(titleChunks[i], 0, 0);
+        _bluetooth.printCustom(titleChunks[i], size, 0);
       }
       // Print amount safely right-aligned on next line to avoid collision
       String secondLine = " ".padRight(totalWidth - rightVal.length) + rightVal;
-      _bluetooth.printCustom(secondLine, 0, 0);
+      _bluetooth.printCustom(secondLine, size, 0);
     } else {
       // First line
       String firstLine = titleChunks[0].padRight(titleW) + rightVal.padLeft(rightW);
-      _bluetooth.printCustom(firstLine, 0, 0);
+      _bluetooth.printCustom(firstLine, size, 0);
 
       // Rest of title lines
       for (int i = 1; i < titleChunks.length; i++) {
-        _bluetooth.printCustom(titleChunks[i], 0, 0);
+        _bluetooth.printCustom(titleChunks[i], size, 0);
       }
     }
   }

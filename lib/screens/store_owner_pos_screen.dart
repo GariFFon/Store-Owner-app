@@ -36,7 +36,8 @@ class StoreOwnerPOSScreen extends StatefulWidget {
   State<StoreOwnerPOSScreen> createState() => _StoreOwnerPOSScreenState();
 }
 
-class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
+class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
+    with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   /// Public: Expand and focus the search bar (called via Ctrl+S / Ctrl+F)
@@ -105,6 +106,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
   Map<String, dynamic>? _cartData;
   double _grandTotal = 0.0;
 
+  // Cart shimmer animation
+  late AnimationController _cartShimmerController;
+  late Animation<double> _cartShimmerAnimation;
+
   // Location
   double _lat = 0.0;
   double _lng = 0.0;
@@ -151,6 +156,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
     _loadViewPreference(); // Load view preference
     _initLocationAndCart(); // Load location then cart data
 
+    // Cart shimmer animation
+    _cartShimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+    _cartShimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
+      CurvedAnimation(parent: _cartShimmerController, curve: Curves.easeInOut),
+    );
+
     // Show customer phone dialog on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showCustomerPhoneDialog();
@@ -159,6 +173,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
 
   @override
   void dispose() {
+    _cartShimmerController.dispose();
     _searchController.dispose();
     _desktopSearchFocusNode.dispose();
     _searchDebounce?.cancel();
@@ -3430,19 +3445,63 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen> {
       floatingActionButton: _totalProductsInCart > 0
           ? SizedBox(
               height: 45,
-              child: FloatingActionButton.extended(
-                onPressed: _showCartBottomSheet,
-                backgroundColor: theme.primaryColor,
-                foregroundColor: Colors.white,
-                elevation: 3,
-                icon: const Icon(Icons.shopping_cart, size: 18),
-                label: Text(
-                  '$_totalProductsInCart Items  •  ₹${_grandTotal.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
+              child: AnimatedBuilder(
+                animation: _cartShimmerAnimation,
+                builder: (context, child) {
+                  // Alpine green base and shimmer sweep
+                  const alpineGreen = Color(0xFF2E7D52);
+                  const alpineGreenLight = Color(0xFF3DA068);
+                  final shimmerPos = _cartShimmerAnimation.value;
+
+                  return GestureDetector(
+                    onTap: _showCartBottomSheet,
+                    child: Container(
+                      height: 45,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        gradient: LinearGradient(
+                          begin: Alignment(shimmerPos - 2.5, 0),
+                          end: Alignment(shimmerPos + 1.5, 0),
+                          colors: const [
+                            alpineGreen,
+                            alpineGreen,
+                            Color(0xFF438A63), // Solid, slightly lighter green for the subtle sheen (no transparency)
+                            alpineGreen,
+                            alpineGreen,
+                          ],
+                          stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: alpineGreen.withOpacity(0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.shopping_cart,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$_totalProductsInCart Items  •  ₹${_grandTotal.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             )
           : null,
