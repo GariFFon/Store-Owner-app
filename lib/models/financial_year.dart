@@ -56,4 +56,28 @@ class FinancialYear {
       return 'FY';
     }
   }
+
+  // e.g. "FY 2026-27"
+  String get label {
+    try {
+      final start = DateTime.parse(startDate);
+      final end = DateTime.parse(endDate);
+      return 'FY ${start.year}-${end.year.toString().substring(2)}';
+    } catch (_) {
+      return displayName;
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'store': store,
+        'store_name': storeName,
+        'start_date': startDate,
+        'end_date': endDate,
+        'is_active': isActive,
+        'is_locked': isLocked,
+        'is_current_fy': isCurrentFy,
+        'created_at': createdAt,
+        'label': label,
+      };
 }
