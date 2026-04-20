@@ -523,11 +523,65 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             setState(() {
               selected_address_id = addresses[0]['id'];
             });
+          } else {
+            // No address on file — create a store-generated placeholder then re-fetch
+            final created = await _createStoreDefaultAddress();
+            if (created) {
+              await _fetchUserAddresses();
+            }
           }
         }
       }
     } catch (e) {
       print("Error fetching user addresses: $e");
+    }
+  }
+
+  /// Creates a lightweight placeholder address on behalf of the store so that
+  /// [order-init/] always receives a valid [user_address_id].
+  /// Uses the device's current GPS coordinates (already captured in [_lat]/[_lng]).
+  Future<bool> _createStoreDefaultAddress() async {
+    try {
+      if (customer_user_id == null || customer_user_id!.isEmpty) return false;
+
+      final response = await ApiService.post(
+        '/add-user-address/',
+        body: {
+          "address_line_1": "",
+          "address_line_2": "",
+          "locality": "",
+          "city": "",
+          "state": "",
+          "district": "",
+          "pincode": 0,
+          "country": "India",
+          "address_name": "Created by Store: ${widget.storeId}",
+          "area": "",
+          "lat": _lat,
+          "lng": _lng,
+          "is_billing": true,
+          "is_shipping": true,
+          "phone_number": 0,
+          "attendee_name": "",
+          "store_access": true,
+          "customer_user_id": customer_user_id,
+          "store_id": widget.storeId,
+        },
+        useBearerToken: true,
+      );
+
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if (data['status'] == 200) {
+          debugPrint('✅ Default store address created for customer $customer_user_id');
+          return true;
+        }
+      }
+      debugPrint('⚠️ add-user-address/ returned unexpected: ${response['data']}');
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error creating default address: $e');
+      return false;
     }
   }
 
@@ -3057,11 +3111,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                         bool found = await _fetchCustomerData(
                                           fullPhoneNumber,
                                         );
-                                        if (mounted) Navigator.pop(context);
-                                        
-                                        if (!found && mounted && fullPhoneNumber != '91910000000018' && fullPhoneNumber != '910000000018') {
-                                          _showAddCustomerDetailsDialog(fullPhoneNumber);
+                                        if (!found) {
+                                          // New customer — register via add-store-customer/ with no name required
+                                          await _addStoreCustomer(fullPhoneNumber);
                                         }
+                                        if (mounted) Navigator.pop(context);
                                       } catch (e) {
                                         setState(() => isLoading = false);
                                         if (context.mounted) {
@@ -3205,211 +3259,65 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
   }
 
-  Future<void> _showAddCustomerDetailsDialog(String phoneNumber) async {
-    final nameController = TextEditingController();
-    String selectedGender = 'Male';
-    bool isSubmitting = false;
+  /// Registers (or looks up) a customer via the store-staff endpoint.
+  /// No name or gender is required — the API is idempotent and will return
+  /// the existing account if the phone number is already in the database.
+  Future<void> _addStoreCustomer(String phoneNumber) async {
+    try {
+      final response = await ApiService.post(
+        '/add-store-customer/',
+        body: {
+          'store_access': true,
+          'store_id': widget.storeId,
+          'customer_phone_number': phoneNumber,
+        },
+        useBearerToken: true,
+      );
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const TranslatedText(
-                      'New Customer',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    TranslatedText(
-                      'Phone: +$phoneNumber',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black54,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    const TranslatedText(
-                      'Name',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: nameController,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: InputDecoration(
-                        hintText: 'Enter customer name',
-                        filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const TranslatedText(
-                      'Gender',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: selectedGender,
-                          isExpanded: true,
-                          items: ['Male', 'Female', 'Other']
-                              .map((gender) => DropdownMenuItem(
-                                    value: gender,
-                                    child: TranslatedText(gender),
-                                  ))
-                              .toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setDialogState(() => selectedGender = val);
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: isSubmitting
-                                ? null
-                                : () => Navigator.pop(context),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const TranslatedText('Cancel'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: isSubmitting
-                                ? null
-                                : () async {
-                                    if (nameController.text.trim().isEmpty) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: TranslatedText(
-                                            'Please enter customer name',
-                                          ),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
-                                      return;
-                                    }
+      if (response['statusCode'] == 200 && response['data'] != null) {
+        final data = response['data'];
+        if ((data['status'] == 200 || data['status'] == 201) &&
+            data['response'] != null) {
+          final List<dynamic> userList = data['response'];
+          if (userList.isNotEmpty) {
+            final userData = userList[0] as Map<String, dynamic>;
+            setState(() {
+              customer_user_id =
+                  data['customer_user_id'] as String? ?? userData['id'] as String?;
+              _currentCustomer = userData;
+            });
 
-                                    setDialogState(() => isSubmitting = true);
-                                    try {
-                                      // Create User
-                                      final response = await ApiService.post(
-                                        '/pos-add-customer/', // Backend endpoint placeholder
-                                        body: {
-                                          'phone_number': int.parse(phoneNumber),
-                                          'first_name': nameController.text.trim(),
-                                          'gender': selectedGender,
-                                          'store_id': widget.storeId,
-                                        },
-                                        useBearerToken: true,
-                                      );
-
-                                      if (response['statusCode'] == 200) {
-                                        if (mounted) Navigator.pop(context);
-                                        // Refetch to assign ID globally & load context
-                                        await _fetchCustomerData(phoneNumber);
-                                      } else {
-                                        throw Exception(
-                                          response['data']?['message'] ??
-                                          'Failed to create user',
-                                        );
-                                      }
-                                    } catch (e) {
-                                      setDialogState(() => isSubmitting = false);
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: TranslatedText(
-                                              'Error: $e',
-                                            ),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0F172A),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: isSubmitting
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const TranslatedText('Save'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+            // Refresh products and cart with new customer ID
+            if (customer_user_id != null) {
+              await _fetchOrderMethods();
+              await _fetchUserAddresses();
+              _fetchProductsByCategory(_selectedCategoryId ?? 'all');
+              _validateCart();
+            }
+          }
+        }
+      } else {
+        final msg = response['data']?['message'] ?? 'Failed to register customer';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: TranslatedText(msg.toString()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error in _addStoreCustomer: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: TranslatedText('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
-      },
-    );
+      }
+    }
   }
 
   @override
