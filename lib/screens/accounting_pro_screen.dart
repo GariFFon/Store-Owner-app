@@ -6,6 +6,7 @@ import 'package:exanor/screens/financial_year_detail_screen.dart';
 import 'package:exanor/screens/tax_compliance_detail_screen.dart';
 import 'package:exanor/screens/account_groups_screen.dart';
 import 'package:exanor/screens/accounts_screen.dart';
+import 'package:exanor/screens/parties_screen.dart';
 import 'package:intl/intl.dart';
 
 class AccountingProScreen extends StatefulWidget {
@@ -684,6 +685,21 @@ class _AccountingProScreenState extends State<AccountingProScreen>
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => AccountsScreen(
+                    storeId: widget.storeId,
+                    financialYearId: activeFy['id']?.toString() ?? '',
+                    fyLabel: activeFy['label']?.toString() ?? '',
+                  ),
+                ),
+              );
+            } else if (cat.id == 'parties') {
+              final activeFy = _financialYears.firstWhere(
+                (fy) => fy['is_active'] == true,
+                orElse: () =>
+                    _financialYears.isNotEmpty ? _financialYears.first : {},
+              );
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PartiesScreen(
                     storeId: widget.storeId,
                     financialYearId: activeFy['id']?.toString() ?? '',
                     fyLabel: activeFy['label']?.toString() ?? '',
