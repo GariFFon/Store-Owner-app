@@ -1,5 +1,6 @@
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/models/financial_year.dart';
+import 'package:exanor/screens/financial_year_detail_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -547,107 +548,124 @@ class _FinancialYearsScreenState extends State<FinancialYearsScreen> {
 
   Widget _buildMobileCard(FinancialYear fy) {
     final dateFormat = DateFormat('MMM dd, yyyy');
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: fy.isActive ? Colors.blue.withOpacity(0.02) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: fy.isActive ? Colors.blue.withOpacity(0.3) : Colors.grey[200]!,
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => FinancialYearDetailScreen(
+              storeId: widget.storeId,
+              financialYear: fy.toJson(),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: fy.isActive ? Colors.blue.withOpacity(0.02) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: fy.isActive ? Colors.blue.withOpacity(0.3) : Colors.grey[200]!,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [_statusBadge(fy.isActive), _lockBadge(fy.isLocked)],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [_statusBadge(fy.isActive), _lockBadge(fy.isLocked)],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.calendar_month_rounded,
+                    color: Colors.blue,
+                    size: 24,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.calendar_month_rounded,
-                  color: Colors.blue,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      fy.displayName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fy.displayName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "${dateFormat.format(DateTime.parse(fy.startDate))} - ${dateFormat.format(DateTime.parse(fy.endDate))}",
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        "${dateFormat.format(DateTime.parse(fy.startDate))} - ${dateFormat.format(DateTime.parse(fy.endDate))}",
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Duration",
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              ),
-              Text(
-                fy.durationText,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Color(0xFFCBD5E1),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Created At",
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              ),
-              Text(
-                dateFormat.format(DateTime.parse(fy.createdAt)),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Duration",
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                 ),
-              ),
-            ],
-          ),
-        ],
+                Text(
+                  fy.durationText,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Created At",
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                ),
+                Text(
+                  dateFormat.format(DateTime.parse(fy.createdAt)),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -20,6 +20,8 @@ import 'package:exanor/screens/customers_list_screen.dart';
 import 'package:exanor/screens/inventory_screen.dart';
 import 'package:exanor/screens/gst_ledger_screen.dart';
 import 'package:exanor/screens/table_management_screen.dart';
+import 'package:exanor/screens/accounting_pro_screen.dart';
+import 'package:exanor/services/api_service.dart';
 // import 'package:exanor/screens/auth/login_screen.dart'; // Assuming login screen exists
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,6 +46,7 @@ class StoreMainDrawer extends StatefulWidget {
 
 class _StoreMainDrawerState extends State<StoreMainDrawer> {
   String? _ownerName;
+  bool _isAccountingProLoading = false;
 
   @override
   void initState() {
@@ -70,6 +73,48 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
     } catch (e) {
       // ignore
     }
+  }
+
+  /// Calls POST /financial-years/ and navigates to AccountingProScreen
+  Future<void> _openAccountingPro() async {
+    if (_isAccountingProLoading) return;
+    setState(() => _isAccountingProLoading = true);
+
+    List<Map<String, dynamic>> financialYears = [];
+    try {
+      final response = await ApiService.post(
+        '/financial-years/',
+        body: {'store_id': widget.storeId},
+        useBearerToken: true,
+      );
+      if (response['data'] != null) {
+        final data = response['data'] as Map<String, dynamic>;
+        if (data['status'] == 200 && data['response'] != null) {
+          financialYears =
+              List<Map<String, dynamic>>.from(data['response']);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load data: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAccountingProLoading = false);
+    }
+
+    if (!mounted) return;
+    Navigator.pop(context); // close drawer
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AccountingProScreen(
+          storeId: widget.storeId,
+          financialYears: financialYears,
+        ),
+      ),
+    );
   }
 
   void _handleNavigation(String tabId, WidgetBuilder screenBuilder) {
@@ -332,6 +377,109 @@ class _StoreMainDrawerState extends State<StoreMainDrawer> {
 
                   const SizedBox(height: 24),
                   _buildSectionTitle('ADMINISTRATION'),
+
+                  // ── Accounting PRO Button ────────────────────────────────
+                  GestureDetector(
+                    onTap: _openAccountingPro,
+                    child: Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF1D4ED8), Color(0xFF4F46E5)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2563EB).withOpacity(0.35),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.auto_stories_rounded,
+                              size: 20,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Accounting PRO',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                Text(
+                                  'Master Data & Financial Years',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_isAccountingProLoading)
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFFBBF24),
+                                    Color(0xFFF59E0B),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'PRO',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                   // Table Management
                   _buildDrawerItem(
