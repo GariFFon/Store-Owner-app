@@ -1533,6 +1533,21 @@ class _AddProductDialogState extends State<_AddProductDialog> {
     );
   }
 
+  void _showAiProductBottomSheet(String prefillQuery) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AiProductBottomSheet(
+        storeId: widget.storeId,
+        initialQuery: prefillQuery,
+        onProductAdded: () {
+          // Optionally refresh or pop
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // ── Use AnimatedPadding + viewInsets — the only reliable Flutter pattern
@@ -1739,6 +1754,48 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                               ),
                               textAlign: TextAlign.center,
                             ),
+                            const SizedBox(height: 16),
+                            GestureDetector(
+                              onTap: () => _showAiProductBottomSheet(_lastQuery),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF7C3AED).withOpacity(0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.auto_awesome_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Add Product',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       )
@@ -1771,18 +1828,71 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                               }
                               if (!_hasMore && _results.isNotEmpty) {
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${_results.length} product${_results.length == 1 ? '' : 's'} found',
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
+                                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        '${_results.length} product${_results.length == 1 ? '' : 's'} found',
+                                        style: TextStyle(
+                                          color: Colors.grey[400],
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(height: 12),
+                                      Divider(color: Colors.grey[100], height: 1),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Can\'t find what you\'re looking for?',
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      GestureDetector(
+                                        onTap: () => _showAiProductBottomSheet(_lastQuery),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                                            ),
+                                            borderRadius: BorderRadius.circular(10),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: const Color(0xFF7C3AED).withOpacity(0.25),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 3),
+                                              ),
+                                            ],
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.auto_awesome_rounded,
+                                                color: Colors.white,
+                                                size: 15,
+                                              ),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                'Add Product',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                    ],
                                   ),
                                 );
                               }
@@ -2001,6 +2111,646 @@ class _AddProductDialogState extends State<_AddProductDialog> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// AI Product Bottom Sheet — description input → generate → review → add
+// ════════════════════════════════════════════════════════════════════════════
+class _AiProductBottomSheet extends StatefulWidget {
+  final String storeId;
+  final String initialQuery;
+  final VoidCallback onProductAdded;
+
+  const _AiProductBottomSheet({
+    required this.storeId,
+    required this.initialQuery,
+    required this.onProductAdded,
+  });
+
+  @override
+  State<_AiProductBottomSheet> createState() => _AiProductBottomSheetState();
+}
+
+class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
+  // Phases: 'input' | 'loading' | 'review'
+  String _phase = 'input';
+
+  final TextEditingController _descCtrl = TextEditingController();
+  Map<String, dynamic>? _generatedTemplate;
+  String? _errorMessage;
+
+  // Review-phase editable controllers
+  final TextEditingController _nameCtrl = TextEditingController();
+  final TextEditingController _brandCtrl = TextEditingController();
+  final TextEditingController _hsnCtrl = TextEditingController();
+  final TextEditingController _parentCatCtrl = TextEditingController();
+  final TextEditingController _childCatCtrl = TextEditingController();
+  final TextEditingController _slugCtrl = TextEditingController();
+  final TextEditingController _descriptionCtrl = TextEditingController();
+
+  bool _isAdding = false;
+  bool _isAdded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _descCtrl.text = widget.initialQuery;
+  }
+
+  @override
+  void dispose() {
+    _descCtrl.dispose();
+    _nameCtrl.dispose();
+    _brandCtrl.dispose();
+    _hsnCtrl.dispose();
+    _parentCatCtrl.dispose();
+    _childCatCtrl.dispose();
+    _slugCtrl.dispose();
+    _descriptionCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _generateTemplate() async {
+    final query = _descCtrl.text.trim();
+    if (query.isEmpty) return;
+
+    setState(() {
+      _phase = 'loading';
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await ApiService.post(
+        '/create-product-template-from-ai/',
+        body: {
+          'product_string': query,
+          'store_access': true,
+          'store_id': widget.storeId,
+        },
+        useBearerToken: true,
+      );
+
+      if (!mounted) return;
+
+      final data = response['data'];
+      if (data != null && data['status'] == 200 && data['response'] != null) {
+        final r = data['response'] as Map<String, dynamic>;
+        _nameCtrl.text = r['product_name'] ?? '';
+        _brandCtrl.text = r['brand'] ?? '';
+        _hsnCtrl.text = r['hsn_code'] ?? '';
+        _parentCatCtrl.text = r['parent_category'] ?? '';
+        _childCatCtrl.text = r['child_category'] ?? '';
+        _slugCtrl.text = r['slug'] ?? '';
+        _descriptionCtrl.text = r['product_description'] ?? '';
+        setState(() {
+          _generatedTemplate = r;
+          _phase = 'review';
+        });
+      } else {
+        setState(() {
+          _phase = 'input';
+          _errorMessage = 'Failed to generate product. Please try again.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phase = 'input';
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _addProduct() async {
+    if (_generatedTemplate == null) return;
+
+    final templateId = _generatedTemplate!['product_template_id'] as String?;
+    if (templateId == null) {
+      _showSnackbar('Product template ID not found.', isError: true);
+      return;
+    }
+
+    setState(() => _isAdding = true);
+
+    try {
+      final response = await ApiService.put(
+        '/update-product-template/',
+        body: {
+          'product_template_id': templateId,
+          'store_access': true,
+          'store_id': widget.storeId,
+          'editables': [
+            {'field': 'product_name', 'value': _nameCtrl.text.trim()},
+            {'field': 'brand_name',   'value': _brandCtrl.text.trim()},
+            {'field': 'slug',         'value': _slugCtrl.text.trim()},
+            {'field': 'description',  'value': _descriptionCtrl.text.trim()},
+            {'field': 'product_type', 'value': 'physical'},
+            {'field': 'parent_category', 'value': _parentCatCtrl.text.trim()},
+            {'field': 'child_category',  'value': _childCatCtrl.text.trim()},
+            {'field': 'is_draft', 'value': false},
+          ],
+        },
+        useBearerToken: true,
+      );
+
+      if (!mounted) return;
+
+      final data = response['data'];
+      final status = data?['status'];
+
+      if (status == 200) {
+        setState(() => _isAdded = true);
+        _showSnackbar('✓ "${_nameCtrl.text}" added to your store');
+        widget.onProductAdded();
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (mounted) Navigator.of(context).pop();
+      } else {
+        final msg = data?['message']?.toString() ?? 'Failed to add product. Please try again.';
+        _showSnackbar(msg, isError: true);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+    } finally {
+      if (mounted) setState(() => _isAdding = false);
+    }
+  }
+
+
+  void _showSnackbar(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red.shade700 : const Color(0xFF059669),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return AnimatedPadding(
+      padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _phase == 'review'
+                              ? 'AI Generated Product'
+                              : 'Add New Product',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                        Text(
+                          _phase == 'review'
+                              ? 'Review the details below before adding'
+                              : 'Describe the product and we\'ll generate it',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.grey),
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Divider(color: Colors.grey[100], height: 1),
+            // Content
+            if (_phase == 'input' || _phase == 'loading')
+              _buildInputPhase()
+            else
+              _buildReviewPhase(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputPhase() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_errorMessage != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade600, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          Text(
+            'Describe the product',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _descCtrl,
+            maxLines: 3,
+            minLines: 3,
+            autofocus: true,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF1E293B),
+            ),
+            decoration: InputDecoration(
+              hintText: 'e.g. 2 Litre Coke, Red Basmati Rice 5kg...',
+              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              contentPadding: const EdgeInsets.all(14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF7C3AED),
+                  width: 1.5,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _phase == 'loading' ? null : _generateTemplate,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C3AED),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: const Color(0xFFE2E8F0),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: _phase == 'loading'
+                  ? const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Generating…',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'Generate Product Template',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewPhase() {
+    final aiMeta = _generatedTemplate?['ai_metadata'] as Map? ?? {};
+    final modelUsed = aiMeta['model_used'] as String? ?? '';
+    final variationsFound = aiMeta['variations_found'] ?? 0;
+    final totalCombinations = _generatedTemplate?['combinations_generated'] ?? 0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Success banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF86EFAC)),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF059669),
+                  size: 16,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Product generated successfully! You can edit the fields below before adding.',
+                    style: TextStyle(
+                      color: Color(0xFF065F46),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Two-column grid fields
+          Row(
+            children: [
+              Expanded(child: _reviewField('Product Name', _nameCtrl)),
+              const SizedBox(width: 12),
+              Expanded(child: _reviewField('Brand', _brandCtrl)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _reviewField('HSN Code', _hsnCtrl)),
+              const SizedBox(width: 12),
+              Expanded(child: _reviewField('Parent Category', _parentCatCtrl)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _reviewField('Child Category', _childCatCtrl)),
+              const SizedBox(width: 12),
+              Expanded(child: _reviewField('Slug', _slugCtrl)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _reviewField('Product Description', _descriptionCtrl, maxLines: 3),
+          const SizedBox(height: 16),
+
+          // AI Generation Info
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'AI Generation Info',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Model: $modelUsed',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Variations: $variationsFound',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Combinations: $totalCombinations',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isAdding
+                      ? null
+                      : () => setState(() {
+                            _phase = 'input';
+                            _generatedTemplate = null;
+                            _isAdded = false;
+                          }),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF7C3AED),
+                    side: const BorderSide(color: Color(0xFF7C3AED)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Generate Again',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: (_isAdding || _isAdded) ? null : _addProduct,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isAdded
+                        ? const Color(0xFF059669)
+                        : const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        _isAdded ? const Color(0xFF059669) : const Color(0xFFE2E8F0),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isAdding
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (_isAdded) ...[
+                              const Icon(Icons.check_rounded, size: 18),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              _isAdded ? 'Added!' : 'Add Product',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reviewField(
+    String label,
+    TextEditingController ctrl, {
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: ctrl,
+      maxLines: maxLines,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: Color(0xFF1E293B),
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(
+          fontSize: 12,
+          color: Color(0xFF64748B),
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: Color(0xFF7C3AED),
+            width: 1.5,
+          ),
         ),
       ),
     );
