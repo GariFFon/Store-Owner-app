@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:exanor/components/store_main_drawer.dart';
 import 'package:exanor/components/translation_widget.dart';
 import 'package:exanor/screens/add_purchase_order_screen.dart';
@@ -6,6 +7,7 @@ import 'package:exanor/screens/purchase_details_screen.dart';
 import 'package:exanor/screens/supplier_details_screen.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:exanor/screens/intelligence_upload_dialog.dart';
+import 'package:exanor/services/adaptive_network_analyzer_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -38,6 +40,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   int _offset = 0;
   int _count = 0;
 
+  // ── Network speed monitoring ───────────────────────────────────────────────
+  /// Latest measured download speed in Mbps. null = not yet measured.
+  double? _networkSpeedMbps;
+  StreamSubscription<NetworkSpeedResult>? _networkSub;
+
+  // ── Threshold below which AI Scan Invoice is disabled ─────────────────────
+  static const double _scanMinSpeedMbps = 5.0;
+
+  bool get _isScanEnabled =>
+      _networkSpeedMbps == null || _networkSpeedMbps! >= _scanMinSpeedMbps;
+
   DateTimeRange? _selectedDateRange;
   String? _errorMessage;
   String? _selectedPaymentFilter; // null = All
@@ -58,10 +71,25 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     super.initState();
     _scrollController.addListener(_scrollListener);
     _fetchPurchases();
+
+    // ── Start Adaptive Network Analyzer ─────────────────────────────────────
+    final analyzer = AdaptiveNetworkAnalyzerService.instance;
+    analyzer.start(measurementInterval: const Duration(seconds: 15));
+    _networkSub = analyzer.stream.listen((result) {
+      if (mounted) {
+        setState(() => _networkSpeedMbps = result.speedMbps);
+      }
+    });
+    // Seed with last known value if already running
+    if (analyzer.lastResult != null) {
+      _networkSpeedMbps = analyzer.lastResult!.speedMbps;
+    }
   }
 
   @override
   void dispose() {
+    _networkSub?.cancel();
+    AdaptiveNetworkAnalyzerService.instance.stop();
     _scrollController.dispose();
     super.dispose();
   }
@@ -348,76 +376,275 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: EdgeInsets.fromLTRB(
-          20,
-          12,
-          20,
-          MediaQuery.of(context).viewInsets.bottom + 40,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 24),
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(2),
-                ),
+      builder: (context) {
+        // Capture the speed at the moment the sheet opens.
+        final bool scanEnabled = _isScanEnabled;
+        final double? speed = _networkSpeedMbps;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-            ),
-            const Text(
-              'Add New Purchase',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1E293B),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 40,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Choose how you want to add this record',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-            ),
-            const SizedBox(height: 32),
-            _buildAddOption(
-              title: 'Scan Invoice',
-              subtitle: 'Extract details automatically using AI',
-              icon: Icons.auto_awesome,
-              color: const Color(0xFF2563EB),
-              isFeatured: true,
-              onTap: () {
-                Navigator.pop(context);
-                _handleAiPurchase();
-              },
-            ),
-            _buildAddOption(
-              title: 'Manual Entry',
-              subtitle: 'Fill in purchase details form manually',
-              icon: Icons.edit_note_rounded,
-              color: const Color(0xFF64748B),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        AddPurchaseOrderScreen(storeId: widget.storeId),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                );
-              },
+                  const Text(
+                    'Add New Purchase',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Choose how you want to add this record',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // ── Scan Invoice (AI) ──────────────────────────────────────
+                  _buildScanInvoiceOption(
+                    enabled: scanEnabled,
+                    speedMbps: speed,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _handleAiPurchase();
+                    },
+                  ),
+
+                  // ── Manual Entry ───────────────────────────────────────────
+                  _buildAddOption(
+                    title: 'Manual Entry',
+                    subtitle: 'Fill in purchase details form manually',
+                    icon: Icons.edit_note_rounded,
+                    color: const Color(0xFF64748B),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              AddPurchaseOrderScreen(storeId: widget.storeId),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Dedicated card for "Scan Invoice" that shows network quality feedback.
+  Widget _buildScanInvoiceOption({
+    required bool enabled,
+    required double? speedMbps,
+    required VoidCallback onTap,
+  }) {
+    const color = Color(0xFF2563EB);
+    final String speedLabel = speedMbps == null
+        ? 'Measuring…'
+        : '${speedMbps.toStringAsFixed(1)} Mbps';
+    final bool measuring = speedMbps == null;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: enabled ? Colors.white : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: enabled
+              ? color.withOpacity(0.3)
+              : Colors.grey.withOpacity(0.2),
+          width: enabled ? 2 : 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+          if (enabled)
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ],
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Icon container
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: enabled
+                        ? color.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: enabled ? color : Colors.grey[400],
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // Text column
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Scan Invoice',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: enabled
+                                  ? const Color(0xFF1E293B)
+                                  : Colors.grey[400],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // AI POWERED badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: enabled
+                                  ? color.withOpacity(0.1)
+                                  : Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'AI POWERED',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: enabled ? color : Colors.grey[400],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        enabled
+                            ? 'Extract details automatically using AI'
+                            : 'Requires ≥ $_scanMinSpeedMbps Mbps — current: $speedLabel',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: enabled ? Colors.grey[600] : Colors.red[400],
+                          height: 1.2,
+                        ),
+                      ),
+                      if (!enabled && !measuring) ...[
+                        const SizedBox(height: 6),
+                        // Compact speed bar
+                        LayoutBuilder(
+                          builder: (_, constraints) {
+                            final fraction =
+                                ((speedMbps ?? 0) / _scanMinSpeedMbps).clamp(
+                                  0.0,
+                                  1.0,
+                                );
+                            return Stack(
+                              children: [
+                                Container(
+                                  height: 4,
+                                  width: constraints.maxWidth,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                Container(
+                                  height: 4,
+                                  width: constraints.maxWidth * fraction,
+                                  decoration: BoxDecoration(
+                                    color: Colors.red[300],
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                      if (measuring) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Checking network speed…',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: enabled ? Colors.grey[300] : Colors.grey[200],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
