@@ -218,8 +218,13 @@ class AdaptiveNetworkAnalyzerService {
           final bytes = response.bodyBytes.lengthInBytes;
           final elapsedMs = stopwatch.elapsedMilliseconds.clamp(1, 1 << 30);
 
-          // bits / milliseconds → Mbps
-          final speedMbps = (bytes * 8) / (elapsedMs * 1000);
+          // bytes → bits → Mbps
+          // elapsed is in ms → seconds = elapsedMs / 1000
+          // bits per second = (bytes * 8) / (elapsedMs / 1000)
+          // Mbps = bits_per_second / 1_000_000
+          // Simplified: (bytes * 8) / (elapsedMs / 1000) / 1_000_000
+          //           = (bytes * 8) / (elapsedMs * 125)
+          final speedMbps = (bytes * 8.0) / (elapsedMs * 125.0);
 
           return NetworkSpeedResult(
             speedMbps: speedMbps,
