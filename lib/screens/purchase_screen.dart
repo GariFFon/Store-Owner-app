@@ -469,9 +469,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     required VoidCallback onTap,
   }) {
     const color = Color(0xFF2563EB);
-    final String speedLabel = speedMbps == null
-        ? 'Measuring…'
-        : '${speedMbps.toStringAsFixed(1)} Mbps';
     final bool measuring = speedMbps == null;
 
     return Container(
@@ -683,232 +680,482 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
     BuildContext context, {
     required double? currentSpeedMbps,
   }) {
-    final String currentLabel = currentSpeedMbps == null
-        ? 'Measuring…'
-        : '${currentSpeedMbps.toStringAsFixed(1)} Mbps';
-    final double fraction = currentSpeedMbps == null
-        ? 0
-        : (currentSpeedMbps / _scanMinSpeedMbps).clamp(0.0, 1.0);
-
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        insetPadding:
-            const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header ────────────────────────────────────────────────────
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.wifi_off_rounded,
-                      color: Colors.redAccent,
-                      size: 26,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Text(
-                      'Slow Internet Detected',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
+      builder: (ctx) {
+        // ── Shared mutable state ────────────────────────────────────────────
+        double? liveSpeed = currentSpeedMbps;
+        int countdown = 5;
+        bool isMeasuring = false;
+        Timer? countdownTimer;
+
+        // Capture StatefulBuilder's setState so inner closures can call it
+        // without needing it threaded as a parameter.
+        StateSetter? _ss;
+
+        // Forward-declare so startCountdown & refreshSpeed can reference each other.
+        void Function()? startCountdown;
+        Future<void> Function()? refreshSpeed;
+
+        refreshSpeed = () async {
+          countdownTimer?.cancel();
+          countdownTimer = null;
+          _ss?.call(() {
+            isMeasuring = true;
+            countdown = 5;
+          });
+
+          final result =
+              await AdaptiveNetworkAnalyzerService.instance.measureOnce();
+
+          if (!ctx.mounted) return;
+
+          // Push new speed to the parent page state.
+          if (mounted) {
+            setState(() => _networkSpeedMbps = result.speedMbps);
+          }
+
+          _ss?.call(() {
+            liveSpeed = result.speedMbps;
+            isMeasuring = false;
+            countdown = 5;
+          });
+
+          // Restart the 5-second countdown → infinite loop.
+          startCountdown?.call();
+        };
+
+        startCountdown = () {
+          countdownTimer?.cancel();
+          countdownTimer = null;
+
+          countdownTimer = Timer.periodic(
+            const Duration(seconds: 1),
+            (t) {
+              if (!ctx.mounted) {
+                t.cancel();
+                return;
+              }
+              _ss?.call(() {
+                if (countdown > 1) {
+                  countdown--;
+                } else {
+                  t.cancel();
+                  countdownTimer = null;
+                  refreshSpeed?.call();
+                }
+              });
+            },
+          );
+        };
+
+        return StatefulBuilder(
+          builder: (ctx2, setState) {
+            _ss = setState; // keep reference fresh on every rebuild
+
+            // Boot the loop exactly once on first build.
+            if (countdownTimer == null && !isMeasuring) {
+              startCountdown?.call();
+            }
+
+
+            final String currentLabel = liveSpeed == null
+                ? 'Measuring…'
+                : '${liveSpeed!.toStringAsFixed(1)} Mbps';
+            final double fraction = liveSpeed == null
+                ? 0
+                : (liveSpeed! / _scanMinSpeedMbps).clamp(0.0, 1.0);
+            final bool isAbove = liveSpeed != null &&
+                liveSpeed! >= _scanMinSpeedMbps;
+
+            return Dialog(
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Header ──────────────────────────────────────────────
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.wifi_off_rounded,
+                              color: Colors.redAccent,
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Text(
+                              'Slow Internet Detected',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              countdownTimer?.cancel();
+                              Navigator.of(ctx).pop();
+                            },
+                            child: Icon(Icons.close_rounded,
+                                color: Colors.grey[400], size: 22),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.of(ctx).pop(),
-                    child: Icon(Icons.close_rounded,
-                        color: Colors.grey[400], size: 22),
-                  ),
-                ],
-              ),
 
-              const SizedBox(height: 20),
-              const Divider(height: 1),
-              const SizedBox(height: 20),
+                      const SizedBox(height: 20),
+                      const Divider(height: 1),
+                      const SizedBox(height: 20),
 
-              // ── Why is it disabled? ───────────────────────────────────────
-              _dialogSection(
-                icon: Icons.info_outline_rounded,
-                iconColor: const Color(0xFF2563EB),
-                title: 'Why is this feature disabled?',
-                body:
-                    'The AI-powered Scan Invoice feature uploads your invoice image to our servers for intelligent data extraction. This process requires a stable connection of at least $_scanMinSpeedMbps Mbps to complete within a reasonable time.',
-              ),
+                      // ── Why disabled? ────────────────────────────────────────
+                      _dialogSection(
+                        icon: Icons.info_outline_rounded,
+                        iconColor: const Color(0xFF2563EB),
+                        title: 'Why is this feature disabled?',
+                        body:
+                            'The AI-powered Scan Invoice feature uploads your invoice image to our servers for intelligent data extraction. This process requires a stable connection of at least $_scanMinSpeedMbps Mbps to complete within a reasonable time.',
+                      ),
 
-              const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-              // ── Current speed ─────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1F2),
-                  borderRadius: BorderRadius.circular(14),
-                  border:
-                      Border.all(color: Colors.red.withOpacity(0.2), width: 1),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Current speed',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF64748B),
+                      // ── Current speed card ───────────────────────────────────
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isAbove
+                              ? const Color(0xFFF0FDF4)
+                              : const Color(0xFFFFF1F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isAbove
+                                ? Colors.green.withOpacity(0.25)
+                                : Colors.red.withOpacity(0.2),
+                            width: 1,
                           ),
                         ),
-                        Text(
-                          currentLabel,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.red[400],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Current speed',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                                if (isMeasuring)
+                                  const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.5,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                  )
+                                else
+                                  Text(
+                                    currentLabel,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: isAbove
+                                          ? Colors.green[600]
+                                          : Colors.red[400],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // Speed bar
+                            LayoutBuilder(builder: (_, c) {
+                              return Stack(children: [
+                                Container(
+                                  height: 6,
+                                  width: c.maxWidth,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 400),
+                                  height: 6,
+                                  width: c.maxWidth * fraction,
+                                  decoration: BoxDecoration(
+                                    color: isAbove
+                                        ? Colors.green
+                                        : Colors.redAccent,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                                // Required threshold marker
+                                Positioned(
+                                  left: c.maxWidth * 1.0 - 1,
+                                  child: Container(
+                                    width: 2,
+                                    height: 6,
+                                    color: const Color(0xFF2563EB),
+                                  ),
+                                ),
+                              ]);
+                            }),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('0 Mbps',
+                                    style: TextStyle(
+                                        fontSize: 10, color: Colors.grey[400])),
+                                Text(
+                                  'Required: $_scanMinSpeedMbps Mbps',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFF2563EB),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // ── Auto-refresh countdown ───────────────────────────────
+                      Center(
+                        child: isMeasuring
+                            ? Text(
+                                'Measuring speed…',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.refresh_rounded,
+                                      size: 14, color: Colors.grey[400]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Refreshing in ',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey[500]),
+                                  ),
+                                  AnimatedSwitcher(
+                                    duration:
+                                        const Duration(milliseconds: 300),
+                                    transitionBuilder: (child, anim) =>
+                                        SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0, -0.5),
+                                        end: Offset.zero,
+                                      ).animate(anim),
+                                      child: FadeTransition(
+                                          opacity: anim, child: child),
+                                    ),
+                                    child: Text(
+                                      '$countdown',
+                                      key: ValueKey(countdown),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    's…',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey[500]),
+                                  ),
+                                ],
+                              ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ── Tips ────────────────────────────────────────────────
+                      _dialogSection(
+                        icon: Icons.tips_and_updates_outlined,
+                        iconColor: const Color(0xFFF59E0B),
+                        title: 'Tips to improve your connection',
+                        body: null,
+                        bullets: const [
+                          'Move closer to your Wi-Fi router',
+                          'Switch from mobile data to Wi-Fi (or vice versa)',
+                          'Close background apps that consume bandwidth',
+                          'Restart your router or toggle Airplane mode',
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // ── Alternative / Good-to-go ─────────────────────────
+                      if (isAbove) ...[
+                        // Speed is now sufficient — show success banner
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: Colors.green.withOpacity(0.3), width: 1),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle_outline_rounded,
+                                  color: Colors.green, size: 22),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'Your connection is now fast enough! You can scan your invoice.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF166534),
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        // Speed still too low — show manual-entry hint
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.edit_note_rounded,
+                                  color: Color(0xFF2563EB), size: 22),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'You can still add purchases manually using the Manual Entry option.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF1E40AF),
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    // Speed bar
-                    LayoutBuilder(builder: (_, c) {
-                      return Stack(children: [
-                        Container(
-                          height: 6,
-                          width: c.maxWidth,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(3),
+
+                      const SizedBox(height: 20),
+
+                      // ── Primary action button ─────────────────────────────
+                      if (isAbove) ...[
+                        // Speed OK → offer Scan Invoice directly
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              countdownTimer?.cancel();
+                              Navigator.of(ctx).pop();
+                              _handleAiPurchase();
+                            },
+                            icon: const Icon(Icons.auto_awesome, size: 18),
+                            label: const Text(
+                              'Scan Invoice',
+                              style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.w700),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[600],
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
                           ),
                         ),
-                        Container(
-                          height: 6,
-                          width: c.maxWidth * fraction,
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent,
-                            borderRadius: BorderRadius.circular(3),
+                        const SizedBox(height: 10),
+                        Center(
+                          child: GestureDetector(
+                            onTap: () {
+                              countdownTimer?.cancel();
+                              Navigator.of(ctx).pop();
+                            },
+                            child: Text(
+                              'Close',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[500],
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
                           ),
                         ),
-                        // Required marker
-                        Positioned(
-                          left: c.maxWidth * 1.0 - 1,
-                          child: Container(
-                            width: 2,
-                            height: 6,
-                            color: const Color(0xFF2563EB),
-                          ),
-                        ),
-                      ]);
-                    }),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('0 Mbps',
-                            style: TextStyle(
-                                fontSize: 10, color: Colors.grey[400])),
-                        Text(
-                          'Required: $_scanMinSpeedMbps Mbps',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Color(0xFF2563EB),
-                            fontWeight: FontWeight.w600,
+                      ] else ...[
+                        // Speed too low → dismiss only
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              countdownTimer?.cancel();
+                              Navigator.of(ctx).pop();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2563EB),
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Got it',
+                              style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.w700),
+                            ),
                           ),
                         ),
                       ],
-                    ),
-                  ],
-                ),
-              ),
 
-              const SizedBox(height: 16),
-
-              // ── Tips ──────────────────────────────────────────────────────
-              _dialogSection(
-                icon: Icons.tips_and_updates_outlined,
-                iconColor: const Color(0xFFF59E0B),
-                title: 'Tips to improve your connection',
-                body: null,
-                bullets: const [
-                  'Move closer to your Wi-Fi router',
-                  'Switch from mobile data to Wi-Fi (or vice versa)',
-                  'Close background apps that consume bandwidth',
-                  'Restart your router or toggle Airplane mode',
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Alternative ───────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.edit_note_rounded,
-                        color: Color(0xFF2563EB), size: 22),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Text(
-                        'You can still add purchases manually using the Manual Entry option.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF1E40AF),
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Close button ──────────────────────────────────────────────
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Got it',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
+
+
 
   /// Helper: builds a labelled section inside the slow-network dialog.
   Widget _dialogSection({
