@@ -688,12 +688,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         int countdown = 5;
         bool isMeasuring = false;
         Timer? countdownTimer;
+        StreamSubscription<NetworkSpeedResult>? streamSub;
 
-        // Capture StatefulBuilder's setState so inner closures can call it
-        // without needing it threaded as a parameter.
         StateSetter? _ss;
 
-        // Forward-declare so startCountdown & refreshSpeed can reference each other.
         void Function()? startCountdown;
         Future<void> Function()? refreshSpeed;
 
@@ -705,24 +703,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             countdown = 5;
           });
 
-          final result =
-              await AdaptiveNetworkAnalyzerService.instance.measureOnce();
+          // Trigger a fresh probe. The result will arrive via the stream
+          // subscription below, ensuring the dialog and debug log always
+          // show the same value (same Cloudflare call).
+          await AdaptiveNetworkAnalyzerService.instance.measureOnce();
 
-          if (!ctx.mounted) return;
-
-          // Push new speed to the parent page state.
-          if (mounted) {
-            setState(() => _networkSpeedMbps = result.speedMbps);
-          }
-
-          _ss?.call(() {
-            liveSpeed = result.speedMbps;
-            isMeasuring = false;
-            countdown = 5;
-          });
-
-          // Restart the 5-second countdown → infinite loop.
-          startCountdown?.call();
+          // isMeasuring is reset inside the stream listener.
+          // Restart countdown after probe completes.
+          if (ctx.mounted) startCountdown?.call();
         };
 
         startCountdown = () {
@@ -751,7 +739,23 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
 
         return StatefulBuilder(
           builder: (ctx2, setState) {
-            _ss = setState; // keep reference fresh on every rebuild
+            _ss = setState;
+
+            // Subscribe to the service stream exactly once.
+            // This ensures the dialog always shows the same value as the
+            // debug log — both read from the same Cloudflare probe result.
+            streamSub ??= AdaptiveNetworkAnalyzerService.instance.stream
+                .listen((result) {
+              if (!ctx2.mounted) return;
+              _ss?.call(() {
+                liveSpeed = result.speedMbps;
+                isMeasuring = false;
+                // Also keep parent page state in sync.
+                if (mounted) {
+                  this.setState(() => _networkSpeedMbps = result.speedMbps);
+                }
+              });
+            });
 
             // Boot the loop exactly once on first build.
             if (countdownTimer == null && !isMeasuring) {
@@ -808,7 +812,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           ),
                           GestureDetector(
                             onTap: () {
-                              countdownTimer?.cancel();
+                              countdownTimer?.cancel(); streamSub?.cancel();
                               Navigator.of(ctx).pop();
                             },
                             child: Icon(Icons.close_rounded,
@@ -1077,7 +1081,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             onPressed: () {
-                              countdownTimer?.cancel();
+                              countdownTimer?.cancel(); streamSub?.cancel();
                               Navigator.of(ctx).pop();
                               _handleAiPurchase();
                             },
@@ -1103,7 +1107,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                         Center(
                           child: GestureDetector(
                             onTap: () {
-                              countdownTimer?.cancel();
+                              countdownTimer?.cancel(); streamSub?.cancel();
                               Navigator.of(ctx).pop();
                             },
                             child: Text(
@@ -1122,7 +1126,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: () {
-                              countdownTimer?.cancel();
+                              countdownTimer?.cancel(); streamSub?.cancel();
                               Navigator.of(ctx).pop();
                             },
                             style: ElevatedButton.styleFrom(

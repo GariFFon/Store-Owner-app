@@ -90,10 +90,15 @@ class AdaptiveNetworkAnalyzerService {
   Duration probeTimeout = const Duration(seconds: 8);
 
   /// Ordered list of CDN URLs used for speed probing.
+  /// Index 0 is always tried first; subsequent entries are fallbacks only.
   List<String> probeUrls = const [
-    'https://speed.cloudflare.com/__down?bytes=102400',
+    // Primary: Cloudflare speed-test CDN — purpose-built, no throttling.
+    // 500 KB gives a stable reading on fast connections.
+    'https://speed.cloudflare.com/__down?bytes=524288',
+    // Fallback A: httpbin random bytes
+    'https://httpbin.org/bytes/524288',
+    // Fallback B: fast.com JS bundle (size may vary)
     'https://www.fast.com/app-7b6f4d9c58e6a513.js',
-    'https://httpbin.org/bytes/102400',
   ];
 
   // ── Internal state ────────────────────────────────────────────────────────
@@ -136,12 +141,12 @@ class AdaptiveNetworkAnalyzerService {
     this.probeTimeout = probeTimeout ?? const Duration(seconds: 8);
     this.probeUrls = probeUrls ??
         [
-          // ~100 KB public asset from Cloudflare CDN
-          'https://speed.cloudflare.com/__down?bytes=102400',
-          // Fallback: 100 KB from fast.com test infrastructure
+          // Primary: Cloudflare speed-test CDN — 500 KB
+          'https://speed.cloudflare.com/__down?bytes=524288',
+          // Fallback A: httpbin random bytes
+          'https://httpbin.org/bytes/524288',
+          // Fallback B: fast.com JS bundle
           'https://www.fast.com/app-7b6f4d9c58e6a513.js',
-          // Fallback: httpbin echo — returns a small JSON
-          'https://httpbin.org/bytes/102400',
         ];
 
     _isRunning = true;
@@ -173,6 +178,11 @@ class AdaptiveNetworkAnalyzerService {
     final result = await _probe();
     lastResult = result;
     if (!_controller.isClosed) _controller.add(result);
+    developer.log(
+      '📶 Network: ${result.speedMbps.toStringAsFixed(2)} Mbps '
+      '(${result.quality.name}) [on-demand]',
+      name: 'NetworkAnalyzer',
+    );
     return result;
   }
 
@@ -198,14 +208,13 @@ class AdaptiveNetworkAnalyzerService {
 
   Future<NetworkSpeedResult> _probe() async {
     final urls = probeUrls;
-    if (urls.isEmpty) {
-      return _unknownResult();
-    }
+    if (urls.isEmpty) return _unknownResult();
 
-    // Try each URL in round-robin order.
-    for (int attempt = 0; attempt < urls.length; attempt++) {
-      final url = urls[_probeIndex % urls.length];
-      _probeIndex++;
+    // Always start from index 0 (Cloudflare) so every call — whether from
+    // the background timer or measureOnce() — uses the same primary URL.
+    // Subsequent entries are tried only as fallbacks if the primary fails.
+    for (int i = 0; i < urls.length; i++) {
+      final url = urls[i];
 
       try {
         final stopwatch = Stopwatch()..start();
@@ -219,12 +228,16 @@ class AdaptiveNetworkAnalyzerService {
           final elapsedMs = stopwatch.elapsedMilliseconds.clamp(1, 1 << 30);
 
           // bytes → bits → Mbps
-          // elapsed is in ms → seconds = elapsedMs / 1000
-          // bits per second = (bytes * 8) / (elapsedMs / 1000)
-          // Mbps = bits_per_second / 1_000_000
-          // Simplified: (bytes * 8) / (elapsedMs / 1000) / 1_000_000
-          //           = (bytes * 8) / (elapsedMs * 125)
-          final speedMbps = (bytes * 8.0) / (elapsedMs * 125.0);
+          // Speed (Mbps) = (bytes × 8 bits) / (elapsedMs ÷ 1000 seconds) / 1,000,000
+          //              = (bytes × 8) / (elapsedMs × 1000)
+          final speedMbps = (bytes * 8.0) / (elapsedMs * 1000.0);
+
+          if (i > 0) {
+            developer.log(
+              '⚠️ Primary probe failed, used fallback[$i]: $url',
+              name: 'NetworkAnalyzer',
+            );
+          }
 
           return NetworkSpeedResult(
             speedMbps: speedMbps,
