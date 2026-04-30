@@ -241,7 +241,7 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        fontSize: 22,
+                                        fontSize: 20,
                                         fontWeight: FontWeight.w800,
                                         color: Color(0xFF1E293B),
                                         letterSpacing: -0.5,
@@ -273,15 +273,17 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                               if (_hasChanges)
                                 Container(
                                   margin: const EdgeInsets.only(right: 8),
-                                  child: TextButton.icon(
+                                  child: ElevatedButton.icon(
                                     onPressed: _saveConfigs,
-                                    icon: const Icon(Icons.save_rounded, size: 18),
-                                    label: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: const Color(0xFF10B981),
-                                      backgroundColor: Colors.white,
+                                    icon: const Icon(Icons.check_circle_rounded, size: 16),
+                                    label: const Text('Save', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                                    style: ElevatedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      backgroundColor: const Color(0xFF10B981),
+                                      elevation: 0,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                                      minimumSize: const Size(0, 36),
                                     ),
                                   ),
                                 ),
@@ -340,8 +342,8 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                             dividerColor: Colors.transparent,
                             labelColor: const Color(0xFF1E293B),
                             unselectedLabelColor: const Color(0xFF64748B),
-                            labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                            unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                            unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                             tabs: [
                               Tab(
                                 child: Row(
@@ -485,6 +487,26 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                       _hasChanges = true;
                     });
                   }
+                },
+                isDark: isDark,
+                textColor: textColor,
+                subtextColor: subtextColor,
+              ),
+              const SizedBox(height: 12),
+              _buildSliderTile(
+                title: 'Print Density / DPI',
+                subtitle: '${config.printerDpi.toInt()} DPI',
+                icon: Icons.high_quality_rounded,
+                iconColor: const Color(0xFFF59E0B),
+                value: config.printerDpi.clamp(100.0, 400.0),
+                min: 100,
+                max: 400,
+                divisions: 30,
+                onChanged: (v) {
+                  setState(() {
+                    config.printerDpi = v;
+                    _hasChanges = true;
+                  });
                 },
                 isDark: isDark,
                 textColor: textColor,
@@ -748,16 +770,17 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: textColor,
+                    letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: subtextColor,
                     height: 1.3,
                   ),
@@ -817,23 +840,24 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                 child: Text(
                   title,
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: textColor,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: iconColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: iconColor,
                   ),
@@ -910,16 +934,17 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                     Text(
                       title,
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: textColor,
+                        letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       subtitle,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: subtextColor,
                         height: 1.3,
                       ),
@@ -1160,9 +1185,10 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 8, right: 16, top: 14, bottom: 14),
+            padding: EdgeInsets.only(left: 8, right: 16, top: 14, bottom: _hasSectionSettings(section) ? 8 : 14),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -1209,17 +1235,17 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                       Text(
                         section.label,
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: section.enabled ? textColor : subtextColor.withValues(alpha: 0.8),
                         ),
                       ),
                       if (_getSectionSubtitle(section) != null) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           _getSectionSubtitle(section)!,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: subtextColor,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1248,28 +1274,28 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
           ),
           
           // Action Base
-          if (_hasSectionSettings(section)) ...[
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: isDark ? const Color(0xFF334155).withValues(alpha: 0.5) : const Color(0xFFE2E8F0).withValues(alpha: 0.5),
-            ),
-            Material(
-              color: Colors.transparent,
+          if (_hasSectionSettings(section))
+            Padding(
+              padding: const EdgeInsets.only(left: 80, bottom: 14), // Aligned slightly right of drag+number
               child: InkWell(
-                borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16)),
                 onTap: () => _showSectionSettings(section, config),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: sectionColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: sectionColor.withValues(alpha: 0.15)),
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.settings_outlined, size: 18, color: sectionColor),
-                      const SizedBox(width: 8),
+                      Icon(Icons.settings_outlined, size: 14, color: sectionColor),
+                      const SizedBox(width: 6),
                       Text(
                         'Configure Settings',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: sectionColor,
                         ),
@@ -1279,7 +1305,6 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
                 ),
               ),
             ),
-          ],
         ],
       ),
     );
@@ -1648,6 +1673,8 @@ class _ReceiptKotEditorScreenState extends State<ReceiptKotEditorScreen>
           children: [
             if (section.options['showOrderId'] != false)
               Text('Order ID: ORD-12345', style: textStyle),
+            if (section.options['showTokenNo'] != false)
+              Text('Token No: T-042', style: textStyle),
             if (section.options['showCustomerName'] != false)
               Text('Customer: John Doe', style: textStyle),
             if (section.options['showDate'] != false)
@@ -1792,7 +1819,7 @@ class _SectionSettingsSheetState extends State<_SectionSettingsSheet> {
                 },
                 child: const Text(
                   'Save Settings',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
             ),

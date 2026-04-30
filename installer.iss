@@ -1,7 +1,8 @@
 [Setup]
 ; App Details
+AppId={DA354CCF-D90D-47C2-9BEA-7256FF8B0CE2}
 AppName=Exanor Store App
-AppVersion=1.0.1
+AppVersion=1.0.8
 AppPublisher=Exanor
 AppPublisherURL=https://exanor.store
 AppSupportURL=https://exanor.store
@@ -14,7 +15,7 @@ AppMutex=exanor_store_app_mutex
 DefaultDirName={autopf}\Exanor Store App
 DisableProgramGroupPage=yes
 OutputDir=installer_output
-OutputBaseFilename=ExanorStorePartner-Setup-1.0.1
+OutputBaseFilename=ExanorStorePartner-Setup-1.0.8
 Compression=lzma2/ultra64
 SolidCompression=yes
 ArchitecturesAllowed=x64

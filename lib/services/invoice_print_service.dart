@@ -82,7 +82,7 @@ class InvoicePrintService {
     final productsCount = (data['products'] as List? ?? []).length;
     // Estimate max height required for the invoice/ticket:
     // Base height for headers/footers/QR code/totals + lines per product
-    double estimatedHeightMm = 200.0 + (productsCount * 12.0);
+    double estimatedHeightMm = 120.0 + (productsCount * 10.0);
 
     // Determine if this is a narrow (2-inch) receipt
     final bool isNarrow = widthInMm <= 50.8;
@@ -91,8 +91,9 @@ class InvoicePrintService {
     // Adaptive sizing based on paper width
     // For 2-inch printers, use smaller width (46mm) to account for
     // the printer's own non-printable margins on each side
-    final double effectiveWidthMm = isNarrow ? 46.0 : widthInMm;
-    final double marginMm = isNarrow ? 3.0 : (isA4 ? 20.0 : 5.0);
+    // For 3-inch printers, use 70mm to avoid right-side gap
+    final double effectiveWidthMm = isNarrow ? 46.0 : (isA4 ? widthInMm : 70.0);
+    final double marginMm = isNarrow ? 3.0 : (isA4 ? 20.0 : 2.0);
     final double storeNameSize = isNarrow ? 10.0 : (isA4 ? 18.0 : 14.0);
     final double headerSize = isNarrow ? 9.0 : (isA4 ? 16.0 : 12.0);
     final double bodySize = isNarrow ? 8.0 : (isA4 ? 11.0 : 9.0);
@@ -120,8 +121,9 @@ class InvoicePrintService {
       final double widthPt = effectiveWidthMm * PdfPageFormat.mm;
       final double heightPt = estimatedHeightMm * PdfPageFormat.mm;
       final double marginPt = marginMm * PdfPageFormat.mm;
-      final double marginRightPt = (isNarrow ? 2.0 : 3.0) * PdfPageFormat.mm;
-      pageFormat = PdfPageFormat(widthPt, heightPt, marginLeft: marginPt, marginRight: marginRightPt, marginTop: marginPt, marginBottom: marginPt);
+      final double marginRightPt = (isNarrow ? 2.0 : 1.0) * PdfPageFormat.mm;
+      final double marginBottomPt = (isNarrow ? marginMm : 2.0) * PdfPageFormat.mm;
+      pageFormat = PdfPageFormat(widthPt, heightPt, marginLeft: marginPt, marginRight: marginRightPt, marginTop: marginPt, marginBottom: marginBottomPt);
     }
 
     pw.ImageProvider? logoImage;
@@ -191,7 +193,7 @@ class InvoicePrintService {
             ),
           ),
           pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
-          pw.SizedBox(height: 20),
+          pw.SizedBox(height: 5),
         ],
       );
     }
@@ -416,7 +418,7 @@ class InvoicePrintService {
               style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: thankYouSize),
             ),
           ),
-          pw.SizedBox(height: 20),
+          pw.SizedBox(height: 5),
         ],
       );
     }
@@ -509,9 +511,9 @@ class InvoicePrintService {
     final productsCount = (data['products'] as List? ?? []).length;
     final bool isNarrow = widthInMm <= 50.8;
     final bool isA4 = widthInMm >= 210.0;
-    final double estimatedHeightMm = 200.0 + (productsCount * 12.0);
-    final double effectiveWidthMm = isNarrow ? 46.0 : widthInMm;
-    final double marginMm = isNarrow ? 3.0 : (isA4 ? 20.0 : 5.0);
+    final double estimatedHeightMm = 120.0 + (productsCount * 10.0);
+    final double effectiveWidthMm = isNarrow ? 46.0 : (isA4 ? widthInMm : 70.0);
+    final double marginMm = isNarrow ? 3.0 : (isA4 ? 20.0 : 2.0);
 
     final PdfPageFormat dialogFormat;
 
@@ -521,8 +523,9 @@ class InvoicePrintService {
       final double widthPt = effectiveWidthMm * PdfPageFormat.mm;
       final double heightPt = estimatedHeightMm * PdfPageFormat.mm;
       final double marginPt = marginMm * PdfPageFormat.mm;
-      final double marginRightPt = (isNarrow ? 2.0 : 3.0) * PdfPageFormat.mm;
-      dialogFormat = PdfPageFormat(widthPt, heightPt, marginLeft: marginPt, marginRight: marginRightPt, marginTop: marginPt, marginBottom: marginPt);
+      final double marginRightPt = (isNarrow ? 2.0 : 1.0) * PdfPageFormat.mm;
+      final double marginBottomPt = (isNarrow ? marginMm : 2.0) * PdfPageFormat.mm;
+      dialogFormat = PdfPageFormat(widthPt, heightPt, marginLeft: marginPt, marginRight: marginRightPt, marginTop: marginPt, marginBottom: marginBottomPt);
     }
 
     if (isDesktop) {
