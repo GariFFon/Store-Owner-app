@@ -8,6 +8,7 @@ import 'package:exanor/screens/account_groups_screen.dart';
 import 'package:exanor/screens/accounts_screen.dart';
 import 'package:exanor/screens/parties_screen.dart';
 import 'package:exanor/screens/opening_balances_screen.dart';
+import 'package:exanor/screens/ob_operations_screen.dart';
 import 'package:intl/intl.dart';
 
 class AccountingProScreen extends StatefulWidget {
@@ -723,6 +724,21 @@ class _AccountingProScreenState extends State<AccountingProScreen>
                     financialYears: fys,
                     initialFyId: activeFy['id']?.toString() ?? '',
                     initialFyLabel: activeFy['label']?.toString() ?? '',
+                  ),
+                ),
+              );
+            } else if (cat.id == 'ob_operations') {
+              final activeFy = _financialYears.firstWhere(
+                (fy) => fy['is_active'] == true,
+                orElse: () =>
+                    _financialYears.isNotEmpty ? _financialYears.first : {},
+              );
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => OBOperationsScreen(
+                    storeId: widget.storeId,
+                    financialYearId: activeFy['id']?.toString() ?? '',
+                    fyLabel: activeFy['label']?.toString() ?? '',
                   ),
                 ),
               );

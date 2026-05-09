@@ -2295,98 +2295,106 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
+    // Constrain the sheet to the available height above the keyboard
+    final maxSheetHeight =
+        mq.size.height - mq.viewInsets.bottom - mq.padding.top - mq.padding.bottom;
+
     return AnimatedPadding(
       padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOut,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxSheetHeight),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _phase == 'review'
-                              ? 'AI Generated Product'
-                              : 'Add New Product',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1E293B),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _phase == 'review'
+                                ? 'AI Generated Product'
+                                : 'Add New Product',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E293B),
+                            ),
                           ),
-                        ),
-                        Text(
-                          _phase == 'review'
-                              ? 'Review the details below before adding'
-                              : 'Describe the product and we\'ll generate it',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
+                          Text(
+                            _phase == 'review'
+                                ? 'Review the details below before adding'
+                                : 'Describe the product and we\'ll generate it',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.grey),
-                    onPressed: () => Navigator.of(context).pop(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.grey),
+                      onPressed: () => Navigator.of(context).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Divider(color: Colors.grey[100], height: 1),
-            // Content
-            if (_phase == 'input' || _phase == 'loading')
-              _buildInputPhase()
-            else
-              _buildReviewPhase(),
-          ],
+              const SizedBox(height: 4),
+              Divider(color: Colors.grey[100], height: 1),
+              // Content — Flexible so it never exceeds the constrained height
+              Flexible(
+                child: (_phase == 'input' || _phase == 'loading')
+                    ? _buildInputPhase()
+                    : _buildReviewPhase(),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildInputPhase() {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2636,76 +2644,75 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
           ),
           const SizedBox(height: 20),
 
-          // Action buttons
-          Row(
+          // Action buttons — stacked vertically for breathing room
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _isAdding
-                      ? null
-                      : () => setState(() {
-                            _phase = 'input';
-                            _generatedTemplate = null;
-                            _isAdded = false;
-                          }),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF7C3AED),
-                    side: const BorderSide(color: Color(0xFF7C3AED)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Generate Again',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+              // Primary: Add Product
+              ElevatedButton(
+                onPressed: (_isAdding || _isAdded) ? null : _addProduct,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      _isAdded ? const Color(0xFF059669) : const Color(0xFFE2E8F0),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: (_isAdding || _isAdded) ? null : _addProduct,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isAdded
-                        ? const Color(0xFF059669)
-                        : const Color(0xFF059669),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                        _isAdded ? const Color(0xFF059669) : const Color(0xFFE2E8F0),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isAdding
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (_isAdded) ...[
-                              const Icon(Icons.check_rounded, size: 18),
-                              const SizedBox(width: 6),
-                            ],
-                            Text(
-                              _isAdded ? 'Added!' : 'Add Product',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ],
+                child: _isAdding
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_isAdded) ...[
+                            const Icon(Icons.check_rounded, size: 18),
+                            const SizedBox(width: 6),
+                          ] else ...[
+                            const Icon(Icons.add_rounded, size: 18),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            _isAdded ? 'Added to Store!' : 'Add Product',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 10),
+              // Secondary: Generate Again
+              OutlinedButton.icon(
+                onPressed: _isAdding
+                    ? null
+                    : () => setState(() {
+                          _phase = 'input';
+                          _generatedTemplate = null;
+                          _isAdded = false;
+                        }),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text(
+                  'Generate Again',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF7C3AED),
+                  side: const BorderSide(color: Color(0xFF7C3AED), width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ],
