@@ -115,18 +115,20 @@ class AuthLayout extends StatelessWidget {
                 ),
 
                 // Content Overlay
-                Padding(
-                  padding: const EdgeInsets.all(60),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLogo(isMobile: false), // Default Dark Colors
-                      const SizedBox(height: 60),
-                      _buildHeadline(isMobile: false), // Default Dark Colors
-                      const Spacer(),
-                      const Center(child: ModernAbstractIllustration()),
-                      const Spacer(),
-                    ],
+                Positioned.fill(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(60),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLogo(isMobile: false), // Default Dark Colors
+                        const SizedBox(height: 16),
+                        _buildHeadline(isMobile: false), // Default Dark Colors
+                        const SizedBox(height: 60),
+                        const Center(child: ModernAbstractIllustration()),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -251,20 +253,11 @@ class AuthLayout extends StatelessWidget {
                     children: [
                       const Spacer(),
 
-                      // LOGO SECTION: Simple, Elegant Text
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'exanor',
-                            style: GoogleFonts.poppins(
-                              fontSize: 48,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: -1.0,
-                            ),
-                          ),
-                        ],
+                      // LOGO SECTION (Centered)
+                      Image.asset(
+                        'assets/icon/exanor_logo_atxigv.png',
+                        width: 240, // Bumped up slightly as requested
+                        color: Colors.white,
                       ),
 
                       const SizedBox(height: 48),
@@ -339,13 +332,17 @@ class AuthLayout extends StatelessWidget {
   }
 
   Widget _buildLogo({bool isMobile = false, Color? color}) {
-    return Text(
-      'exanor',
-      textAlign: isMobile ? TextAlign.center : TextAlign.start,
-      style: GoogleFonts.poppins(
-        fontSize: isMobile ? 32 : 42,
-        fontWeight: FontWeight.bold,
-        color: color ?? const Color(0xFF4285F4),
+    return Transform.translate(
+      offset: Offset(isMobile ? 0 : -36, 0), // Shifted further left to counteract image padding
+      child: Align(
+        alignment: isMobile ? Alignment.center : Alignment.centerLeft,
+        child: Image.asset(
+          'assets/icon/exanor_logo_atxigv.png',
+          height: isMobile ? 72 : 120, // Increased height to make it bolder on tablet
+          color: color ?? Colors.black, // Switched to Black for tablet mode
+          alignment: isMobile ? Alignment.center : Alignment.centerLeft,
+          fit: BoxFit.contain,
+        ),
       ),
     );
   }

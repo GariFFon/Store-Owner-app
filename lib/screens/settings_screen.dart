@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/services/store_owner_api_service.dart';
 import 'package:exanor/models/store_bank_details.dart';
 import 'package:exanor/models/financial_year.dart';
+import 'package:exanor/components/translation_widget.dart';
 import 'dart:math' as math;
 
 class SettingsScreen extends StatefulWidget {
@@ -81,11 +83,30 @@ class _SettingsScreenState extends State<SettingsScreen>
   // Tab State
   String _activeTab = 'General';
 
+  // POS Workflow State
+  String _posCustomerWorkflow = 'ask_first';
+
   @override
   void initState() {
     super.initState();
+    _loadPosWorkflow();
     // Initial fetch
     _onTabChanged('General');
+  }
+
+  Future<void> _loadPosWorkflow() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _posCustomerWorkflow = prefs.getString('pos_customer_workflow') ?? 'ask_first';
+      });
+    }
+  }
+
+  Future<void> _savePosWorkflow(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('pos_customer_workflow', value);
+    if (mounted) setState(() => _posCustomerWorkflow = value);
   }
 
   @override
@@ -1058,8 +1079,164 @@ class _SettingsScreenState extends State<SettingsScreen>
 
         // ── Card 7: Currency ──────────────────────────────────────
         _buildCurrencyCard(),
+        const SizedBox(height: 16),
+
+        // ── Card 8: POS Customer Workflow ─────────────────────────
+        _buildPosWorkflowCard(),
         const SizedBox(height: 32),
       ],
+    );
+  }
+
+  Widget _buildPosWorkflowCard() {
+    final options = [
+      {
+        'value': 'ask_first',
+        'title': 'Ask Customer First',
+        'desc': 'Show phone dialog before displaying the menu',
+      },
+      {
+        'value': 'ask_at_checkout',
+        'title': 'Ask at Checkout',
+        'desc': 'Show menu first, take number when placing order',
+      },
+      {
+        'value': 'skip',
+        'title': 'Skip Customer Number',
+        'desc': 'Auto-use guest number, no dialog shown',
+      },
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.point_of_sale_rounded,
+                      color: Color(0xFF8B5CF6), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'POS Customer Workflow',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'How customer phone number is collected',
+                        style: TextStyle(
+                            fontSize: 12, color: Color(0xFF94A3B8)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: options.map((opt) {
+                final isSelected = _posCustomerWorkflow == opt['value'];
+                return InkWell(
+                  onTap: () => _savePosWorkflow(opt['value'] as String),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    margin: const EdgeInsets.only(bottom: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF8B5CF6).withOpacity(0.06)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF8B5CF6).withOpacity(0.3)
+                            : Colors.transparent,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF8B5CF6)
+                                  : Colors.grey[300]!,
+                              width: 2,
+                            ),
+                            color: isSelected
+                                ? const Color(0xFF8B5CF6)
+                                : Colors.transparent,
+                          ),
+                          child: isSelected
+                              ? const Icon(Icons.check,
+                                  size: 12, color: Colors.white)
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                opt['title'] as String,
+                                style: TextStyle(
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                  fontSize: 13,
+                                  color: const Color(0xFF1E293B),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                opt['desc'] as String,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
