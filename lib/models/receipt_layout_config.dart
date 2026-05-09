@@ -62,6 +62,7 @@ class ReceiptLayoutConfig {
   String productDisplayFormat; // 'compact', 'detailed', 'with_price'
   int globalFontSize; // 0: Normal, 1: Bold/Med, 2: Large
   int paperWidthChars; // 32 for 58mm, 48 for 80mm
+  double printerDpi; // Option for Image/print density / scaling. Typically 200 or 203 
 
   ReceiptLayoutConfig({
     required this.type,
@@ -76,6 +77,7 @@ class ReceiptLayoutConfig {
     this.productDisplayFormat = 'compact',
     this.globalFontSize = 0,
     this.paperWidthChars = 48,
+    this.printerDpi = 200,
   }) : sections = sections ?? _defaultSections(type);
 
 
@@ -197,6 +199,7 @@ class ReceiptLayoutConfig {
       order: 2,
       options: {
         'showOrderId': true,
+        'showTokenNo': true,
         'showCustomerName': true,
         'showDate': true,
         'showTableNo': true,
@@ -248,6 +251,7 @@ class ReceiptLayoutConfig {
     'productDisplayFormat': productDisplayFormat,
     'globalFontSize': globalFontSize,
     'paperWidthChars': paperWidthChars,
+    'printerDpi': printerDpi,
   };
 
   factory ReceiptLayoutConfig.fromJson(Map<String, dynamic> json) {
@@ -268,6 +272,7 @@ class ReceiptLayoutConfig {
       productDisplayFormat: json['productDisplayFormat'] as String? ?? 'compact',
       globalFontSize: json['globalFontSize'] as int? ?? 0,
       paperWidthChars: json['paperWidthChars'] as int? ?? 48,
+      printerDpi: (json['printerDpi'] as num?)?.toDouble() ?? 200,
     );
   }
 

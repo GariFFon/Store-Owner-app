@@ -466,6 +466,9 @@ class BluetoothPrintService {
           if (opts['showOrderId'] == true) {
             _bluetooth.printCustom("Order ID: ${storeInfo['order_number'] ?? ''}", bSize, 0);
           }
+          if (opts['showTokenNo'] == true) {
+            _bluetooth.printCustom("Token No: ${storeInfo['token_number'] ?? data['token_number'] ?? ''}", bSize, 0);
+          }
           if (opts['showCustomerName'] == true && userInfo['name'] != null && userInfo['name'] != 'unnamed user') {
             _bluetooth.printCustom("Customer: ${userInfo['name']}", bSize, 0);
           }

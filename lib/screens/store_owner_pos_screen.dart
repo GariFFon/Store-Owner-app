@@ -141,6 +141,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   String? _ownerUserId;
   String? _storeName;
   bool _isTextOnlyMode = false;
+  String _posCategoryLayout = 'left'; // 'left' or 'top'
+  double _posCategorySize = 85.0;
+  double _posProductCardSize = 220.0;
+  String _posCustomerWorkflow = 'ask_first'; // 'ask_first', 'ask_at_checkout', 'skip'
 
   @override
   void initState() {
@@ -153,7 +157,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     _fetchCategories();
     _fetchPaymentMethods();
     _fetchStoreBankDetails();
-    _loadViewPreference(); // Load view preference
+    _loadViewPreference(); // Load view preference (handles workflow inside)
     _initLocationAndCart(); // Load location then cart data
 
     // Cart shimmer animation
@@ -164,11 +168,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     _cartShimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
       CurvedAnimation(parent: _cartShimmerController, curve: Curves.easeInOut),
     );
-
-    // Show customer phone dialog on init
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showCustomerPhoneDialog();
-    });
   }
 
   @override
@@ -413,9 +412,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
         final val = prefs.getBool('pos_text_only_mode') ?? false;
-        print("Loading persistent view mode: $val");
+        final layout = prefs.getString('pos_category_layout') ?? 'left';
+        final catSize = prefs.getDouble('pos_category_size') ?? 85.0;
+        final cardSize = prefs.getDouble('pos_product_card_size') ?? 220.0;
+        final workflow = prefs.getString('pos_customer_workflow') ?? 'ask_first';
+        print("Loading persistent view mode: $val, layout: $layout, workflow: $workflow");
         setState(() {
           _isTextOnlyMode = val;
+          _posCategoryLayout = layout;
+          _posCategorySize = catSize;
+          _posProductCardSize = cardSize;
+          _posCustomerWorkflow = workflow;
+        });
+
+        // Handle customer workflow after preference is loaded
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_posCustomerWorkflow == 'ask_first') {
+            _showCustomerPhoneDialog();
+          } else if (_posCustomerWorkflow == 'skip') {
+            const String guestPhoneNumber = '910000000018';
+            _fetchCustomerData(guestPhoneNumber, silent: true).catchError((e) {
+              debugPrint('Guest customer fetch error (non-blocking): $e');
+              return false;
+            });
+          }
+          // ask_at_checkout: do nothing, show menu directly
         });
       }
     } catch (e) {
@@ -1340,10 +1361,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
 
     if (customer_user_id == null || customer_user_id!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: TranslatedText('Please select a customer')),
-      );
-      return;
+      if (_posCustomerWorkflow == 'ask_at_checkout') {
+        await _showCustomerPhoneDialog();
+        // If user still didn't set a customer, bail out
+        if (customer_user_id == null || customer_user_id!.isEmpty) {
+          return;
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: TranslatedText('Please select a customer')),
+        );
+        return;
+      }
     }
 
     final orderMethodId = _selectedOrderMethod?['id']?.toString();
@@ -1490,16 +1519,36 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         _selectedPaymentMethodId!.isEmpty ||
         customer_user_id == null ||
         customer_user_id!.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: TranslatedText(
-              'Missing required order details. Please go back and verify.',
+      if (customer_user_id == null || customer_user_id!.isEmpty) {
+        if (_posCustomerWorkflow == 'ask_at_checkout') {
+          await _showCustomerPhoneDialog();
+          if (customer_user_id == null || customer_user_id!.isEmpty) {
+            return;
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: TranslatedText(
+                  'Missing required order details. Please go back and verify.',
+                ),
+              ),
+            );
+          }
+          return;
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: TranslatedText(
+                'Missing required order details. Please go back and verify.',
+              ),
             ),
-          ),
-        );
+          );
+        }
+        return;
       }
-      return;
     }
 
     // Show loading
@@ -2702,12 +2751,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   }
 
   // Customer Phone Bottom Sheet (Premium Redesign)
-  void _showCustomerPhoneDialog() {
+  Future<void> _showCustomerPhoneDialog() async {
     final TextEditingController phoneController = TextEditingController();
     CountryCode selectedCountry = CountryCode.fromCountryCode('IN');
     bool isLoading = false;
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -3335,16 +3384,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               _buildTopBanner(theme),
 
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Categories Sidebar (Always visible now)
-                    _buildCategoriesSidebar(theme, constraints.maxWidth > 700),
-
-                    // Products Grid
-                    Expanded(child: _buildProductsGrid(theme)),
-                  ],
-                ),
+                child: _posCategoryLayout == 'left'
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildCategoriesSection(theme, constraints.maxWidth > 700),
+                          Expanded(child: _buildProductsGrid(theme)),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildCategoriesSection(theme, constraints.maxWidth > 700),
+                          Expanded(child: _buildProductsGrid(theme)),
+                        ],
+                      ),
               ),
             ],
           );
@@ -3969,14 +4023,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         ),
                       ),
 
-                      // Text Only Mode Toggle
+                      // Layout Settings Button
                       SizedBox(
                         width: 70,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TranslatedText(
-                              _isTextOnlyMode ? 'SHOW IMG' : 'TEXT ONLY',
+                              'LAYOUT',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
@@ -3987,36 +4041,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                             ),
                             const SizedBox(height: 4),
                             InkWell(
-                              onTap: () async {
-                                final newValue = !_isTextOnlyMode;
-                                print("Toggling text mode to: $newValue");
-                                setState(() {
-                                  _isTextOnlyMode = newValue;
-                                });
-                                try {
-                                  final prefs =
-                                      await SharedPreferences.getInstance();
-                                  await prefs.setBool(
-                                    'pos_text_only_mode',
-                                    newValue,
-                                  );
-                                  print("Saved persistence: $newValue");
-                                } catch (e) {
-                                  print('Error saving view preference: $e');
-                                }
-                              },
+                              onTap: _showLayoutSettingsDialog,
                               borderRadius: BorderRadius.circular(30),
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: _isTextOnlyMode
-                                      ? Colors.blue.withOpacity(0.1)
-                                      : Colors.white,
+                                  color: Colors.white,
                                   border: Border.all(
-                                    color: _isTextOnlyMode
-                                        ? Colors.blue
-                                        : Colors.white,
+                                    color: Colors.white,
                                     width: 2,
                                   ),
                                   boxShadow: [
@@ -4028,12 +4061,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   ],
                                 ),
                                 child: Icon(
-                                  _isTextOnlyMode
-                                      ? Icons.image
-                                      : Icons.article_outlined,
-                                  color: _isTextOnlyMode
-                                      ? Colors.blue
-                                      : Colors.blueGrey,
+                                  Icons.dashboard_customize_outlined,
+                                  color: Colors.blueGrey,
                                   size: 24,
                                 ),
                               ),
@@ -4041,6 +4070,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
+
                       const SizedBox(width: 8),
 
                       // Customer Profile Button (with label and bigger size)
@@ -4488,16 +4519,365 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
   }
 
-  Widget _buildCategoriesSidebar(ThemeData theme, bool isDesktop) {
-    // Premium Sidebar Design
-    final width = isDesktop ? 220.0 : 85.0; // Responsive width
+  void _showLayoutSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateLocal) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              child: Container(
+                width: 360,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.dashboard_customize_outlined,
+                            color: Theme.of(context).primaryColor, size: 24),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Layout Settings',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Categories Position
+                    Text('Categories Position',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Colors.grey[700])),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _layoutOptionChip(
+                            'Left', 'left', setStateLocal),
+                        const SizedBox(width: 8),
+                        _layoutOptionChip(
+                            'Top', 'top', setStateLocal),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Category Size
+                    Text('Sidebar Width',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Colors.grey[700])),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _sizeOptionChip('Compact', 70.0, setStateLocal),
+                        const SizedBox(width: 8),
+                        _sizeOptionChip('Normal', 90.0, setStateLocal),
+                        const SizedBox(width: 8),
+                        _sizeOptionChip('Wide', 120.0, setStateLocal),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Product Card Size
+                    Text('Product Card Size',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Colors.grey[700])),
+                    const SizedBox(height: 8),
+                    Builder(
+                      builder: (dialogContext) {
+                        final dialogWidth = MediaQuery.of(dialogContext).size.width;
+                        final isMobile = dialogWidth <= 600;
+                        final smallDisabled = isMobile && _posCategoryLayout == 'left';
+                        // Auto-bump Small to Normal if disabled
+                        if (smallDisabled && _posProductCardSize <= 180.0) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            setStateLocal(() => _posProductCardSize = 220.0);
+                          });
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                _cardSizeOptionChip('Small', 180.0, setStateLocal,
+                                    disabled: smallDisabled),
+                                const SizedBox(width: 8),
+                                _cardSizeOptionChip('Normal', 220.0, setStateLocal),
+                                const SizedBox(width: 8),
+                                _cardSizeOptionChip('Large', 280.0, setStateLocal),
+                              ],
+                            ),
+                            if (smallDisabled)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  "Small cards aren't supported with sidebar on mobile",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[500],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Text Only Mode Toggle
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: SwitchListTile(
+                        dense: true,
+                        title: const Text(
+                          'Text Only Mode',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                        subtitle: const Text('Hide product images to save space',
+                            style: TextStyle(fontSize: 11)),
+                        value: _isTextOnlyMode,
+                        activeColor: Theme.of(context).primaryColor,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (val) {
+                          setStateLocal(() => _isTextOnlyMode = val);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Apply Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString(
+                              'pos_category_layout', _posCategoryLayout);
+                          await prefs.setDouble(
+                              'pos_category_size', _posCategorySize);
+                          await prefs.setDouble(
+                              'pos_product_card_size', _posProductCardSize);
+                          await prefs.setBool(
+                              'pos_text_only_mode', _isTextOnlyMode);
+                          if (mounted) {
+                            setState(() {}); // Apply to main UI
+                            Navigator.pop(context);
+                          }
+                        },
+                        child: const Text('Apply Changes',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _layoutOptionChip(String label, String value,
+      StateSetter setStateLocal) {
+    final isSelected = _posCategoryLayout == value;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setStateLocal(() => _posCategoryLayout = value),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? Theme.of(context).primaryColor : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected
+                  ? Theme.of(context).primaryColor
+                  : Colors.grey[300]!,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Mini layout preview
+              Container(
+                width: 40,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withOpacity(0.2)
+                      : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: isSelected
+                        ? Colors.white.withOpacity(0.4)
+                        : Colors.grey[400]!,
+                    width: 1,
+                  ),
+                ),
+                child: value == 'left'
+                    ? Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.grey[500],
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(3),
+                                bottomLeft: Radius.circular(3),
+                              ),
+                            ),
+                          ),
+                          Expanded(child: Container()),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.grey[500],
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(3),
+                                topRight: Radius.circular(3),
+                              ),
+                            ),
+                          ),
+                          Expanded(child: Container()),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.grey[800],
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sizeOptionChip(String label, double size, StateSetter setStateLocal) {
+    final isSelected = _posCategorySize == size;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setStateLocal(() => _posCategorySize = size),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? Theme.of(context).primaryColor : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected
+                  ? Theme.of(context).primaryColor
+                  : Colors.grey[300]!,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.grey[800],
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _cardSizeOptionChip(
+      String label, double size, StateSetter setStateLocal,
+      {bool disabled = false}) {
+    final isSelected = _posProductCardSize == size;
+    return Expanded(
+      child: InkWell(
+        onTap: disabled ? null : () => setStateLocal(() => _posProductCardSize = size),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: disabled
+                ? Colors.grey[100]
+                : (isSelected ? Theme.of(context).primaryColor : Colors.white),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: disabled
+                  ? Colors.grey[200]!
+                  : (isSelected
+                      ? Theme.of(context).primaryColor
+                      : Colors.grey[300]!),
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: disabled
+                  ? Colors.grey[400]
+                  : (isSelected ? Colors.white : Colors.grey[800]),
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoriesSection(ThemeData theme, bool isDesktop) {
+    const topBarHeight = 56.0;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600 && screenWidth <= 900;
+    final sidebarScale = isDesktop ? 1.8 : (isTablet ? 1.5 : 1.0);
+    final effectiveWidth = _posCategoryLayout == 'left' ? _posCategorySize * sidebarScale : _posCategorySize;
 
     if (_isCategoriesLoading) {
       return Container(
-        width: width,
+        width: _posCategoryLayout == 'left' ? effectiveWidth : double.infinity,
+        height: _posCategoryLayout == 'top' ? topBarHeight : double.infinity,
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border(right: BorderSide(color: Colors.grey[200]!)),
+          border: _posCategoryLayout == 'left'
+            ? Border(right: BorderSide(color: Colors.grey[200]!))
+            : Border(bottom: BorderSide(color: Colors.grey[200]!)),
         ),
         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
@@ -4505,7 +4885,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
     if (_categoriesError != null) {
       return Container(
-        width: width,
+        width: _posCategoryLayout == 'left' ? effectiveWidth : double.infinity,
+        height: _posCategoryLayout == 'top' ? topBarHeight : double.infinity,
         color: Colors.white,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -4522,185 +4903,166 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       );
     }
 
-    return Container(
-      width: width,
-      decoration: BoxDecoration(
-        // Innovative: Subtle gradient for depth and premium feel
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFEFF6FF), // Start with light blue
-            Color(0xFFDBEAFE), // Gentlest fade to deeper blue
-          ],
+    // ========== TOP BAR (Clean text-only pills) ==========
+    if (_posCategoryLayout == 'top') {
+      return Container(
+        width: double.infinity,
+        height: topBarHeight,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(bottom: BorderSide(color: Colors.grey[200]!, width: 1)),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(
-              0.08,
-            ), // Soft shadow for lifting effect
-            blurRadius: 15,
-            offset: const Offset(5, 0),
-            spreadRadius: 1,
-          ),
-        ],
-        border: Border(right: BorderSide(color: Colors.black.withOpacity(0.1))),
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: ListView.separated(
-              padding: EdgeInsets.zero,
-              itemCount: _categories.length,
-              separatorBuilder: (_, __) => Divider(
-                color: Colors.black.withOpacity(0.05), // Light black divider
-                height: 16,
-                thickness: 1,
-                indent: 8,
-                endIndent: 8,
-              ),
-              itemBuilder: (context, index) {
-                final category = _categories[index];
-                final isSelected = category['id'] == _selectedCategoryId;
-
-                final categoryKey = GlobalObjectKey(category['id']);
-
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedCategoryId = category['id'];
-                      _searchController.clear();
-                    });
-                    _fetchProductsByCategory(category['id']);
-
-                    // Ensure the selected item is fully visible after expansion
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      if (categoryKey.currentContext != null) {
-                        Scrollable.ensureVisible(
-                          categoryKey.currentContext!,
-                          alignment: 0.5, // Center it in the list
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    });
-                  },
-                  child: AnimatedContainer(
-                    key: categoryKey,
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 10, // Slightly more padding
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          itemCount: _categories.length,
+          itemBuilder: (context, index) {
+            final category = _categories[index];
+            final isSelected = category['id'] == _selectedCategoryId;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedCategoryId = category['id'];
+                    _searchController.clear();
+                  });
+                  _fetchProductsByCategory(category['id']);
+                },
+                borderRadius: BorderRadius.circular(24),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? theme.primaryColor : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isSelected ? theme.primaryColor : Colors.grey[300]!,
+                      width: 1,
                     ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? theme.primaryColor.withOpacity(0.08)
-                          : Colors.transparent,
-                      border: isSelected
-                          ? Border(
-                              left: BorderSide(
-                                color: theme.primaryColor,
-                                width: 3,
-                              ),
-                            )
-                          : const Border(
-                              left: BorderSide(
-                                color: Colors.transparent,
-                                width: 3,
-                              ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: theme.primaryColor.withOpacity(0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
                             ),
-                    ),
-                    child: isDesktop
-                        ? Row(
-                            children: [
-                              // Show image/icon
-                              if (isSelected)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 12.0),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: CustomCachedNetworkImage(
-                                      imgUrl:
-                                          category['category_icon'] ??
-                                          'https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=200&auto=format&fit=crop',
-                                      width: 40,
-                                      height: 40,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                              Expanded(
-                                child: TranslatedText(
-                                  _capitalizeCategoryName(
-                                    category['category_name'] ?? '',
-                                  ),
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    fontSize: 14,
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.w500,
-                                    color: isSelected
-                                        ? theme.primaryColor
-                                        : Colors.blueGrey[800],
-                                  ),
-                                  maxLines: 2, // Sophisticated limit
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start, // Left align content
-                            children: [
-                              // Show image only if selected
-                              if (isSelected)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Center(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: CustomCachedNetworkImage(
-                                        // Use sample image if icon is null for visualization
-                                        imgUrl:
-                                            category['category_icon'] ??
-                                            'https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=200&auto=format&fit=crop',
-                                        width: 80, // Large rectangular image
-                                        height: 80,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                              TranslatedText(
-                                _capitalizeCategoryName(
-                                  category['category_name'] ?? '',
-                                ),
-                                textAlign: TextAlign.left, // Left align text
-                                maxLines: 2, // Sophisticated limit
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontSize: 12,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? theme.primaryColor
-                                      : Colors.blueGrey[800],
-                                  height: 1.2, // Improved typography
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                            ],
-                          ),
+                          ]
+                        : null,
                   ),
-                );
-              },
+                  child: Center(
+                    child: TranslatedText(
+                      _capitalizeCategoryName(category['category_name'] ?? ''),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        color: isSelected ? Colors.white : Colors.grey[800],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    // ========== LEFT SIDEBAR (Classic clean list with dividers) ==========
+    return Container(
+      width: effectiveWidth,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Colors.grey[200]!, width: 1)),
+      ),
+      child: ListView.builder(
+        padding: EdgeInsets.zero,
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          final category = _categories[index];
+          final isSelected = category['id'] == _selectedCategoryId;
+          final categoryKey = GlobalObjectKey(category['id']);
+
+          return InkWell(
+            onTap: () {
+              setState(() {
+                _selectedCategoryId = category['id'];
+                _searchController.clear();
+              });
+              _fetchProductsByCategory(category['id']);
+
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (categoryKey.currentContext != null) {
+                  Scrollable.ensureVisible(
+                    categoryKey.currentContext!,
+                    alignment: 0.5,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                }
+              });
+            },
+            child: AnimatedContainer(
+              key: categoryKey,
+              duration: const Duration(milliseconds: 200),
+              padding: isDesktop
+                  ? const EdgeInsets.symmetric(horizontal: 14, vertical: 18)
+                  : const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? theme.primaryColor.withOpacity(0.08)
+                    : Colors.white,
+                border: Border(
+                  left: BorderSide(
+                    color: isSelected ? theme.primaryColor : Colors.transparent,
+                    width: 3,
+                  ),
+                  bottom: BorderSide(
+                    color: Colors.grey[200]!,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CustomCachedNetworkImage(
+                      imgUrl: category['category_icon'] ??
+                          'https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=200&auto=format&fit=crop',
+                      width: isDesktop ? 48 : 36, // Slightly larger on tablet but still on top
+                      height: isDesktop ? 48 : 36,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TranslatedText(
+                    _capitalizeCategoryName(
+                      category['category_name'] ?? '',
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: isDesktop ? 13 : 11,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: isSelected
+                          ? theme.primaryColor
+                          : Colors.grey[800],
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -4713,11 +5075,44 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     // Dynamic aspect ratio calculation
     double textOnlyAspectRatio;
     if (isDesktop) {
-      textOnlyAspectRatio = 1.5; // Wider cards on desktop (shorter height)
+      textOnlyAspectRatio = 1.5;
     } else if (isTablet) {
       textOnlyAspectRatio = 1.2;
     } else {
-      textOnlyAspectRatio = 1.0; // Square cards on phone - balanced size
+      textOnlyAspectRatio = 1.0;
+    }
+
+    // Available width for the grid (subtract sidebar and outer padding)
+    final sidebarScale = isDesktop ? 1.8 : (isTablet ? 1.5 : 1.0);
+    final effectiveSidebarWidth = _posCategoryLayout == 'left' ? _posCategorySize * sidebarScale : 0;
+    final gridWidth = screenWidth - effectiveSidebarWidth - 16;
+
+    // Compute columns from desired minimum card width so sidebar is respected
+    int crossAxisCount;
+    if (_posProductCardSize <= 180) { // Small
+      crossAxisCount = (gridWidth ~/ 90).clamp(3, 5);
+    } else if (_posProductCardSize <= 220) { // Normal
+      crossAxisCount = (gridWidth ~/ 140).clamp(2, 4);
+    } else { // Large
+      crossAxisCount = (gridWidth ~/ 240).clamp(1, 3);
+    }
+
+    final totalSpacing = (crossAxisCount - 1) * 10;
+    final cardWidth = (gridWidth - totalSpacing) / crossAxisCount;
+
+    // Pick aspect ratio so card height stays comfortable
+    double cardAspectRatio;
+    if (_isTextOnlyMode) {
+      cardAspectRatio = textOnlyAspectRatio;
+    } else if (crossAxisCount == 1) {
+      final targetHeight = isDesktop ? 360 : (isTablet ? 320 : 280);
+      cardAspectRatio = cardWidth / targetHeight;
+    } else if (crossAxisCount == 2) {
+      final targetHeight = isDesktop ? 320 : (isTablet ? 280 : 250);
+      cardAspectRatio = cardWidth / targetHeight;
+    } else {
+      final targetHeight = isDesktop ? 280 : (isTablet ? 250 : 200);
+      cardAspectRatio = cardWidth / targetHeight;
     }
 
     return NotificationListener<ScrollNotification>(
@@ -4805,11 +5200,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                   bottom: 120, // Added significant bottom padding
                 ),
                 sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 220, // Responsive width
-                    childAspectRatio: _isTextOnlyMode
-                        ? textOnlyAspectRatio
-                        : 0.60,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: cardAspectRatio,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                   ),
