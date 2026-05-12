@@ -228,6 +228,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       builder: (context) => IntelligenceUploadDialog(storeId: widget.storeId),
     );
 
+    debugPrint('[AI Purchase] dialog result: $result');
+
     if (result != null && result is Map<String, dynamic> && mounted) {
       final supplierResult = await Navigator.push<Map<String, dynamic>>(
         context,
@@ -477,23 +479,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
         color: enabled ? Colors.white : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: enabled
-              ? color.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.2),
-          width: enabled ? 2 : 1.5,
+          color: enabled ? const Color(0xFFDBEAFE) : const Color(0xFFE2E8F0),
+          width: enabled ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.04),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
-          if (enabled)
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
         ],
       ),
       child: Material(
@@ -502,22 +496,28 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           onTap: enabled ? onTap : null,
           borderRadius: BorderRadius.circular(20),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             child: Row(
               children: [
                 // Icon container
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 52,
+                  height: 52,
                   decoration: BoxDecoration(
-                    color: enabled
-                        ? color.withOpacity(0.1)
-                        : Colors.grey.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(14),
+                    gradient: enabled
+                        ? const LinearGradient(
+                            colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: enabled ? null : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
-                    Icons.auto_awesome,
-                    color: enabled ? color : Colors.grey[400],
-                    size: 28,
+                    Icons.auto_awesome_rounded,
+                    color: enabled ? Colors.white : Colors.grey[400],
+                    size: 24,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -533,29 +533,28 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                             'Scan Invoice',
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               color: enabled
                                   ? const Color(0xFF1E293B)
                                   : Colors.grey[400],
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // AI POWERED badge
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
-                              vertical: 2,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
                               color: enabled
-                                  ? color.withOpacity(0.1)
-                                  : Colors.grey.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
+                                  ? const Color(0xFFDBEAFE)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              'AI POWERED',
+                              'AI',
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 color: enabled ? color : Colors.grey[400],
                               ),
@@ -566,11 +565,12 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                       const SizedBox(height: 4),
                       if (enabled)
                         Text(
-                          'Extract details automatically using AI',
+                          'Extract details automatically',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             color: Colors.grey[600],
-                            height: 1.2,
+                            fontWeight: FontWeight.w500,
+                            height: 1.3,
                           ),
                         )
                       else
@@ -582,59 +582,23 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           child: RichText(
                             text: TextSpan(
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.red[400],
-                                height: 1.4,
+                                fontSize: 13,
+                                color: Colors.grey[500],
+                                height: 1.3,
                               ),
-                              children: const [
+                              children: [
+                                const TextSpan(text: 'Network too slow — '),
                                 TextSpan(
-                                  text:
-                                      'This service is not available due to slow internet connection. ',
-                                ),
-                                TextSpan(
-                                  text: 'Click here to know more.',
+                                  text: 'Learn more',
                                   style: TextStyle(
-                                    decoration: TextDecoration.underline,
-                                    fontWeight: FontWeight.w600,
+                                    color: color,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                      if (!enabled && !measuring) ...[
-                        const SizedBox(height: 6),
-                        // Compact speed bar
-                        LayoutBuilder(
-                          builder: (_, constraints) {
-                            final fraction =
-                                ((speedMbps ?? 0) / _scanMinSpeedMbps).clamp(
-                                  0.0,
-                                  1.0,
-                                );
-                            return Stack(
-                              children: [
-                                Container(
-                                  height: 4,
-                                  width: constraints.maxWidth,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                Container(
-                                  height: 4,
-                                  width: constraints.maxWidth * fraction,
-                                  decoration: BoxDecoration(
-                                    color: Colors.red[300],
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
                       if (measuring) ...[
                         const SizedBox(height: 6),
                         Row(
@@ -717,24 +681,21 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
           countdownTimer?.cancel();
           countdownTimer = null;
 
-          countdownTimer = Timer.periodic(
-            const Duration(seconds: 1),
-            (t) {
-              if (!ctx.mounted) {
+          countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+            if (!ctx.mounted) {
+              t.cancel();
+              return;
+            }
+            _ss?.call(() {
+              if (countdown > 1) {
+                countdown--;
+              } else {
                 t.cancel();
-                return;
+                countdownTimer = null;
+                refreshSpeed?.call();
               }
-              _ss?.call(() {
-                if (countdown > 1) {
-                  countdown--;
-                } else {
-                  t.cancel();
-                  countdownTimer = null;
-                  refreshSpeed?.call();
-                }
-              });
-            },
-          );
+            });
+          });
         };
 
         return StatefulBuilder(
@@ -744,24 +705,24 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             // Subscribe to the service stream exactly once.
             // This ensures the dialog always shows the same value as the
             // debug log — both read from the same Cloudflare probe result.
-            streamSub ??= AdaptiveNetworkAnalyzerService.instance.stream
-                .listen((result) {
-              if (!ctx2.mounted) return;
-              _ss?.call(() {
-                liveSpeed = result.speedMbps;
-                isMeasuring = false;
-                // Also keep parent page state in sync.
-                if (mounted) {
-                  this.setState(() => _networkSpeedMbps = result.speedMbps);
-                }
-              });
-            });
+            streamSub ??= AdaptiveNetworkAnalyzerService.instance.stream.listen(
+              (result) {
+                if (!ctx2.mounted) return;
+                _ss?.call(() {
+                  liveSpeed = result.speedMbps;
+                  isMeasuring = false;
+                  // Also keep parent page state in sync.
+                  if (mounted) {
+                    this.setState(() => _networkSpeedMbps = result.speedMbps);
+                  }
+                });
+              },
+            );
 
             // Boot the loop exactly once on first build.
             if (countdownTimer == null && !isMeasuring) {
               startCountdown?.call();
             }
-
 
             final String currentLabel = liveSpeed == null
                 ? 'Measuring…'
@@ -769,14 +730,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
             final double fraction = liveSpeed == null
                 ? 0
                 : (liveSpeed! / _scanMinSpeedMbps).clamp(0.0, 1.0);
-            final bool isAbove = liveSpeed != null &&
-                liveSpeed! >= _scanMinSpeedMbps;
+            final bool isAbove =
+                liveSpeed != null && liveSpeed! >= _scanMinSpeedMbps;
 
             return Dialog(
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              insetPadding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 40,
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: SingleChildScrollView(
@@ -812,11 +776,15 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           ),
                           GestureDetector(
                             onTap: () {
-                              countdownTimer?.cancel(); streamSub?.cancel();
+                              countdownTimer?.cancel();
+                              streamSub?.cancel();
                               Navigator.of(ctx).pop();
                             },
-                            child: Icon(Icons.close_rounded,
-                                color: Colors.grey[400], size: 22),
+                            child: Icon(
+                              Icons.close_rounded,
+                              color: Colors.grey[400],
+                              size: 22,
+                            ),
                           ),
                         ],
                       ),
@@ -889,45 +857,55 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                             ),
                             const SizedBox(height: 8),
                             // Speed bar
-                            LayoutBuilder(builder: (_, c) {
-                              return Stack(children: [
-                                Container(
-                                  height: 6,
-                                  width: c.maxWidth,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                ),
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 400),
-                                  height: 6,
-                                  width: c.maxWidth * fraction,
-                                  decoration: BoxDecoration(
-                                    color: isAbove
-                                        ? Colors.green
-                                        : Colors.redAccent,
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                ),
-                                // Required threshold marker
-                                Positioned(
-                                  left: c.maxWidth * 1.0 - 1,
-                                  child: Container(
-                                    width: 2,
-                                    height: 6,
-                                    color: const Color(0xFF2563EB),
-                                  ),
-                                ),
-                              ]);
-                            }),
+                            LayoutBuilder(
+                              builder: (_, c) {
+                                return Stack(
+                                  children: [
+                                    Container(
+                                      height: 6,
+                                      width: c.maxWidth,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                    ),
+                                    AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 400,
+                                      ),
+                                      height: 6,
+                                      width: c.maxWidth * fraction,
+                                      decoration: BoxDecoration(
+                                        color: isAbove
+                                            ? Colors.green
+                                            : Colors.redAccent,
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                    ),
+                                    // Required threshold marker
+                                    Positioned(
+                                      left: c.maxWidth * 1.0 - 1,
+                                      child: Container(
+                                        width: 2,
+                                        height: 6,
+                                        color: const Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                             const SizedBox(height: 6),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('0 Mbps',
-                                    style: TextStyle(
-                                        fontSize: 10, color: Colors.grey[400])),
+                                Text(
+                                  '0 Mbps',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey[400],
+                                  ),
+                                ),
                                 Text(
                                   'Required: $_scanMinSpeedMbps Mbps',
                                   style: const TextStyle(
@@ -958,26 +936,32 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                             : Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.refresh_rounded,
-                                      size: 14, color: Colors.grey[400]),
+                                  Icon(
+                                    Icons.refresh_rounded,
+                                    size: 14,
+                                    color: Colors.grey[400],
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     'Refreshing in ',
                                     style: TextStyle(
-                                        fontSize: 12, color: Colors.grey[500]),
+                                      fontSize: 12,
+                                      color: Colors.grey[500],
+                                    ),
                                   ),
                                   AnimatedSwitcher(
-                                    duration:
-                                        const Duration(milliseconds: 300),
+                                    duration: const Duration(milliseconds: 300),
                                     transitionBuilder: (child, anim) =>
                                         SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(0, -0.5),
-                                        end: Offset.zero,
-                                      ).animate(anim),
-                                      child: FadeTransition(
-                                          opacity: anim, child: child),
-                                    ),
+                                          position: Tween<Offset>(
+                                            begin: const Offset(0, -0.5),
+                                            end: Offset.zero,
+                                          ).animate(anim),
+                                          child: FadeTransition(
+                                            opacity: anim,
+                                            child: child,
+                                          ),
+                                        ),
                                     child: Text(
                                       '$countdown',
                                       key: ValueKey(countdown),
@@ -991,7 +975,9 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                                   Text(
                                     's…',
                                     style: TextStyle(
-                                        fontSize: 12, color: Colors.grey[500]),
+                                      fontSize: 12,
+                                      color: Colors.grey[500],
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1024,12 +1010,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                             color: const Color(0xFFF0FDF4),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                                color: Colors.green.withOpacity(0.3), width: 1),
+                              color: Colors.green.withOpacity(0.3),
+                              width: 1,
+                            ),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.check_circle_outline_rounded,
-                                  color: Colors.green, size: 22),
+                              const Icon(
+                                Icons.check_circle_outline_rounded,
+                                color: Colors.green,
+                                size: 22,
+                              ),
                               const SizedBox(width: 10),
                               const Expanded(
                                 child: Text(
@@ -1054,8 +1045,11 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.edit_note_rounded,
-                                  color: Color(0xFF2563EB), size: 22),
+                              const Icon(
+                                Icons.edit_note_rounded,
+                                color: Color(0xFF2563EB),
+                                size: 22,
+                              ),
                               const SizedBox(width: 10),
                               const Expanded(
                                 child: Text(
@@ -1081,7 +1075,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             onPressed: () {
-                              countdownTimer?.cancel(); streamSub?.cancel();
+                              countdownTimer?.cancel();
+                              streamSub?.cancel();
                               Navigator.of(ctx).pop();
                               _handleAiPurchase();
                             },
@@ -1089,13 +1084,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                             label: const Text(
                               'Scan Invoice',
                               style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green[600],
                               foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -1107,7 +1103,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                         Center(
                           child: GestureDetector(
                             onTap: () {
-                              countdownTimer?.cancel(); streamSub?.cancel();
+                              countdownTimer?.cancel();
+                              streamSub?.cancel();
                               Navigator.of(ctx).pop();
                             },
                             child: Text(
@@ -1126,14 +1123,14 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: () {
-                              countdownTimer?.cancel(); streamSub?.cancel();
+                              countdownTimer?.cancel();
+                              streamSub?.cancel();
                               Navigator.of(ctx).pop();
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF2563EB),
                               foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -1142,12 +1139,13 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                             child: const Text(
                               'Got it',
                               style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ),
                       ],
-
                     ],
                   ),
                 ),
@@ -1158,8 +1156,6 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
       },
     );
   }
-
-
 
   /// Helper: builds a labelled section inside the slow-network dialog.
   Widget _dialogSection({
@@ -1205,9 +1201,10 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('• ',
-                      style: TextStyle(
-                          fontSize: 12, color: Color(0xFF64748B))),
+                  const Text(
+                    '• ',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
                   Expanded(
                     child: Text(
                       b,

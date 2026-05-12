@@ -677,11 +677,10 @@ class StoreOwnerApiService {
     }
   }
 
-  /// Upload purchase invoice for AI analysis
+  /// ── Phase 1: Submit invoice for AI analysis (async) ────────────────
   /// POST /purchase-entry-intelligence/
-  /// Upload purchase invoice for AI analysis
-  /// POST /purchase-entry-intelligence/
-  static Future<Map<String, dynamic>> uploadPurchaseInvoice(
+  /// Returns { job_id, poll_url, status, message }
+  static Future<Map<String, dynamic>> submitPurchaseInvoice(
     String storeId,
     File file,
     double lat,
@@ -701,42 +700,88 @@ class StoreOwnerApiService {
         useBearerToken: true,
       );
 
+      if (response['statusCode'] == 202 && response['data'] != null) {
+        return Map<String, dynamic>.from(response['data']);
+      }
+
+      // Fallback: handle old synchronous API (200 response)
       if (response['statusCode'] == 200 && response['data'] != null) {
         final data = Map<String, dynamic>.from(response['data']);
-
-        // The AI API sometimes returns nested fields as JSON strings
-        // instead of parsed maps/lists. Decode them to prevent
-        // "String is not a subtype of type int" errors when indexing.
-        if (data['response'] is String) {
-          try {
-            data['response'] = jsonDecode(data['response'] as String);
-          } catch (_) {
-            // If it's not valid JSON, leave it as-is
-          }
-        }
-
-        // Also handle product_data being a string inside response
-        if (data['response'] is Map) {
-          final resp = data['response'] as Map;
-          if (resp['product_data'] is String) {
-            try {
-              resp['product_data'] = jsonDecode(resp['product_data'] as String);
-            } catch (_) {}
-          }
-          if (resp['supplier_details'] is String) {
-            try {
-              resp['supplier_details'] = jsonDecode(
-                resp['supplier_details'] as String,
-              );
-            } catch (_) {}
-          }
-        }
-
-        return data;
+        _normalizeAiResponse(data);
+        return {
+          'status': 200,
+          'job_status': 'done',
+          'response': data['response'] ?? data,
+        };
       }
-      return {};
+
+      return {
+        'status': response['statusCode'] ?? 500,
+        'job_status': 'failed',
+        'error': response['data']?['response'] ?? 'Upload failed',
+      };
     } catch (e) {
       throw Exception('Failed to upload purchase invoice: $e');
+    }
+  }
+
+  /// ── Phase 2: Poll for AI analysis result ─────────────────────────────
+  /// GET /purchase-entry-intelligence/status/<job_id>/
+  static Future<Map<String, dynamic>> pollPurchaseIntelligenceStatus(
+    String jobId,
+  ) async {
+    try {
+      final response = await ApiService.get(
+        '/purchase-entry-intelligence/status/$jobId/',
+        useBearerToken: true,
+      );
+
+      if ((response['statusCode'] == 200 || response['statusCode'] == 202) &&
+          response['data'] != null) {
+        final data = Map<String, dynamic>.from(response['data']);
+
+        if (data['job_status'] == 'done' && data['response'] != null) {
+          _normalizeAiResponse(data);
+        }
+        return data;
+      }
+
+      return {
+        'status': response['statusCode'] ?? 500,
+        'job_status': 'failed',
+        'error':
+            'Unexpected response from server (HTTP ${response['statusCode']})',
+      };
+    } catch (e) {
+      return {
+        'status': 500,
+        'job_status': 'failed',
+        'error': 'Network error: $e',
+      };
+    }
+  }
+
+  /// Normalize AI response (decode nested JSON strings)
+  static void _normalizeAiResponse(Map<String, dynamic> data) {
+    if (data['response'] is String) {
+      try {
+        data['response'] = jsonDecode(data['response'] as String);
+      } catch (_) {}
+    }
+    if (data['response'] is Map) {
+      final resp = data['response'] as Map;
+      if (resp['product_data'] is String) {
+        try {
+          resp['product_data'] = jsonDecode(resp['product_data'] as String);
+        } catch (_) {}
+      }
+      if (resp['supplier_details'] is String) {
+        try {
+          resp['supplier_details'] = jsonDecode(
+            resp['supplier_details'] as String,
+          );
+        } catch (_) {}
+      }
     }
   }
 
@@ -1374,10 +1419,7 @@ class StoreOwnerApiService {
   /// Register staff face
   /// POST /register-face/
   /// Payload: { "staff_id": "...", "video": FILE }
-  static Future<bool> registerFace(
-    String staffId,
-    File videoFile,
-  ) async {
+  static Future<bool> registerFace(String staffId, File videoFile) async {
     try {
       final response = await ApiService.postMultipart(
         endpoint: '/register-face/',
@@ -1492,7 +1534,8 @@ class StoreOwnerApiService {
   /// Fetch all active order methods with their IDs.
   /// POST /order-method/
   static Future<List<Map<String, String>>> getOrderMethods(
-      String storeId) async {
+    String storeId,
+  ) async {
     try {
       final response = await ApiService.post(
         '/order-method/',
@@ -1511,10 +1554,12 @@ class StoreOwnerApiService {
           return raw
               .whereType<Map>()
               .where((m) => m['id'] != null && m['order_method_name'] != null)
-              .map((m) => {
-                    'id': m['id'].toString(),
-                    'name': m['order_method_name'].toString(),
-                  })
+              .map(
+                (m) => {
+                  'id': m['id'].toString(),
+                  'name': m['order_method_name'].toString(),
+                },
+              )
               .toList();
         }
       }
@@ -1624,10 +1669,7 @@ class StoreOwnerApiService {
     try {
       final response = await ApiService.post(
         '/bom-operations/',
-        body: {
-          'view_details': true,
-          'bom_id': bomId,
-        },
+        body: {'view_details': true, 'bom_id': bomId},
         useBearerToken: true,
       );
       if (response['statusCode'] == 200 && response['data'] != null) {
@@ -1652,10 +1694,7 @@ class StoreOwnerApiService {
           'store_id': storeId,
           'store_access': true,
           'create': false,
-          'query': {
-            'godown': godownId,
-            'is_active': true,
-          },
+          'query': {'godown': godownId, 'is_active': true},
         },
         useBearerToken: true,
       );
@@ -1771,7 +1810,6 @@ class StoreOwnerApiService {
       throw Exception('Failed to save BOM: $e');
     }
   }
-
 
   /// Create a product in the store from a global template
   /// POST /create-from-template/

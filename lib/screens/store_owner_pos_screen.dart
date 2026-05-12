@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:exanor/components/translation_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import 'package:exanor/services/api_service.dart';
 import 'package:exanor/components/custom_cached_network_image.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -145,6 +146,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   double _posCategorySize = 85.0;
   double _posProductCardSize = 220.0;
   String _posCustomerWorkflow = 'ask_first'; // 'ask_first', 'ask_at_checkout', 'skip'
+  String? _guestSessionId;
 
   @override
   void initState() {
@@ -416,13 +418,22 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         final catSize = prefs.getDouble('pos_category_size') ?? 85.0;
         final cardSize = prefs.getDouble('pos_product_card_size') ?? 220.0;
         final workflow = prefs.getString('pos_customer_workflow') ?? 'ask_first';
-        print("Loading persistent view mode: $val, layout: $layout, workflow: $workflow");
+
+        // Load or create guest session ID
+        var guestSessionId = prefs.getString('pos_guest_session_id');
+        if (guestSessionId == null || guestSessionId.isEmpty) {
+          guestSessionId = const Uuid().v4();
+          await prefs.setString('pos_guest_session_id', guestSessionId);
+        }
+
+        print("Loading persistent view mode: $val, layout: $layout, workflow: $workflow, guest: $guestSessionId");
         setState(() {
           _isTextOnlyMode = val;
           _posCategoryLayout = layout;
           _posCategorySize = catSize;
           _posProductCardSize = cardSize;
           _posCustomerWorkflow = workflow;
+          _guestSessionId = guestSessionId;
         });
 
         // Handle customer workflow after preference is loaded
@@ -430,13 +441,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           if (_posCustomerWorkflow == 'ask_first') {
             _showCustomerPhoneDialog();
           } else if (_posCustomerWorkflow == 'skip') {
+            // Auto-assign guest customer silently
             const String guestPhoneNumber = '910000000018';
             _fetchCustomerData(guestPhoneNumber, silent: true).catchError((e) {
               debugPrint('Guest customer fetch error (non-blocking): $e');
               return false;
             });
           }
-          // ask_at_checkout: do nothing, show menu directly
+          // ask_at_checkout: browse as true guest, no dialog until checkout
         });
       }
     } catch (e) {
@@ -915,18 +927,23 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
   Future<void> _validateCart() async {
     try {
+      final body = {
+        'store_id': widget.storeId,
+        'order_method_id':
+            _selectedOrderMethod?['id'] ?? null, // Default order method
+        'user_address_id': selected_address_id ?? null, // Default address
+        'lat': _lat,
+        'lng': _lng,
+        'store_access': true,
+        'customer_user_id': customer_user_id ?? '',
+      };
+      if ((customer_user_id == null || customer_user_id!.isEmpty) &&
+          _guestSessionId != null && _guestSessionId!.isNotEmpty) {
+        body['guest_session_id'] = _guestSessionId!;
+      }
       final response = await ApiService.post(
         '/auto-validate-cart/',
-        body: {
-          'store_id': widget.storeId,
-          'order_method_id':
-              _selectedOrderMethod?['id'] ?? null, // Default order method
-          'user_address_id': selected_address_id ?? null, // Default address
-          'lat': _lat,
-          'lng': _lng,
-          'store_access': true,
-          'customer_user_id': customer_user_id ?? '',
-        },
+        body: body,
         useBearerToken: true,
       );
 
@@ -999,15 +1016,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     _updateLocalProductQuantity(productId, 1);
 
     try {
+      final body = {
+        "store_id": widget.storeId,
+        "product_id": productId,
+        "customer_user_id": customer_user_id ?? '',
+        "product_combination_id": productCombinationId,
+        "store_access": true,
+      };
+      if ((customer_user_id == null || customer_user_id!.isEmpty) &&
+          _guestSessionId != null && _guestSessionId!.isNotEmpty) {
+        body["guest_session_id"] = _guestSessionId!;
+      }
       final response = await ApiService.post(
         '/increment-product-in-cart/',
-        body: {
-          "store_id": widget.storeId,
-          "product_id": productId,
-          "customer_user_id": customer_user_id ?? '',
-          "product_combination_id": productCombinationId,
-          "store_access": true,
-        },
+        body: body,
         useBearerToken: true,
       );
 
@@ -1036,15 +1058,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     _updateLocalProductQuantity(productId, -1);
 
     try {
+      final body = {
+        "store_id": widget.storeId,
+        "product_id": productId,
+        "customer_user_id": customer_user_id ?? '',
+        "product_combination_id": productCombinationId,
+        "store_access": true,
+      };
+      if ((customer_user_id == null || customer_user_id!.isEmpty) &&
+          _guestSessionId != null && _guestSessionId!.isNotEmpty) {
+        body["guest_session_id"] = _guestSessionId!;
+      }
       final response = await ApiService.post(
         '/decrement-product-in-cart/',
-        body: {
-          "store_id": widget.storeId,
-          "product_id": productId,
-          "customer_user_id": customer_user_id ?? '',
-          "product_combination_id": productCombinationId,
-          "store_access": true,
-        },
+        body: body,
         useBearerToken: true,
       );
 
@@ -1360,19 +1387,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       return;
     }
 
-    if (customer_user_id == null || customer_user_id!.isEmpty) {
-      if (_posCustomerWorkflow == 'ask_at_checkout') {
-        await _showCustomerPhoneDialog();
-        // If user still didn't set a customer, bail out
-        if (customer_user_id == null || customer_user_id!.isEmpty) {
-          return;
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: TranslatedText('Please select a customer')),
-        );
+    if (_posCustomerWorkflow == 'ask_at_checkout') {
+      await _showCustomerPhoneDialog();
+      // If user still didn't set a customer, bail out
+      if (customer_user_id == null || customer_user_id!.isEmpty) {
         return;
       }
+    } else if (customer_user_id == null || customer_user_id!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: TranslatedText('Please select a customer')),
+      );
+      return;
     }
 
     final orderMethodId = _selectedOrderMethod?['id']?.toString();
@@ -1395,20 +1420,24 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     );
 
     try {
+      final body = {
+        "customer_user_id": customer_user_id,
+        "lat": _lat,
+        "lng": _lng,
+        "order_method_id": orderMethodId,
+        "payment_method_id": _selectedPaymentMethodId,
+        "store_access": true,
+        "store_id": widget.storeId,
+        "user_address_id": selected_address_id,
+        "coupon_code": "",
+        "order_additional_data": _buildOrderAdditionalData(),
+      };
+      if (_guestSessionId != null && _guestSessionId!.isNotEmpty) {
+        body["guest_session_id"] = _guestSessionId!;
+      }
       final response = await ApiService.post(
         '/order-init/',
-        body: {
-          "customer_user_id": customer_user_id,
-          "lat": _lat,
-          "lng": _lng,
-          "order_method_id": orderMethodId,
-          "payment_method_id": _selectedPaymentMethodId,
-          "store_access": true,
-          "store_id": widget.storeId,
-          "user_address_id": selected_address_id,
-          "coupon_code": "",
-          "order_additional_data": _buildOrderAdditionalData(),
-        },
+        body: body,
         useBearerToken: true,
       );
 
@@ -1420,6 +1449,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         if (data['status'] == 200) {
           // Close cart sheet
           if (mounted) Navigator.pop(context);
+
+          // If cart was migrated from guest, clear old guest session and generate new one
+          if (_guestSessionId != null && _guestSessionId!.isNotEmpty) {
+            _guestSessionId = const Uuid().v4();
+            SharedPreferences.getInstance().then((prefs) {
+              prefs.setString('pos_guest_session_id', _guestSessionId!);
+            });
+          }
 
           // Show Review/Summary Popup
           if (mounted) {
@@ -1515,40 +1552,29 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   Future<void> _confirmPlaceOrder() async {
     // Validate required fields before placing order
     final orderMethodId = _selectedOrderMethod?['id']?.toString();
+
+    if (_posCustomerWorkflow == 'ask_at_checkout' &&
+        (customer_user_id == null || customer_user_id!.isEmpty)) {
+      await _showCustomerPhoneDialog();
+      if (customer_user_id == null || customer_user_id!.isEmpty) {
+        return;
+      }
+    }
+
     if (_selectedPaymentMethodId == null ||
         _selectedPaymentMethodId!.isEmpty ||
         customer_user_id == null ||
         customer_user_id!.isEmpty) {
-      if (customer_user_id == null || customer_user_id!.isEmpty) {
-        if (_posCustomerWorkflow == 'ask_at_checkout') {
-          await _showCustomerPhoneDialog();
-          if (customer_user_id == null || customer_user_id!.isEmpty) {
-            return;
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: TranslatedText(
-                  'Missing required order details. Please go back and verify.',
-                ),
-              ),
-            );
-          }
-          return;
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: TranslatedText(
-                'Missing required order details. Please go back and verify.',
-              ),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: TranslatedText(
+              'Missing required order details. Please go back and verify.',
             ),
-          );
-        }
-        return;
+          ),
+        );
       }
+      return;
     }
 
     // Show loading
@@ -1696,8 +1722,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     _selectedCategoryId ?? 'all',
                     isRefresh: true,
                   );
-                  // Show the Link Customer bottom sheet for the new order
-                  _showCustomerPhoneDialog();
+                  // Respect workflow for the next order
+                  if (_posCustomerWorkflow == 'ask_first') {
+                    _showCustomerPhoneDialog();
+                  } else if (_posCustomerWorkflow == 'skip') {
+                    const String guestPhoneNumber = '910000000018';
+                    _fetchCustomerData(guestPhoneNumber, silent: true).catchError((e) {
+                      debugPrint('Guest customer fetch error (non-blocking): $e');
+                      return false;
+                    });
+                  }
+                  // ask_at_checkout: browse as guest, no dialog until next checkout
                 },
               ),
             );
@@ -2750,7 +2785,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
   }
 
-  // Customer Phone Bottom Sheet (Premium Redesign)
+  // Customer Phone Bottom Sheet — Premium Redesign
   Future<void> _showCustomerPhoneDialog() async {
     final TextEditingController phoneController = TextEditingController();
     CountryCode selectedCountry = CountryCode.fromCountryCode('IN');
@@ -2761,8 +2796,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       isDismissible: false,
-      enableDrag:
-          false, // Prevent dismissing by drag - user must enter number or continue as guest
+      enableDrag: false,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
@@ -2772,482 +2806,319 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             return Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               padding: EdgeInsets.only(
                 bottom: bottomPadding + 24,
-                top: 20,
-                left: 24,
-                right: 24,
+                top: 24,
+                left: 28,
+                right: 28,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Drag Handle
+                  // Drag handle
                   Center(
                     child: Container(
-                      width: 40,
-                      height: 5,
+                      width: 36,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
-                  // Wrapped in ScrollView to prevent overflow
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // 1. Cleaner Header
-                          // 1. Cleaner Header
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 4,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          primaryColor,
-                                          Colors.blue.shade400,
-                                        ],
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                      ),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const TranslatedText(
-                                    'Link Customer',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.black87,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              const Padding(
-                                padding: EdgeInsets.only(left: 11),
-                                child: TranslatedText(
-                                  'Associate order for rewards & history.',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // 2. The "Why" Card (Untouched as requested)
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  const Color(0xFFF8FAFC),
-                                  primaryColor.withOpacity(0.08),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: primaryColor.withOpacity(0.1),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.auto_graph_rounded,
-                                      size: 20,
-                                      color: primaryColor,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    TranslatedText(
-                                      'Grow Your Business',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: primaryColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                const TranslatedText(
-                                  'Linking customers drives 3x more repeat sales.',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF334155),
-                                    height: 1.3,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                // Benefit Pills
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    _buildBenefitPill(
-                                      context,
-                                      Icons.loyalty,
-                                      'Loyalty Points',
-                                    ),
-                                    _buildBenefitPill(
-                                      context,
-                                      Icons.history,
-                                      'Track History',
-                                    ),
-                                    _buildBenefitPill(
-                                      context,
-                                      Icons.discount,
-                                      'Send Offers',
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // 3. Input Zone - Ultra Clean
-                          const TranslatedText(
-                            'Mobile Number',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Input Field
-                              Expanded(
-                                child: Container(
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      // Minimalist Country Code
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          left: 8,
-                                        ), // Reduced padding
-                                        child: CountryCodePicker(
-                                          onChanged: (CountryCode countryCode) {
-                                            setState(
-                                              () =>
-                                                  selectedCountry = countryCode,
-                                            );
-                                          },
-                                          initialSelection: 'IN',
-                                          favorite: const ['+91', 'IN'],
-                                          showCountryOnly: false,
-                                          showOnlyCountryWhenClosed: false,
-                                          showFlagMain: false,
-                                          alignLeft: false,
-                                          padding: EdgeInsets.zero,
-                                          textStyle: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.black87,
-                                          ),
-                                          // Ensure transparent background
-                                          boxDecoration: const BoxDecoration(
-                                            color: Colors.white,
-                                          ),
-                                          flagWidth: 0,
-                                        ),
-                                      ),
-                                      Container(
-                                        width: 1,
-                                        height: 20,
-                                        color: Colors.grey[200],
-                                      ),
-                                      // Input
-                                      Expanded(
-                                        child: TextField(
-                                          controller: phoneController,
-                                          keyboardType: TextInputType.phone,
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w600,
-                                            letterSpacing: 1.0,
-                                            color: Colors.black87,
-                                          ),
-                                          decoration: const InputDecoration(
-                                            hintText: '00000 00000',
-                                            hintStyle: TextStyle(
-                                              color: Color(0xFFCBD5E1),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            border: InputBorder.none,
-                                            enabledBorder: InputBorder.none,
-                                            focusedBorder: InputBorder
-                                                .none, // Removes blue line
-                                            errorBorder: InputBorder.none,
-                                            disabledBorder: InputBorder.none,
-                                            contentPadding:
-                                                EdgeInsets.symmetric(
-                                                  horizontal: 16,
-                                                ),
-                                            filled:
-                                                false, // Ensure no background fill
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(width: 12),
-
-                              // Scanner Button
-                              InkWell(
-                                onTap: () async {
-                                  final scannedCode =
-                                      await Navigator.push<String>(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              _QRScannerDialog(),
-                                        ),
-                                      );
-                                  if (scannedCode != null) {
-                                    phoneController.text = scannedCode;
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.qr_code_scanner_rounded,
-                                    color: Colors.black87,
-                                    size: 24,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 24),
-                        ],
+                  // Hero icon
+                  Center(
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            primaryColor.withOpacity(0.15),
+                            primaryColor.withOpacity(0.05),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.person_outline_rounded,
+                        size: 32,
+                        color: primaryColor,
                       ),
                     ),
                   ),
+                  const SizedBox(height: 20),
 
-                  // 4. Fixed Bottom Actions (Outside ScrollView)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                  // Title & subtitle
+                  const Center(
+                    child: TranslatedText(
+                      'Customer Details',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Center(
+                    child: TranslatedText(
+                      _posCustomerWorkflow == 'ask_at_checkout'
+                          ? 'Enter number to finalize the order'
+                          : 'Link customer for rewards & history',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Phone input
+                  Container(
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                    ),
                     child: Row(
                       children: [
-                        // Text Link for Guest
+                        const SizedBox(width: 4),
+                        CountryCodePicker(
+                          onChanged: (CountryCode countryCode) {
+                            setState(() => selectedCountry = countryCode);
+                          },
+                          initialSelection: 'IN',
+                          favorite: const ['+91', 'IN'],
+                          showCountryOnly: false,
+                          showOnlyCountryWhenClosed: false,
+                          showFlagMain: true,
+                          alignLeft: false,
+                          padding: EdgeInsets.zero,
+                          textStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                          boxDecoration: const BoxDecoration(
+                            color: Colors.transparent,
+                          ),
+                          flagWidth: 24,
+                        ),
+                        Container(
+                          width: 1,
+                          height: 24,
+                          color: const Color(0xFFE2E8F0),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
+                          child: TextField(
+                            controller: phoneController,
+                            keyboardType: TextInputType.phone,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                              color: Color(0xFF0F172A),
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Phone number',
+                              hintStyle: TextStyle(
+                                color: Color(0xFFCBD5E1),
+                                fontWeight: FontWeight.w500,
+                                fontSize: 16,
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 16,
+                              ),
+                              filled: false,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // QR scanner
+                        Material(
+                          color: Colors.transparent,
                           child: InkWell(
-                            onTap: () {
-                              if (!isLoading) {
-                                // Close dialog immediately for snappy UX
+                            onTap: () async {
+                              final scannedCode =
+                                  await Navigator.push<String>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => _QRScannerDialog(),
+                                ),
+                              );
+                              if (scannedCode != null) {
+                                phoneController.text = scannedCode;
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.qr_code_scanner_rounded,
+                                color: Color(0xFF64748B),
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Primary action
+                  SizedBox(
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () async {
+                              final phone = phoneController.text.trim();
+                              if (phone.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: TranslatedText(
+                                      'Please enter a phone number',
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              setState(() => isLoading = true);
+
+                              final countryCode =
+                                  selectedCountry.dialCode?.replaceAll(
+                                        '+',
+                                        '',
+                                      ) ??
+                                      '91';
+                              final fullPhoneNumber = '$countryCode$phone';
+
+                              try {
+                                bool found = await _fetchCustomerData(
+                                  fullPhoneNumber,
+                                );
+                                if (!found) {
+                                  await _addStoreCustomer(fullPhoneNumber);
+                                }
+                                if (mounted) Navigator.pop(context);
+                              } catch (e) {
+                                setState(() => isLoading = false);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: TranslatedText(
+                                        'Error: ${e.toString()}',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : const TranslatedText(
+                              'Continue',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Secondary action — Continue as Guest
+                  if (_posCustomerWorkflow != 'ask_first')
+                    SizedBox(
+                      height: 48,
+                      child: TextButton(
+                        onPressed: isLoading
+                            ? null
+                            : () {
                                 Navigator.pop(context);
-                                // Fire guest customer fetch in background (don't await)
-                                const String guestPhoneNumber = '910000000018';
+                                const String guestPhoneNumber =
+                                    '910000000018';
                                 _fetchCustomerData(
                                   guestPhoneNumber,
                                   silent: true,
                                 ).catchError((e) {
                                   debugPrint(
-                                    'Guest customer fetch error (non-blocking): $e',
+                                    'Guest fetch error: $e',
                                   );
                                   return false;
                                 });
-                              }
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: TranslatedText(
-                                'Continue as Guest',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: Colors.grey,
-                                ),
-                              ),
-                            ),
+                              },
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF64748B),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-
-                        const SizedBox(width: 16),
-
-                        // Start Session Button
-                        Expanded(
-                          flex: 2,
-                          child: SizedBox(
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: isLoading
-                                  ? null
-                                  : () async {
-                                      final phone = phoneController.text.trim();
-                                      if (phone.isEmpty) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: TranslatedText(
-                                              'Please enter a phone number',
-                                            ),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                        return;
-                                      }
-
-                                      setState(() => isLoading = true);
-
-                                      final countryCode =
-                                          selectedCountry.dialCode?.replaceAll(
-                                            '+',
-                                            '',
-                                          ) ??
-                                          '91';
-                                      final fullPhoneNumber =
-                                          '$countryCode$phone';
-
-                                      try {
-                                        bool found = await _fetchCustomerData(
-                                          fullPhoneNumber,
-                                        );
-                                        if (!found) {
-                                          // New customer — register via add-store-customer/ with no name required
-                                          await _addStoreCustomer(fullPhoneNumber);
-                                        }
-                                        if (mounted) Navigator.pop(context);
-                                      } catch (e) {
-                                        setState(() => isLoading = false);
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: TranslatedText(
-                                                'Error: ${e.toString()}',
-                                              ),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF0F172A),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: isLoading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const TranslatedText(
-                                      'Start Session',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                            ),
+                        child: const TranslatedText(
+                          'Continue as Guest',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
                 ],
               ),
             );
           },
         );
       },
-    );
-  }
-
-  Widget _buildBenefitPill(BuildContext context, IconData icon, String label) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Icon(icon, size: 18, color: Theme.of(context).primaryColor),
-        ),
-        const SizedBox(height: 6),
-        TranslatedText(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: Colors.black54,
-          ),
-        ),
-      ],
     );
   }
 
@@ -5549,12 +5420,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             borderRadius: BorderRadius.circular(6),
           ),
           alignment: Alignment.center,
-          child: const TranslatedText(
-            'Not Available',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: TranslatedText(
+              'Not Available',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
         ),
@@ -5583,9 +5460,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             children: [
               Icon(Icons.add, size: 16),
               SizedBox(width: 4),
-              TranslatedText(
-                'Add',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              Flexible(
+                child: TranslatedText(
+                  'Add',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
               ),
             ],
           ),
@@ -5657,15 +5538,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
     try {
       // Call API to get product variations (no blocking dialog)
+      final variationBody = {
+        'order_by': 'variation_name',
+        'query': {'store_id': widget.storeId, 'product_id': product['id']},
+        'store_id': widget.storeId,
+        'customer_user_id': customer_user_id ?? '',
+        'store_access': true,
+      };
+      if ((customer_user_id == null || customer_user_id!.isEmpty) &&
+          _guestSessionId != null && _guestSessionId!.isNotEmpty) {
+        variationBody['guest_session_id'] = _guestSessionId!;
+      }
       final response = await ApiService.post(
         '/product-variation-value/',
-        body: {
-          'order_by': 'variation_name',
-          'query': {'store_id': widget.storeId, 'product_id': product['id']},
-          'store_id': widget.storeId,
-          'customer_user_id': customer_user_id ?? '',
-          'store_access': true,
-        },
+        body: variationBody,
         useBearerToken: true,
       );
 
@@ -5983,6 +5869,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         variations: variations,
         storeId: widget.storeId,
         customerUserId: customer_user_id,
+        guestSessionId: _guestSessionId,
         onCartUpdated: () {
           // Optimistic UI update - increment quantity locally
           _updateLocalProductQuantity(product['id']?.toString() ?? '', 1);
@@ -6000,6 +5887,7 @@ class _VariantsBottomSheetContent extends StatefulWidget {
   final List variations;
   final String storeId;
   final String? customerUserId;
+  final String? guestSessionId;
   final VoidCallback onCartUpdated;
 
   const _VariantsBottomSheetContent({
@@ -6007,6 +5895,7 @@ class _VariantsBottomSheetContent extends StatefulWidget {
     required this.variations,
     required this.storeId,
     required this.customerUserId,
+    this.guestSessionId,
     required this.onCartUpdated,
   });
 
@@ -6043,16 +5932,21 @@ class _VariantsBottomSheetContentState
     });
 
     try {
+      final body = {
+        'product_id': widget.product['id'],
+        'store_id': widget.storeId,
+        'store_access': true,
+        'customer_user_id': widget.customerUserId ?? '',
+        'quantity': _quantity,
+        'variations': _selectedVariationIds,
+      };
+      if ((widget.customerUserId == null || widget.customerUserId!.isEmpty) &&
+          widget.guestSessionId != null && widget.guestSessionId!.isNotEmpty) {
+        body['guest_session_id'] = widget.guestSessionId!;
+      }
       final response = await ApiService.post(
         '/validate-product-availability/',
-        body: {
-          'product_id': widget.product['id'],
-          'store_id': widget.storeId,
-          'store_access': true,
-          'customer_user_id': widget.customerUserId ?? '',
-          'quantity': _quantity,
-          'variations': _selectedVariationIds,
-        },
+        body: body,
         useBearerToken: true,
       );
 
@@ -6369,16 +6263,21 @@ class _VariantsBottomSheetContentState
     });
 
     try {
+      final body = {
+        'quantity': _quantity,
+        'product_id': widget.product['id'],
+        'store_id': widget.storeId,
+        'store_access': true,
+        'customer_user_id': widget.customerUserId ?? '',
+        'variations': _selectedVariationIds,
+      };
+      if ((widget.customerUserId == null || widget.customerUserId!.isEmpty) &&
+          widget.guestSessionId != null && widget.guestSessionId!.isNotEmpty) {
+        body['guest_session_id'] = widget.guestSessionId!;
+      }
       final response = await ApiService.post(
         '/add-product-in-cart/',
-        body: {
-          'quantity': _quantity,
-          'product_id': widget.product['id'],
-          'store_id': widget.storeId,
-          'store_access': true,
-          'customer_user_id': widget.customerUserId ?? '',
-          'variations': _selectedVariationIds,
-        },
+        body: body,
         useBearerToken: true,
       );
 
