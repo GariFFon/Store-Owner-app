@@ -256,6 +256,10 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
     final invoiceId = response['invoice_id'] ?? 'N/A';
     final invoiceDate = response['invoice_date'] ?? 'N/A';
 
+    final reconciliation = response['extraction_reconciliation'] as Map<String, dynamic>?;
+    final isReconciled = reconciliation?['is_reconciled'] == true;
+    final reconciliationNote = reconciliation?['reconciliation_note']?.toString() ?? '';
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -397,11 +401,17 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                           ),
                         );
 
+                        final reconciliationBanner = !isReconciled && reconciliationNote.isNotEmpty
+                            ? _buildReconciliationBanner(reconciliationNote)
+                            : const SizedBox.shrink();
+
                         if (isWide) {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               statusCard,
+                              const SizedBox(height: 16),
+                              reconciliationBanner,
                               const SizedBox(height: 24),
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,6 +445,8 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               statusCard,
+                              const SizedBox(height: 16),
+                              reconciliationBanner,
                               const SizedBox(height: 24),
                               businessCard,
                               const SizedBox(height: 16),
@@ -648,6 +660,59 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                     color: exists
                         ? const Color(0xFF166534)
                         : const Color(0xFF9A3412),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReconciliationBanner(String note) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF97316),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Invoice Reconciliation Warning',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF9A3412),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  note,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9A3412),
+                    height: 1.4,
                   ),
                 ),
               ],

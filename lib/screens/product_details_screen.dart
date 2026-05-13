@@ -44,6 +44,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
   final Map<int, String> _linkedProductIds = {};
   final Map<int, String> _linkedProductHsnCodes = {};
 
+  // Smart auto-link results
+  final Map<int, List<Map<String, dynamic>>> _smartLinkResults = {};
+  bool _isLoadingSmartLinks = false;
+  bool _showSmartLinkBanner = true;
+
   // Controllers
   final Map<int, TextEditingController> _hsnControllers = {};
   final Map<int, TextEditingController> _quantityControllers = {};
@@ -82,6 +87,23 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
     });
   }
 
+  /// Format number to 2 decimal places for clean display.
+  String? _fmt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value.toString();
+    if (value is double) {
+      final s = value.toStringAsFixed(2);
+      // Remove trailing .00 if whole number
+      return s.endsWith('.00') ? s.substring(0, s.length - 3) : s;
+    }
+    if (value is String) {
+      final n = double.tryParse(value);
+      if (n != null) return _fmt(n);
+      return value.isEmpty ? null : value;
+    }
+    return value.toString();
+  }
+
   void _initializeControllers() {
     final response = widget.data['response'] ?? {};
     final productsList = List<dynamic>.from(response['product_data'] ?? []);
@@ -96,19 +118,16 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
         text: product['hsn_sac_code']?.toString() ?? '',
       );
       _quantityControllers[i] = TextEditingController(
-        text: product['quantity']?.toString() ?? '1',
+        text: _fmt(product['quantity']) ?? '1',
       )..addListener(_calculateTotal);
       _costControllers[i] = TextEditingController(
-        text: product['rate']?.toString() ?? '0',
+        text: _fmt(product['rate']) ?? '0',
       )..addListener(_calculateTotal);
       _mrpControllers[i] = TextEditingController(
-        text: product['mrp']?.toString() ?? '0',
+        text: _fmt(product['mrp']) ?? '0',
       );
       _sellControllers[i] = TextEditingController(
-        text:
-            product['selling_price']?.toString() ??
-            product['mrp']?.toString() ??
-            '0',
+        text: _fmt(product['selling_price']) ?? _fmt(product['mrp']) ?? '0',
       );
       _barcodeControllers[i] = TextEditingController(
         text:
@@ -198,6 +217,111 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
     } catch (e) {
       debugPrint('Error fetching dropdown data: $e');
     }
+
+    // Kick off smart linking after dropdowns load
+    _runSmartLinking();
+  }
+
+  /// Auto-search database for similar products to each extracted item
+  Future<void> _runSmartLinking() async {
+    final response = widget.data['response'] ?? {};
+    final productsList = response['product_data'] as List<dynamic>? ?? [];
+    if (productsList.isEmpty) return;
+
+    setState(() => _isLoadingSmartLinks = true);
+
+    try {
+      for (int i = 0; i < productsList.length; i++) {
+        if (!mounted) break;
+        final product = productsList[i];
+        final productName = product['product_name']?.toString() ?? '';
+        if (productName.isEmpty) continue;
+
+        // Search for similar products
+        final searchResult =
+            await StoreOwnerApiService.searchProductCombinationTemplates(
+              query: productName,
+              storeId: widget.storeId,
+            );
+
+        if (!mounted) break;
+
+        final results = searchResult['response'];
+        if (results is List && results.isNotEmpty) {
+          setState(() {
+            _smartLinkResults[i] = List<Map<String, dynamic>>.from(results)
+              ..sort((a, b) {
+                // Prioritize exact name matches
+                final aName =
+                    (a['product_name'] ??
+                            a['product_combination_template_name'] ??
+                            '')
+                        .toString()
+                        .toLowerCase();
+                final bName =
+                    (b['product_name'] ??
+                            b['product_combination_template_name'] ??
+                            '')
+                        .toString()
+                        .toLowerCase();
+                final queryLower = productName.toLowerCase();
+                final aExact = aName == queryLower ? 1 : 0;
+                final bExact = bName == queryLower ? 1 : 0;
+                if (aExact != bExact) return bExact - aExact;
+                // Then prefer products that contain the query
+                final aContains = aName.contains(queryLower) ? 1 : 0;
+                final bContains = bName.contains(queryLower) ? 1 : 0;
+                if (aContains != bContains) return bContains - aContains;
+                return 0;
+              });
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Smart linking error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingSmartLinks = false);
+    }
+  }
+
+  void _applySmartLink(int index, Map<String, dynamic> product) {
+    setState(() {
+      _linkedProducts[index] = true;
+      _linkedProductIds[index] =
+          product['products_combination_template_id']?.toString() ??
+          product['product_id']?.toString() ??
+          product['id']?.toString() ??
+          '';
+      _linkedProductNames[index] =
+          product['product_name'] ??
+          product['product_combination_template_name'] ??
+          'Unknown Product';
+
+      // Auto-fill details from linked product
+      if (product['selling_price'] != null) {
+        _sellControllers[index]?.text = _fmt(product['selling_price'])!;
+      }
+      if (product['mrp'] != null) {
+        _mrpControllers[index]?.text = _fmt(product['mrp'])!;
+      }
+      if (product['barcode'] != null) {
+        _barcodeControllers[index]?.text = product['barcode'].toString();
+      }
+      final gstData = product['gst_data'] as Map<String, dynamic>?;
+      if (gstData != null && gstData['hsn_code'] != null) {
+        _linkedProductHsnCodes[index] = gstData['hsn_code'].toString();
+        _hsnControllers[index]?.text = gstData['hsn_code'].toString();
+      }
+    });
+  }
+
+  void _applyAllSmartLinks() {
+    _smartLinkResults.forEach((index, matches) {
+      if (matches.isNotEmpty && !(_linkedProducts[index] ?? false)) {
+        _applySmartLink(index, matches.first);
+      }
+    });
+    setState(() => _showSmartLinkBanner = false);
   }
 
   Future<void> _selectDate(BuildContext context, int index, bool isMfg) async {
@@ -482,6 +606,102 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
     );
   }
 
+  Widget _buildSmartLinkBanner() {
+    if (!_showSmartLinkBanner) return const SizedBox.shrink();
+
+    final hasAnyMatches = _smartLinkResults.values.any(
+      (list) => list.isNotEmpty,
+    );
+    final linkedCount = _linkedProducts.values.where((v) => v).length;
+    final totalWithMatches = _smartLinkResults.values
+        .where((list) => list.isNotEmpty)
+        .length;
+    final unlinkedCount = totalWithMatches - linkedCount;
+
+    if (_isLoadingSmartLinks) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF6FF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFDBEAFE)),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.blue[600],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Finding similar products...',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2563EB),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!hasAnyMatches || unlinkedCount <= 0) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F7FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.auto_awesome_rounded,
+            color: Color(0xFF2563EB),
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$unlinkedCount smart match${unlinkedCount > 1 ? 'es' : ''} found',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: _applyAllSmartLinks,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Link All',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductsList() {
     final response = widget.data['response'] ?? {};
     final productsList = response['product_data'] as List<dynamic>? ?? [];
@@ -489,8 +709,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth > 800) {
-          final leftItems = <Widget>[];
-          final rightItems = <Widget>[];
+          final leftItems = <Widget>[_buildSmartLinkBanner()];
+          final rightItems = <Widget>[const SizedBox.shrink()];
 
           for (int i = 0; i < productsList.length; i++) {
             final product = productsList[i];
@@ -523,12 +743,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
           return ListView.builder(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
-            itemCount: productsList.length,
+            itemCount: productsList.length + 1,
             itemBuilder: (context, index) {
-              final product = productsList[index];
-              final isLinked = _linkedProducts[index] ?? false;
+              if (index == 0) return _buildSmartLinkBanner();
+              final product = productsList[index - 1];
+              final isLinked = _linkedProducts[index - 1] ?? false;
               return _buildProductTicket(
-                index,
+                index - 1,
                 product['product_name'] ?? 'Unknown',
                 isLinked,
               );
@@ -540,43 +761,43 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
   }
 
   Widget _buildProductTicket(int index, String productName, bool isLinked) {
+    final hasSmartLink =
+        !isLinked && (_smartLinkResults[index]?.isNotEmpty ?? false);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           leading: Container(
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFEFF6FF), Color(0xFFF1F5F9)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Center(
               child: Text(
                 '${index + 1}',
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF475569),
+                  color: Color(0xFF64748B),
                 ),
               ),
             ),
@@ -586,7 +807,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                 ? _linkedProductNames[index]!
                 : productName,
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: FontWeight.w700,
               color: Color(0xFF1E293B),
               height: 1.3,
@@ -595,38 +816,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Padding(
-            padding: const EdgeInsets.only(top: 5),
+            padding: const EdgeInsets.only(top: 6, bottom: 2),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (isLinked && _linkedProductNames.containsKey(index))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 5),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.swap_horiz_rounded,
-                          size: 12,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            productName,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              fontStyle: FontStyle.italic,
-                              color: Colors.grey[400],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                // Tags
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
@@ -639,51 +834,191 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                       'Rate: ${_costControllers[index]?.text}',
                       Colors.green,
                     ),
-                    _buildMiniTag(
-                      'MRP: ${_mrpControllers[index]?.text}',
-                      Colors.orange,
-                    ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                // Action buttons row
+                if (isLinked)
+                  // Linked: show unlink button
+                  GestureDetector(
+                    onTap: () => _unlinkProduct(index),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFBBF7D0)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.check_rounded,
+                            color: Color(0xFF16A34A),
+                            size: 16,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Linked — Tap to unlink',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (hasSmartLink)
+                  // Smart match: Quick Link + Manual Search side by side
+                  Row(
+                    children: [
+                      // Quick Link button
+                      Expanded(
+                        flex: 3,
+                        child: GestureDetector(
+                          onTap: () => _applySmartLink(
+                            index,
+                            _smartLinkResults[index]!.first,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.bolt_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Quick Link',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Manual Search button
+                      Expanded(
+                        flex: 2,
+                        child: GestureDetector(
+                          onTap: () =>
+                              _showLinkProductDialog(index, productName),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.search_rounded,
+                                  color: Color(0xFF64748B),
+                                  size: 16,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Search',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  // No match: only manual search
+                  GestureDetector(
+                    onTap: () => _showLinkProductDialog(index, productName),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.link_rounded,
+                            color: Color(0xFF64748B),
+                            size: 16,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Search & Link Product',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildLinkControl(index, isLinked, productName),
-              const SizedBox(width: 10),
-              const Icon(
-                Icons.expand_more_rounded,
-                color: Color(0xFF94A3B8),
-                size: 24,
-              ),
-            ],
           ),
           children: [
             const Divider(color: Color(0xFFF1F5F9), thickness: 1),
             const SizedBox(height: 16),
-            // Form Fields
             Row(
               children: [
                 Expanded(
                   child: _buildInput(
                     index,
                     _quantityControllers[index]!,
-                    'Qty',
+                    'Quantity',
                     isNumber: true,
                   ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildDropdown(index, 'Unit', _units, _selectedUnits),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildInput(
                     index,
                     _costControllers[index]!,
-                    'Cost',
+                    'Cost Price',
                     isNumber: true,
                   ),
                 ),
-                const SizedBox(width: 12),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // ── Row 2: MRP | Sell Price | HSN ──
+            Row(
+              children: [
                 Expanded(
                   child: _buildInput(
                     index,
@@ -691,14 +1026,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                     'MRP',
                     isNumber: true,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdown(index, 'Unit', _units, _selectedUnits),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -709,11 +1036,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                     isNumber: true,
                   ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInput(index, _hsnControllers[index]!, 'HSN'),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            _buildInput(index, _hsnControllers[index]!, 'HSN Code'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+            // ── Row 3: Dates ──
             Row(
               children: [
                 Expanded(child: _buildDatePicker(index, 'Mfg Date', true)),
@@ -721,7 +1051,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                 Expanded(child: _buildDatePicker(index, 'Exp Date', false)),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+            // ── Row 4: Godown | Rack ──
             Row(
               children: [
                 Expanded(
@@ -733,7 +1064,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                     onChanged: (val) {
                       setState(() {
                         _selectedGodowns[index] = val;
-                        // Reset rack selection when godown changes
                         _selectedRacks.remove(index);
                       });
                     },
@@ -756,15 +1086,15 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+            // ── Barcode (full width) ──
             _buildInput(
               index,
               _barcodeControllers[index]!,
               'Barcode',
               suffixIcon: Icons.qr_code_rounded,
             ),
-            const SizedBox(height: 20),
-            const SizedBox(height: 20),
+            const SizedBox(height: 4),
           ],
         ),
       ),
@@ -824,51 +1154,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
           });
           Navigator.pop(context);
         },
-      ),
-    );
-  }
-
-  Widget _buildLinkControl(int index, bool isLinked, String productName) {
-    return GestureDetector(
-      onTap: () {
-        if (!isLinked) {
-          _showLinkProductDialog(index, productName);
-        } else {
-          _unlinkProduct(index);
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          gradient: isLinked
-              ? const LinearGradient(
-                  colors: [Color(0xFF3B82F6), Color(0xFF6366F1)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: isLinked ? null : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-            color: isLinked ? Colors.transparent : const Color(0xFFCBD5E1),
-            width: 1.5,
-          ),
-          boxShadow: isLinked
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF3B82F6).withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [],
-        ),
-        child: isLinked
-            ? const Icon(Icons.link_rounded, size: 20, color: Colors.white)
-            : Icon(Icons.link_off_rounded, size: 20, color: Colors.grey[400]),
       ),
     );
   }
@@ -1912,17 +2197,19 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
                       : (result['product_template_id'] ?? result['id']);
 
                   final name = (combos != null && combos.isNotEmpty)
-                      ? (combos[0]['combination_name'] ?? result['product_name'])
+                      ? (combos[0]['combination_name'] ??
+                            result['product_name'])
                       : result['product_name'];
-                      
+
                   widget.onSelect({
                     'id': id,
                     'product_id': id,
                     'products_combination_template_id': id,
                     'product_name': name,
                     'product_combination_template_name': name,
-                    'category_name': result['child_category'] ?? result['parent_category'],
-                    'gst_data': { 'hsn_code': result['hsn_code'] }
+                    'category_name':
+                        result['child_category'] ?? result['parent_category'],
+                    'gst_data': {'hsn_code': result['hsn_code']},
                   });
                 }
               },
