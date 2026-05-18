@@ -1,5 +1,5 @@
 #define MyAppName "Exanor Store App"
-#define MyAppVersion "1.0.4+6"
+#define MyAppVersion "1.0.11+12"
 #define MyAppPublisher "Exanor"
 #define MyAppExeName "exanor_user_new.exe"
 

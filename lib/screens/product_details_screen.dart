@@ -121,13 +121,19 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
         text: _fmt(product['quantity']) ?? '1',
       )..addListener(_calculateTotal);
       _costControllers[i] = TextEditingController(
-        text: _fmt(product['rate']) ?? '0',
+        text: product['rate']?.toString() ?? '0',
       )..addListener(_calculateTotal);
       _mrpControllers[i] = TextEditingController(
         text: _fmt(product['mrp']) ?? '0',
       );
       _sellControllers[i] = TextEditingController(
-        text: _fmt(product['selling_price']) ?? _fmt(product['mrp']) ?? '0',
+        text: (() {
+          final sell =
+              double.tryParse(product['selling_price']?.toString() ?? '0') ??
+              0.0;
+          if (sell > 0) return product['selling_price']?.toString() ?? '0';
+          return product['mrp']?.toString() ?? '0';
+        })(),
       );
       _barcodeControllers[i] = TextEditingController(
         text:
@@ -190,6 +196,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
             if (!_selectedUnits.containsKey(i) && _units.isNotEmpty) {
               final defaultUnit = _units.firstWhere(
                 (u) =>
+                    (u['code']?.toString().toUpperCase() == 'PCS') ||
+                    (u['code']?.toString().toUpperCase() == 'NOS') ||
                     (u['name']?.toString().toUpperCase().contains('PCS') ??
                         false) ||
                     (u['name']?.toString().toUpperCase().contains('PIECES') ??
@@ -297,13 +305,21 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
           product['product_combination_template_name'] ??
           'Unknown Product';
 
-      // Auto-fill details from linked product
-      if (product['selling_price'] != null) {
-        _sellControllers[index]?.text = _fmt(product['selling_price'])!;
+      // Auto-fill details from linked product (only overwrite if linked product has a non-zero value)
+      final linkedMrp = (product['mrp'] is num)
+          ? (product['mrp'] as num).toDouble()
+          : double.tryParse(product['mrp']?.toString() ?? '') ?? 0.0;
+      if (linkedMrp > 0) {
+        _mrpControllers[index]?.text = _fmt(linkedMrp)!;
       }
-      if (product['mrp'] != null) {
-        _mrpControllers[index]?.text = _fmt(product['mrp'])!;
-      }
+      final linkedSell = (product['selling_price'] is num)
+          ? (product['selling_price'] as num).toDouble()
+          : double.tryParse(product['selling_price']?.toString() ?? '') ?? 0.0;
+      final currentMrp =
+          double.tryParse(_mrpControllers[index]?.text ?? '0') ?? 0.0;
+      final fallbackMrp = linkedMrp > 0 ? linkedMrp : currentMrp;
+      _sellControllers[index]?.text =
+          _fmt(linkedSell > 0 ? linkedSell : fallbackMrp) ?? '0';
       if (product['barcode'] != null) {
         _barcodeControllers[index]?.text = product['barcode'].toString();
       }
@@ -831,7 +847,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                       Colors.blue,
                     ),
                     _buildMiniTag(
-                      'Rate: ${_costControllers[index]?.text}',
+                      'Rate: ${(double.tryParse(_costControllers[index]?.text ?? '0') ?? 0.0).toStringAsFixed(2)}',
                       Colors.green,
                     ),
                   ],
@@ -1133,14 +1149,22 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                 product['product_combination_template_name'] ??
                 'Unknown Product';
 
-            // Auto-fill details from linked product
-            if (product['selling_price'] != null) {
-              _sellControllers[index]?.text = product['selling_price']
-                  .toString();
+            // Auto-fill details from linked product (only overwrite if linked product has a non-zero value)
+            final linkedMrp = (product['mrp'] is num)
+                ? (product['mrp'] as num).toDouble()
+                : double.tryParse(product['mrp']?.toString() ?? '') ?? 0.0;
+            if (linkedMrp > 0) {
+              _mrpControllers[index]?.text = linkedMrp.toString();
             }
-            if (product['mrp'] != null) {
-              _mrpControllers[index]?.text = product['mrp'].toString();
-            }
+            final linkedSell = (product['selling_price'] is num)
+                ? (product['selling_price'] as num).toDouble()
+                : double.tryParse(product['selling_price']?.toString() ?? '') ??
+                      0.0;
+            final currentMrp =
+                double.tryParse(_mrpControllers[index]?.text ?? '0') ?? 0.0;
+            final fallbackMrp = linkedMrp > 0 ? linkedMrp : currentMrp;
+            _sellControllers[index]?.text =
+                (linkedSell > 0 ? linkedSell : fallbackMrp).toString();
             if (product['barcode'] != null) {
               _barcodeControllers[index]?.text = product['barcode'].toString();
             }
@@ -1416,7 +1440,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
                 return DropdownMenuItem<String>(
                   value: item['id'].toString(),
                   child: Text(
-                    item['name'] ?? '',
+                    (item['code']?.toString() ??
+                        item['description']?.toString() ??
+                        item['name']?.toString() ??
+                        ''),
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
