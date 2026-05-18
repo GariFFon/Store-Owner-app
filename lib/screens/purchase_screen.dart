@@ -48,8 +48,7 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
   // ── Threshold below which AI Scan Invoice is disabled ─────────────────────
   static const double _scanMinSpeedMbps = 5.0;
 
-  bool get _isScanEnabled =>
-      _networkSpeedMbps == null || _networkSpeedMbps! >= _scanMinSpeedMbps;
+  bool get _isScanEnabled => true; // Network speed gate disabled for now
 
   DateTimeRange? _selectedDateRange;
   String? _errorMessage;
@@ -255,6 +254,8 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
               ),
             ),
           );
+          // Refresh list after AI purchase flow completes
+          if (mounted) _fetchPurchases();
         }
       }
     }
@@ -444,15 +445,17 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                     subtitle: 'Fill in purchase details form manually',
                     icon: Icons.edit_note_rounded,
                     color: const Color(0xFF64748B),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.pop(context);
-                      Navigator.push(
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
                               AddPurchaseOrderScreen(storeId: widget.storeId),
                         ),
                       );
+                      // Refresh list after returning from manual entry
+                      if (mounted) _fetchPurchases();
                     },
                   ),
                 ],
@@ -1583,6 +1586,55 @@ class _PurchaseScreenState extends State<PurchaseScreen> {
                                   color: _selectedDateRange != null
                                       ? Colors.red
                                       : Colors.blueGrey[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Refresh Button
+                      SizedBox(
+                        width: 70,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TranslatedText(
+                              'REFRESH',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.blueGrey[400],
+                                letterSpacing: 1.2,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: _fetchPurchases,
+                              borderRadius: BorderRadius.circular(30),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.blueGrey.withOpacity(0.2),
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.blueGrey.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.refresh_rounded,
+                                  size: 24,
+                                  color: Colors.blueGrey[700],
                                 ),
                               ),
                             ),

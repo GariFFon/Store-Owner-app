@@ -196,11 +196,16 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         'cost_price':
             double.tryParse(productTemplate['cost_price']?.toString() ?? '0') ??
             0.0,
-        'selling_price':
-            double.tryParse(
-              productTemplate['selling_price']?.toString() ?? '0',
-            ) ??
-            0.0,
+        'selling_price': (() {
+          final sell =
+              double.tryParse(
+                productTemplate['selling_price']?.toString() ?? '0',
+              ) ??
+              0.0;
+          final mrp =
+              double.tryParse(productTemplate['mrp']?.toString() ?? '0') ?? 0.0;
+          return sell > 0 ? sell : mrp;
+        })(),
         'tax_inclusive': false,
         'mfg_date': null,
         'expiry_date': null,
@@ -280,8 +285,11 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           _storeBankAccounts = results[3];
           if (_units.isNotEmpty) {
             final defaultUnit = _units.firstWhere((u) {
+              final code = (u['code']?.toString() ?? '').toLowerCase();
               final name = (u['name']?.toString() ?? '').toLowerCase();
-              return name.contains('pcs') ||
+              return code == 'pcs' ||
+                  code == 'nos' ||
+                  name.contains('pcs') ||
                   name.contains('pieces') ||
                   name.contains('piece');
             }, orElse: () => _units.first);
@@ -1364,7 +1372,8 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
         ),
 
         // Results Detached
-        if (_productSearchController.text.isNotEmpty && !_isSearchingProduct) ...[
+        if (_productSearchController.text.isNotEmpty &&
+            !_isSearchingProduct) ...[
           const SizedBox(height: 12),
           Container(
             constraints: const BoxConstraints(maxHeight: 320),
@@ -1404,35 +1413,54 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                             backgroundColor: Colors.transparent,
                             builder: (context) => Padding(
                               padding: EdgeInsets.only(
-                                bottom: MediaQuery.of(context).viewInsets.bottom,
+                                bottom: MediaQuery.of(
+                                  context,
+                                ).viewInsets.bottom,
                               ),
                               child: AiProductTemplateGeneratorSheet(
                                 storeId: widget.storeId,
-                                initialSearchText: _productSearchController.text,
+                                initialSearchText:
+                                    _productSearchController.text,
                               ),
                             ),
                           );
 
-                          if (result != null && result is Map<String, dynamic>) {
+                          if (result != null &&
+                              result is Map<String, dynamic>) {
                             // Extract data and add to purchase products
-                            if (result['combinations'] != null && (result['combinations'] as List).isNotEmpty) {
+                            if (result['combinations'] != null &&
+                                (result['combinations'] as List).isNotEmpty) {
                               for (var combo in result['combinations']) {
                                 _addProduct({
                                   'id': combo['combination_id'],
-                                  'product_combination_template_id': combo['combination_id'],
-                                  'product_combination_template_name': combo['combination_name'] ?? result['product_name'],
+                                  'product_combination_template_id':
+                                      combo['combination_id'],
+                                  'product_combination_template_name':
+                                      combo['combination_name'] ??
+                                      result['product_name'],
                                   'product_name': result['product_name'],
-                                  'category_name': result['child_category'] ?? result['parent_category'] ?? 'Category',
+                                  'category_name':
+                                      result['child_category'] ??
+                                      result['parent_category'] ??
+                                      'Category',
                                   'product_image': null,
                                 });
                               }
                             } else {
                               _addProduct({
-                                'id': result['product_template_id'] ?? result['id'],
-                                'product_combination_template_id': result['product_template_id'] ?? result['id'],
-                                'product_combination_template_name': result['product_name'],
+                                'id':
+                                    result['product_template_id'] ??
+                                    result['id'],
+                                'product_combination_template_id':
+                                    result['product_template_id'] ??
+                                    result['id'],
+                                'product_combination_template_name':
+                                    result['product_name'],
                                 'product_name': result['product_name'],
-                                'category_name': result['child_category'] ?? result['parent_category'] ?? 'Category',
+                                'category_name':
+                                    result['child_category'] ??
+                                    result['parent_category'] ??
+                                    'Category',
                                 'product_image': null,
                               });
                             }
@@ -1716,7 +1744,12 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                                   ) {
                                     return DropdownMenuItem(
                                       value: u['id'].toString(),
-                                      child: Text(u['name'] ?? 'Unit'),
+                                      child: Text(
+                                        (u['code']?.toString() ??
+                                            u['description']?.toString() ??
+                                            u['name']?.toString() ??
+                                            'Unit'),
+                                      ),
                                     );
                                   }).toList(),
                                   onChanged: (v) =>
