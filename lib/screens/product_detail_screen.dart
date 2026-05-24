@@ -43,7 +43,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   // ── Manufacturing state ──────────────────────────────────────────────
   List<Map<String, dynamic>> _boms = [];
-  List<Map<String, String>> _orderMethods = []; // {id, name} pairs from /orders/ API
+  List<Map<String, String>> _orderMethods =
+      []; // {id, name} pairs from /orders/ API
   bool _mfgLoading = false;
   bool _mfgFetched = false;
   String? _mfgError;
@@ -56,6 +57,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   late TextEditingController _salePriceCtrl;
   late TextEditingController _mrpCtrl;
   late TextEditingController _costPriceCtrl;
+  late TextEditingController _maxDiscountCtrl;
 
   @override
   void initState() {
@@ -64,8 +66,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     _tabController.addListener(_onTabChanged);
     // Initialise price controllers with empty — they get populated after fetch
     _salePriceCtrl = TextEditingController();
-    _mrpCtrl       = TextEditingController();
+    _mrpCtrl = TextEditingController();
     _costPriceCtrl = TextEditingController();
+    _maxDiscountCtrl = TextEditingController();
     if (widget.initialData != null) {
       _product = widget.initialData;
       _isLoading = false;
@@ -96,6 +99,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     _salePriceCtrl.dispose();
     _mrpCtrl.dispose();
     _costPriceCtrl.dispose();
+    _maxDiscountCtrl.dispose();
     super.dispose();
   }
 
@@ -233,8 +237,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       }
 
       // Order methods come directly as List<Map<String,String>> from getOrderMethods.
-      final orderMethods =
-          results[1] as List<Map<String, String>>;
+      final orderMethods = results[1] as List<Map<String, String>>;
 
       setState(() {
         _mfgLoading = false;
@@ -276,7 +279,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
       if (!mounted) return;
 
-      final ok = response['statusCode'] == 200 &&
+      final ok =
+          response['statusCode'] == 200 &&
           (response['data']?['status'] == 200 ||
               response['data']?['status'] == 'success');
 
@@ -308,19 +312,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     _salePriceCtrl.text =
         (double.tryParse(p['sale_price']?.toString() ?? '0') ?? 0.0)
             .toStringAsFixed(2);
-    _mrpCtrl.text =
-        (double.tryParse(p['mrp']?.toString() ?? '0') ?? 0.0)
-            .toStringAsFixed(2);
+    _mrpCtrl.text = (double.tryParse(p['mrp']?.toString() ?? '0') ?? 0.0)
+        .toStringAsFixed(2);
     _costPriceCtrl.text =
         (double.tryParse(p['cost_price']?.toString() ?? '0') ?? 0.0)
+            .toStringAsFixed(2);
+    _maxDiscountCtrl.text =
+        (double.tryParse(p['max_discount_percent']?.toString() ?? '0') ?? 0.0)
             .toStringAsFixed(2);
   }
 
   /// PUT /product-combinations/ — update sale_price, mrp, cost_price.
   Future<void> _updatePrices() async {
-    final salePrice  = double.tryParse(_salePriceCtrl.text.trim()) ?? 0.0;
-    final mrp        = double.tryParse(_mrpCtrl.text.trim())        ?? 0.0;
-    final costPrice  = double.tryParse(_costPriceCtrl.text.trim())  ?? 0.0;
+    final salePrice = double.tryParse(_salePriceCtrl.text.trim()) ?? 0.0;
+    final mrp = double.tryParse(_mrpCtrl.text.trim()) ?? 0.0;
+    final costPrice = double.tryParse(_costPriceCtrl.text.trim()) ?? 0.0;
+    final maxDiscountPercent =
+        double.tryParse(_maxDiscountCtrl.text.trim()) ?? 0.0;
 
     setState(() => _isPriceSaving = true);
     try {
@@ -332,24 +340,27 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           'store_access': true,
           'data': {
             'sale_price': salePrice,
-            'mrp':        mrp,
+            'mrp': mrp,
             'cost_price': costPrice,
+            'max_discount_percent': maxDiscountPercent,
           },
         },
         useBearerToken: true,
       );
       if (!mounted) return;
-      final ok = response['statusCode'] == 200 &&
+      final ok =
+          response['statusCode'] == 200 &&
           (response['data']?['status'] == 200 ||
-           response['data']?['status'] == 'success');
+              response['data']?['status'] == 'success');
       if (ok) {
         // Update local product map to reflect new prices
         _product?['sale_price'] = salePrice;
-        _product?['mrp']        = mrp;
+        _product?['mrp'] = mrp;
         _product?['cost_price'] = costPrice;
+        _product?['max_discount_percent'] = maxDiscountPercent;
         setState(() {
           _isPriceEditMode = false;
-          _isPriceSaving   = false;
+          _isPriceSaving = false;
         });
         _showBar('Prices updated successfully', const Color(0xFF16A34A));
         // Auto-refresh to sync server state
@@ -379,11 +390,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   String _fieldLabel(String field) {
     switch (field) {
-      case 'is_accessible_online': return 'Online Access';
-      case 'is_accessible_pos':    return 'POS Access';
-      case 'auto_produce':         return 'Auto Produce';
-      case 'is_inventory_management_required': return 'Inventory Management';
-      default:                     return field;
+      case 'is_accessible_online':
+        return 'Online Access';
+      case 'is_accessible_pos':
+        return 'POS Access';
+      case 'auto_produce':
+        return 'Auto Produce';
+      case 'is_inventory_management_required':
+        return 'Inventory Management';
+      default:
+        return field;
     }
   }
 
@@ -399,8 +415,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   String _fmtTs(dynamic ts) {
     if (ts == null) return '—';
     try {
-      final dt =
-          DateTime.fromMillisecondsSinceEpoch((ts as num).toInt() * 1000);
+      final dt = DateTime.fromMillisecondsSinceEpoch(
+        (ts as num).toInt() * 1000,
+      );
       return DateFormat('dd/MM/yyyy').format(dt);
     } catch (_) {
       return '—';
@@ -429,7 +446,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   }
 
   bool _isUndefined(dynamic v) =>
-      v == null || v.toString().toLowerCase() == 'undefined' || v.toString().isEmpty;
+      v == null ||
+      v.toString().toLowerCase() == 'undefined' ||
+      v.toString().isEmpty;
 
   List<Map<String, dynamic>> get _inventory {
     final inv = _product?['inventory'];
@@ -441,10 +460,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _product == null) {
-      return const Scaffold(backgroundColor: Colors.white, body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
     if (_error != null && _product == null) {
-      return Scaffold(backgroundColor: Colors.white, appBar: AppBar(backgroundColor: Colors.white, elevation: 0), body: _buildErrorState());
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+        body: _buildErrorState(),
+      );
     }
 
     return LayoutBuilder(
@@ -465,10 +491,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         children: [
           Icon(Icons.error_outline, size: 56, color: Colors.grey[400]),
           const SizedBox(height: 12),
-          Text(_error ?? 'Something went wrong', style: TextStyle(color: Colors.grey[600])),
+          Text(
+            _error ?? 'Something went wrong',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
-            onPressed: _fetchDetail, icon: const Icon(Icons.refresh), label: const Text('Retry'),
+            onPressed: _fetchDetail,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
           ),
         ],
       ),
@@ -480,9 +511,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     final p = _product!;
     final imgUrl = p['img_url'] as String?;
     final hasImg = imgUrl != null && imgUrl.isNotEmpty;
-    
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       body: RefreshIndicator(
         onRefresh: _fetchDetail,
         color: Colors.black,
@@ -498,35 +529,81 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 child: InkWell(
                   onTap: () => Navigator.pop(context),
                   child: Container(
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.9)),
-                    child: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 20,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
               ),
               flexibleSpace: FlexibleSpaceBar(
-                background: hasImg 
-                    ? CustomCachedNetworkImage(imgUrl: imgUrl, fit: BoxFit.cover)
-                    : Container(color: const Color(0xFFF8FAFC), child: const Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey)),
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    hasImg
+                        ? CustomCachedNetworkImage(
+                            imgUrl: imgUrl,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            color: const Color(0xFFF8FAFC),
+                            child: const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 80,
+                              color: Colors.grey,
+                            ),
+                          ),
+                    // Bottom gradient overlay for smooth blend
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 120,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              const Color(0xFFF8FAFC).withOpacity(0.0),
+                              const Color(0xFFF8FAFC).withOpacity(0.8),
+                              const Color(0xFFF8FAFC),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             SliverToBoxAdapter(
               child: Container(
                 transform: Matrix4.translationValues(0, -32, 0),
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 32),
-                    _buildUnifiedDetailsContent(p),
-                    // Tabs
-                    const SizedBox(height: 48),
-                    _buildMobileTabSelector(),
+                    _buildHeroBanner(p),
                     const SizedBox(height: 24),
-                    _buildMobileTabContent(),
-                    const SizedBox(height: 80),
+                    _buildUnifiedDetailsContent(p),
+                    const SizedBox(height: 28),
+                    _buildMobileTabSelector(),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildMobileTabContent(),
+                    ),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -538,123 +615,118 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   }
 
   Widget _buildUnifiedDetailsContent(Map<String, dynamic> p) {
-    final name = p['product_name'] ?? 'Product Detail';
     final totalBought = (p['total_purchased'] as num?)?.toDouble() ?? 0.0;
-    final totalSold   = (p['total_sold']      as num?)?.toDouble() ?? 0.0;
-    final totalLeft   = (p['total_left']      as num?)?.toDouble() ?? 0.0;
+    final totalSold = (p['total_sold'] as num?)?.toDouble() ?? 0.0;
+    final totalLeft = (p['total_left'] as num?)?.toDouble() ?? 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -1.0, height: 1.1),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                [_cap(p['parent_category'] ?? ''), _cap(p['child_category'] ?? '')].where((s) => !_isUndefined(s)).join(' › '),
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF64748B), letterSpacing: 0.5),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-        
-        // Quick Stats Row
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _statItem('Bought', totalBought.toStringAsFixed(0)),
-                Container(height: 30, width: 1, color: const Color(0xFFE2E8F0)),
-                _statItem('Sold', totalSold.toStringAsFixed(0)),
-                Container(height: 30, width: 1, color: const Color(0xFFE2E8F0)),
-                _statItem('In Stock', totalLeft.toStringAsFixed(0), color: const Color(0xFF10B981)),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 48),
-
-        // Pricing Section
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+        // ── Quick Stats ─────────────────────────────────────────────
+        _buildSectionCard(
+          title: 'Inventory Summary',
+          accentColor: const Color(0xFF10B981),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('Pricing', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.5)),
-              const Spacer(),
-              InkWell(
-                onTap: () {
-                  _syncPriceControllers();
-                  setState(() => _isPriceEditMode = !_isPriceEditMode);
-                },
-                child: Text(_isPriceEditMode ? 'Cancel Edit' : 'Edit Prices', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+              _statItem('Bought', totalBought.toStringAsFixed(0)),
+              Container(height: 36, width: 1, color: const Color(0xFFE2E8F0)),
+              _statItem('Sold', totalSold.toStringAsFixed(0)),
+              Container(height: 36, width: 1, color: const Color(0xFFE2E8F0)),
+              _statItem(
+                'In Stock',
+                totalLeft.toStringAsFixed(0),
+                color: const Color(0xFF10B981),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 24),
-        if (_isPriceEditMode)
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: _buildPriceEditUX())
-        else
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                _priceColumn('Sale', _fmtMoney(p['sale_price']), true),
-                const SizedBox(width: 40),
-                _priceColumn('MRP', _fmtMoney(p['mrp']), false),
-                const SizedBox(width: 40),
-                _priceColumn('Cost', _fmtMoney(p['cost_price']), false),
-              ],
-            ),
+
+        // ── Pricing Section ───────────────────────────────────────────
+        _buildSectionCard(
+          title: 'Pricing',
+          accentColor: const Color(0xFFF59E0B),
+          action: _buildEditAction(),
+          child: _isPriceEditMode
+              ? _buildPriceEditUX()
+              : Row(
+                  children: [
+                    _priceColumn(
+                      'Sale Price',
+                      _fmtMoney(p['sale_price']),
+                      true,
+                    ),
+                    const SizedBox(width: 28),
+                    _priceColumn('MRP', _fmtMoney(p['mrp']), false),
+                    const SizedBox(width: 28),
+                    _priceColumn('Cost', _fmtMoney(p['cost_price']), false),
+                    const SizedBox(width: 28),
+                    _priceColumn(
+                      'Max Discount',
+                      _pct(p['max_discount_percent']),
+                      false,
+                    ),
+                  ],
+                ),
+        ),
+
+        // ── Specifications ──────────────────────────────────────────
+        _buildSectionCard(
+          title: 'Specifications',
+          accentColor: const Color(0xFF8B5CF6),
+          child: Column(
+            children: [
+              _buildSpecRow('Format', _cap(p['product_type'] ?? '')),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              _buildSpecRow('Dietary', _cap(p['food_class'] ?? '')),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              _buildSpecRow('Status', _cap(p['status'] ?? ''), isStatus: true),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              _buildSpecRow(
+                'Rating',
+                (p['rating_count'] as num?) == 0
+                    ? 'No ratings'
+                    : '${p['average_rating']} (${p['rating_count']})',
+              ),
+            ],
           ),
-        
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-          child: Divider(color: Color(0xFFF1F5F9), thickness: 1.5, height: 1),
         ),
 
-        // Specification
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
-          child: Text('Specifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.5)),
+        // ── Access & Controls ───────────────────────────────────────
+        _buildSectionCard(
+          title: 'Access & Controls',
+          accentColor: const Color(0xFFEF4444),
+          child: Column(
+            children: [
+              _minimalToggle(
+                'Web Store Sync',
+                'Available for online ordering',
+                p['is_accessible_online'] == true,
+                (v) => _updateToggle('is_accessible_online', v),
+              ),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              _minimalToggle(
+                'POS Sync',
+                'Available at physical terminals',
+                p['is_accessible_pos'] == true,
+                (v) => _updateToggle('is_accessible_pos', v),
+              ),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              _minimalToggle(
+                'Auto-Replenish',
+                'Trigger production automatically',
+                p['auto_produce'] == true,
+                (v) => _updateToggle('auto_produce', v),
+              ),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              _minimalToggle(
+                'Stock Tracking',
+                'Enforce inventory strict limits',
+                p['is_inventory_management_required'] == true,
+                (v) => _updateToggle('is_inventory_management_required', v),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
-        _buildSpecRow('Format', _cap(p['product_type'] ?? '')),
-        _buildSpecRow('Dietary', _cap(p['food_class'] ?? '')),
-        _buildSpecRow('Status', _cap(p['status'] ?? ''), isStatus: true),
-        _buildSpecRow('Rating', (p['rating_count'] as num?) == 0 ? 'No ratings' : '${p['average_rating']} (${p['rating_count']})'),
-
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-          child: Divider(color: Color(0xFFF1F5F9), thickness: 1.5, height: 1),
-        ),
-
-        // Automation
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
-          child: Text('Access & Controls', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.5)),
-        ),
-        const SizedBox(height: 16),
-        _minimalToggle('Web Store Sync', 'Available for online ordering', p['is_accessible_online'] == true, (v) => _updateToggle('is_accessible_online', v)),
-        _minimalToggle('POS Sync', 'Available at physical terminals', p['is_accessible_pos'] == true, (v) => _updateToggle('is_accessible_pos', v)),
-        _minimalToggle('Auto-Replenish', 'Trigger production automatically', p['auto_produce'] == true, (v) => _updateToggle('auto_produce', v)),
-        _minimalToggle('Stock Tracking', 'Enforce inventory strict limits', p['is_inventory_management_required'] == true, (v) => _updateToggle('is_inventory_management_required', v)),
       ],
     );
   }
@@ -663,40 +735,44 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     const tabs = ['Inventory', 'Reviews', 'Manufacturing'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: List.generate(tabs.length, (i) {
           final selected = _tabController.index == i;
           return GestureDetector(
             onTap: () => _tabController.animateTo(i),
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               decoration: BoxDecoration(
-                color: selected
-                    ? const Color(0xFF2563EB)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(24), // Pill-shaped
+                color: selected ? const Color(0xFF0F172A) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: selected
-                      ? const Color(0xFF2563EB)
-                      : Colors.grey.withOpacity(0.3),
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFFE2E8F0),
                 ),
                 boxShadow: selected
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.3),
+                          color: const Color(0xFF0F172A).withOpacity(0.12),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
-                        )
+                        ),
                       ]
-                    : [],
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
               ),
               child: Text(
                 tabs[i],
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                   color: selected ? Colors.white : const Color(0xFF64748B),
                 ),
@@ -726,12 +802,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     final inv = _inventory;
     if (inv.isEmpty) {
       return _buildPlaceholderInline(
-          Icons.inventory_2_outlined, 'No inventory records');
+        Icons.inventory_2_outlined,
+        'No inventory records',
+      );
     }
     return Column(
       children: [
-        for (int i = 0; i < inv.length; i++)
-          _buildInventoryCard(inv[i], i),
+        for (int i = 0; i < inv.length; i++) _buildInventoryCard(inv[i], i),
       ],
     );
   }
@@ -744,15 +821,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           children: [
             Icon(icon, size: 48, color: Colors.grey[300]),
             const SizedBox(height: 12),
-            Text(msg,
-                style:
-                    TextStyle(color: Colors.grey[500], fontSize: 14)),
+            Text(msg, style: TextStyle(color: Colors.grey[500], fontSize: 14)),
           ],
         ),
       ),
     );
   }
-
 
   // ── ULTRA PREM: Wide Layout ───────────────────────────────────────────────
   Widget _buildWideLayout() {
@@ -761,16 +835,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     final hasImg = imgUrl != null && imgUrl.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF8FAFC),
         elevation: 0,
         leading: InkWell(
           onTap: () => Navigator.pop(context),
           borderRadius: BorderRadius.circular(20),
-          child: const Center(child: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black)),
+          child: const Center(
+            child: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 20,
+              color: Colors.black,
+            ),
+          ),
         ),
-        title: const Text('Product Detail', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800)),
+        title: const Text(
+          'Product Detail',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+        ),
         centerTitle: false,
       ),
       body: Row(
@@ -787,17 +870,39 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   if (hasImg)
                     AspectRatio(
                       aspectRatio: 1.2,
-                      child: CustomCachedNetworkImage(imgUrl: imgUrl, fit: BoxFit.cover, width: double.infinity),
+                      child: CustomCachedNetworkImage(
+                        imgUrl: imgUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      ),
                     )
                   else
-                    Container(height: 300, width: double.infinity, color: const Color(0xFFF8FAFC), child: const Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey)),
-                  const SizedBox(height: 32),
+                    Container(
+                      height: 300,
+                      width: double.infinity,
+                      color: const Color(0xFFF8FAFC),
+                      child: const Icon(
+                        Icons.inventory_2_outlined,
+                        size: 80,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _buildHeroBanner(p),
+                  ),
+                  const SizedBox(height: 24),
                   _buildUnifiedDetailsContent(p),
                 ],
               ),
             ),
           ),
-          const VerticalDivider(width: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+          const VerticalDivider(
+            width: 1,
+            thickness: 1,
+            color: Color(0xFFF1F5F9),
+          ),
           // Right Panel (Tabs)
           Expanded(
             child: Column(
@@ -806,15 +911,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   color: Colors.white,
                   child: TabBar(
                     controller: _tabController,
-                    labelColor: const Color(0xFF0F172A),
+                    labelColor: const Color(0xFF1E293B),
                     unselectedLabelColor: const Color(0xFF94A3B8),
-                    indicatorColor: const Color(0xFF0F172A),
+                    indicatorColor: const Color(0xFF1E293B),
                     indicatorWeight: 3,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    indicatorSize: TabBarIndicatorSize.label,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      letterSpacing: 0.3,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
                     tabs: const [
-                      Tab(text: 'INVENTORY'),
-                      Tab(text: 'REVIEWS'),
-                      Tab(text: 'MANUFACTURING'),
+                      Tab(text: 'Inventory'),
+                      Tab(text: 'Reviews'),
+                      Tab(text: 'Manufacturing'),
                     ],
                   ),
                 ),
@@ -841,77 +955,479 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   // ── ULTRA PREM: Components ──────────────────────────────────────────────────
   Widget _statItem(String label, String value, {Color? color}) {
-    return Column(
-      children: [
-        Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color ?? const Color(0xFF0F172A), letterSpacing: -0.5)),
-        const SizedBox(height: 4),
-        Text(label.toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8), letterSpacing: 0.5)),
-      ],
-    );
-  }
-
-  Widget _priceColumn(String label, String value, bool isPrimary) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-        const SizedBox(height: 4),
-        Text(value, style: TextStyle(fontSize: isPrimary ? 24 : 18, fontWeight: FontWeight.w900, color: const Color(0xFF0F172A), letterSpacing: -0.5)),
-      ],
-    );
-  }
-
-  Widget _buildPriceEditUX() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(20)),
+    return Expanded(
       child: Column(
         children: [
-          _minimalInput('Sale Price', _salePriceCtrl),
-          const SizedBox(height: 12),
-          _minimalInput('MRP', _mrpCtrl),
-          const SizedBox(height: 12),
-          _minimalInput('Cost Price', _costPriceCtrl),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _isPriceSaving ? null : _updatePrices,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black, elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isPriceSaving 
-                  ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                  : const Text('Save Changes', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: color ?? const Color(0xFF1E293B),
+              letterSpacing: -0.3,
             ),
-          )
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 0.5,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _minimalInput(String label, TextEditingController ctrl) {
+  Widget _priceColumn(String label, String value, bool isPrimary) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: isPrimary ? 20 : 16,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1E293B),
+              letterSpacing: -0.3,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Hero Banner ───────────────────────────────────────────────────────────
+  Widget _buildHeroBanner(Map<String, dynamic> p) {
+    final name = p['product_name'] ?? 'Product Detail';
+    final category = [
+      _cap(p['parent_category'] ?? ''),
+      _cap(p['child_category'] ?? ''),
+    ].where((s) => !_isUndefined(s)).join(' › ');
+    final status = _cap(p['status'] ?? '');
+    final imgUrl = p['img_url'] as String?;
+    final hasImg = imgUrl != null && imgUrl.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFEFF6FF), Color(0xFFDBEAFE)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFBFDBFE)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2563EB).withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            // Watermark decoration
+            Positioned(
+              right: -20,
+              top: -20,
+              child: Transform.rotate(
+                angle: -math.pi / 8,
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  size: 140,
+                  color: const Color(0xFFBFDBFE).withOpacity(0.5),
+                ),
+              ),
+            ),
+            // Content
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top row: thumbnail + status badge
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Product thumbnail
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFFBFDBFE),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: hasImg
+                            ? CustomCachedNetworkImage(
+                                imgUrl: imgUrl,
+                                fit: BoxFit.cover,
+                                width: 56,
+                                height: 56,
+                              )
+                            : const Icon(
+                                Icons.inventory_2_outlined,
+                                size: 28,
+                                color: Color(0xFF94A3B8),
+                              ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            // Status badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _statusColor(status).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: _statusColor(status).withOpacity(0.3),
+                                ),
+                              ),
+                              child: Text(
+                                status.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: _statusColor(status),
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // Product name
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -0.8,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Category breadcrumb
+                  if (category.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFBFDBFE).withOpacity(0.5),
+                        ),
+                      ),
+                      child: Text(
+                        category,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF475569),
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    final s = status.toLowerCase();
+    if (s.contains('active') || s.contains('available'))
+      return const Color(0xFF10B981);
+    if (s.contains('draft')) return const Color(0xFFF59E0B);
+    if (s.contains('inactive') || s.contains('discontinued'))
+      return const Color(0xFFEF4444);
+    return const Color(0xFF64748B);
+  }
+
+  // ── Section Card ──────────────────────────────────────────────────────────
+  Widget _buildSectionCard({
+    required String title,
+    required Widget child,
+    Widget? action,
+    Color accentColor = const Color(0xFF2563EB),
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Accent bar
+            Container(height: 3, width: double.infinity, color: accentColor),
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (action != null) action,
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            // Content
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: child,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditAction() {
+    return InkWell(
+      onTap: () {
+        _syncPriceControllers();
+        setState(() => _isPriceEditMode = !_isPriceEditMode);
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: _isPriceEditMode
+              ? const Color(0xFFFEF2F2)
+              : const Color(0xFFEFF6FF),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _isPriceEditMode
+                ? const Color(0xFFFCA5A5)
+                : const Color(0xFFBFDBFE),
+          ),
+        ),
+        child: Text(
+          _isPriceEditMode ? 'Cancel' : 'Edit',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: _isPriceEditMode
+                ? const Color(0xFFDC2626)
+                : const Color(0xFF2563EB),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriceEditUX() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _minimalInput(
+          label: 'Sale Price',
+          controller: _salePriceCtrl,
+          prefix: '₹',
+        ),
+        const SizedBox(height: 12),
+        _minimalInput(label: 'MRP', controller: _mrpCtrl, prefix: '₹'),
+        const SizedBox(height: 12),
+        _minimalInput(
+          label: 'Cost Price',
+          controller: _costPriceCtrl,
+          prefix: '₹',
+        ),
+        const SizedBox(height: 12),
+        _minimalInput(
+          label: 'Max Discount',
+          controller: _maxDiscountCtrl,
+          suffix: '%',
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _isPriceSaving ? null : _updatePrices,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F172A),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: _isPriceSaving
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _minimalInput({
+    required String label,
+    required TextEditingController controller,
+    String? prefix,
+    String? suffix,
+  }) {
     return Row(
       children: [
-        SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)))),
+        SizedBox(
+          width: 88,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+        ),
         Expanded(
           child: Container(
-            height: 48,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+            height: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
             child: Row(
               children: [
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('₹', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700))),
+                if (prefix != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      prefix,
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
                 Expanded(
                   child: TextField(
-                    controller: ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                    decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    controller: controller,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
                   ),
                 ),
+                if (suffix != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      suffix,
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -922,15 +1438,33 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _buildSpecRow(String label, String value, {bool isStatus = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-          if (isStatus)
-            _buildStatusBadgePure(value)
-          else
-            Text(value.isEmpty || _isUndefined(value) ? '—' : value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Flexible(
+            child: isStatus
+                ? _buildStatusBadgePure(value)
+                : Text(
+                    value.isEmpty || _isUndefined(value) ? '—' : value,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                    textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+          ),
         ],
       ),
     );
@@ -939,38 +1473,73 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   Widget _buildStatusBadgePure(String status) {
     final s = status.toLowerCase();
     Color color = const Color(0xFF64748B);
-    if (s.contains('active') || s.contains('available')) color = const Color(0xFF10B981);
-    if (s.contains('draft') || s.contains('inactive')) color = const Color(0xFFF59E0B);
+    if (s.contains('active') || s.contains('available'))
+      color = const Color(0xFF10B981);
+    if (s.contains('draft') || s.contains('inactive'))
+      color = const Color(0xFFF59E0B);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 8),
-        Text(status.toUpperCase(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color, letterSpacing: 0.5)),
+        Text(
+          status.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: color,
+            letterSpacing: 0.5,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _minimalToggle(String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
+  Widget _minimalToggle(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A), letterSpacing: -0.2)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                    letterSpacing: -0.2,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF64748B))),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 16),
           Switch.adaptive(
-            value: value, 
+            value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF0F172A),
+            activeColor: const Color(0xFF2563EB),
+            activeTrackColor: const Color(0xFF2563EB).withOpacity(0.3),
           ),
         ],
       ),
@@ -985,12 +1554,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.inventory_2_outlined,
-                size: 48, color: Colors.grey[400]),
+            Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[400]),
             const SizedBox(height: 12),
-            Text('No inventory records',
-                style:
-                    TextStyle(color: Colors.grey[500], fontSize: 14)),
+            Text(
+              'No inventory records',
+              style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            ),
           ],
         ),
       );
@@ -998,8 +1567,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: inv.length,
-      itemBuilder: (context, index) =>
-          _buildInventoryCard(inv[index], index),
+      itemBuilder: (context, index) => _buildInventoryCard(inv[index], index),
     );
   }
 
@@ -1051,7 +1619,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                       const SizedBox(height: 12),
                       // Barcode graphic
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
@@ -1106,13 +1677,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                       HapticFeedback.lightImpact();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text('Print barcode — coming soon')),
+                          content: Text('Print barcode — coming soon'),
+                        ),
                       );
                     },
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(12),
@@ -1121,15 +1695,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.print_rounded, size: 16, color: Color(0xFF2563EB)),
+                          Icon(
+                            Icons.print_rounded,
+                            size: 16,
+                            color: Color(0xFF2563EB),
+                          ),
                           SizedBox(width: 6),
                           Text(
                             'PRINT',
                             style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF2563EB),
-                                letterSpacing: 0.5),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF2563EB),
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ],
                       ),
@@ -1148,20 +1727,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             child: Row(
               children: [
                 Expanded(
-                    child: _stockCard('Purchased', purchased,
-                        const Color(0xFF2563EB))),
+                  child: _stockCard(
+                    'Purchased',
+                    purchased,
+                    const Color(0xFF2563EB),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: _stockCard('Sold', sold, Colors.orange[700]!)),
                 const SizedBox(width: 12),
                 Expanded(
-                    child: _stockCard(
-                        'Sold', sold, Colors.orange[700]!)),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: _stockCard(
-                        'Left',
-                        left.toStringAsFixed(0),
-                        left > 0
-                            ? const Color(0xFF16A34A)
-                            : Colors.grey[600]!)),
+                  child: _stockCard(
+                    'Left',
+                    left.toStringAsFixed(0),
+                    left > 0 ? const Color(0xFF16A34A) : Colors.grey[600]!,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1218,12 +1799,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _buildFinancialGrid(Map<String, dynamic> inv) {
     final rows = [
-      _GridItem('Cost (incl. tax)',
-          _fmtMoney(inv['cost_amount_including_tax'])),
-      _GridItem('Cost (excl. tax)',
-          _fmtMoney(inv['cost_amount_excluding_tax'])),
-      _GridItem('Sale (incl. tax)',
-          _fmtMoney(inv['selling_amount_including_tax'])),
+      _GridItem(
+        'Cost (incl. tax)',
+        _fmtMoney(inv['cost_amount_including_tax']),
+      ),
+      _GridItem(
+        'Cost (excl. tax)',
+        _fmtMoney(inv['cost_amount_excluding_tax']),
+      ),
+      _GridItem(
+        'Sale (incl. tax)',
+        _fmtMoney(inv['selling_amount_including_tax']),
+      ),
       _GridItem('MRP', _fmtMoney(inv['mrp'])),
       _GridItem('CGST', _pct(inv['cgst_percent'])),
       _GridItem('SGST', _pct(inv['sgst_percent'])),
@@ -1231,8 +1818,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       _GridItem('HSN Code', inv['hsn_code']?.toString() ?? '—'),
       _GridItem('Purchased On', _fmtTs(inv['purchase_timestamp'])),
       _GridItem('Expires', _fmtTs(inv['expiry_timestamp'])),
-      _GridItem('State of Purchase',
-          _cap(inv['state_code_of_purchase'] ?? '')),
+      _GridItem('State of Purchase', _cap(inv['state_code_of_purchase'] ?? '')),
     ];
 
     return Wrap(
@@ -1297,8 +1883,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Row(
             children: [
-              const Icon(Icons.star_rounded,
-                  color: Color(0xFFF59E0B), size: 20),
+              const Icon(
+                Icons.star_rounded,
+                color: Color(0xFFF59E0B),
+                size: 20,
+              ),
               const SizedBox(width: 6),
               Text(
                 'Customer Reviews',
@@ -1312,7 +1901,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
               if (_reviews.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 3),
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
@@ -1343,13 +1934,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.error_outline,
-                      size: 40, color: Colors.grey[400]),
+                  Icon(Icons.error_outline, size: 40, color: Colors.grey[400]),
                   const SizedBox(height: 10),
                   Text(
                     _reviewsError ?? 'Failed to load reviews',
-                    style: TextStyle(
-                        color: Colors.grey[600], fontSize: 13),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
@@ -1368,53 +1957,55 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.rate_review_outlined,
-                      size: 52, color: Colors.grey[300]),
+                  Icon(
+                    Icons.rate_review_outlined,
+                    size: 52,
+                    color: Colors.grey[300],
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'No reviews yet',
                     style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600),
+                      color: Colors.grey[500],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Be the first to review this product!',
-                    style: TextStyle(
-                        color: Colors.grey[400], fontSize: 12),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                   ),
                 ],
               ),
             ),
           )
-        else
-          ...[
-            for (final review in _reviews) _buildReviewCard(review),
-            if (_reviewsHasNext)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _reviewsLoading
-                        ? null
-                        : () => _fetchReviews(loadMore: true),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF2563EB),
-                      side: const BorderSide(color: Color(0xFF2563EB)),
-                    ),
-                    child: _reviewsLoading
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Load More'),
+        else ...[
+          for (final review in _reviews) _buildReviewCard(review),
+          if (_reviewsHasNext)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _reviewsLoading
+                      ? null
+                      : () => _fetchReviews(loadMore: true),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF2563EB),
+                    side: const BorderSide(color: Color(0xFF2563EB)),
                   ),
+                  child: _reviewsLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Load More'),
                 ),
               ),
-          ],
+            ),
+        ],
         const SizedBox(height: 16),
       ],
     );
@@ -1422,10 +2013,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     // Wide = inside Expanded TabBarView (finite height) → ListView.
     // Mobile = inside CustomScrollView (inline) → plain Column.
     if (isWide) {
-      return ListView(
-        padding: EdgeInsets.zero,
-        children: [content],
-      );
+      return ListView(padding: EdgeInsets.zero, children: [content]);
     }
     return content;
   }
@@ -1433,7 +2021,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   Widget _buildReviewCard(Map<String, dynamic> review) {
     final rating = (review['rating'] as num?)?.toDouble() ?? 0.0;
     final comment = review['comment']?.toString() ?? '';
-    final author = (review['customer_name']?.toString().isNotEmpty == true
+    final author =
+        (review['customer_name']?.toString().isNotEmpty == true
             ? review['customer_name']!.toString()
             : null) ??
         (review['user_name']?.toString().isNotEmpty == true
@@ -1477,8 +2066,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor:
-                    const Color(0xFF2563EB).withValues(alpha: 0.12),
+                backgroundColor: const Color(
+                  0xFF2563EB,
+                ).withValues(alpha: 0.12),
                 child: Text(
                   author.isNotEmpty ? author[0].toUpperCase() : '?',
                   style: const TextStyle(
@@ -1518,9 +2108,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   final filled = i < rating.round();
                   return Icon(
                     filled ? Icons.star_rounded : Icons.star_outline_rounded,
-                    color: filled
-                        ? const Color(0xFFF59E0B)
-                        : Colors.grey[300],
+                    color: filled ? const Color(0xFFF59E0B) : Colors.grey[300],
                     size: 16,
                   );
                 }),
@@ -1559,9 +2147,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     final filteredBoms = _selectedOrderMethod == _kAllMethods
         ? _boms // all BOMs, including those with null order_method_name
         : _boms
-            .where((b) =>
-                b['order_method_name']?.toString() == _selectedOrderMethod)
-            .toList();
+              .where(
+                (b) =>
+                    b['order_method_name']?.toString() == _selectedOrderMethod,
+              )
+              .toList();
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1597,30 +2187,37 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
               if (methods.isNotEmpty) const SizedBox(width: 8),
               // Create BOM button
               ElevatedButton.icon(
-                onPressed: () => showDialog<bool>(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (_) => _CreateBomDialog(
-                    storeId: widget.storeId,
-                    combinationId: widget.productId,
-                    productName: _product?['product_name']?.toString() ??
-                        'This Product',
-                    orderMethods: _orderMethods,
-                  ),
-                ).then((created) {
-                  if (created == true) _fetchManufacturing();
-                }),
+                onPressed: () =>
+                    showDialog<bool>(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => _CreateBomDialog(
+                        storeId: widget.storeId,
+                        combinationId: widget.productId,
+                        productName:
+                            _product?['product_name']?.toString() ??
+                            'This Product',
+                        orderMethods: _orderMethods,
+                      ),
+                    ).then((created) {
+                      if (created == true) _fetchManufacturing();
+                    }),
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('CREATE BOM'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
                   textStyle: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   elevation: 0,
                 ),
               ),
@@ -1645,8 +2242,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   const SizedBox(height: 10),
                   Text(
                     _mfgError ?? 'Failed to load BOMs',
-                    style:
-                        TextStyle(color: Colors.grey[600], fontSize: 13),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
@@ -1665,15 +2261,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.precision_manufacturing_outlined,
-                      size: 52, color: Colors.grey[300]),
+                  Icon(
+                    Icons.precision_manufacturing_outlined,
+                    size: 52,
+                    color: Colors.grey[300],
+                  ),
                   const SizedBox(height: 12),
                   Text(
-                    _boms.isEmpty ? 'No BOMs found' : 'No BOMs for selected method',
+                    _boms.isEmpty
+                        ? 'No BOMs found'
+                        : 'No BOMs for selected method',
                     style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600),
+                      color: Colors.grey[500],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -1705,8 +2307,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           child: Row(
             children: [
               if (_selectedOrderMethod == _kAllMethods)
-                const Icon(Icons.check,
-                    size: 16, color: Color(0xFF2563EB))
+                const Icon(Icons.check, size: 16, color: Color(0xFF2563EB))
               else
                 const SizedBox(width: 16),
               const SizedBox(width: 8),
@@ -1719,9 +2320,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             value: m['name'] ?? '',
             child: Row(
               children: [
-                 if (_selectedOrderMethod == m['name'])
-                  const Icon(Icons.check,
-                      size: 16, color: Color(0xFF2563EB))
+                if (_selectedOrderMethod == m['name'])
+                  const Icon(Icons.check, size: 16, color: Color(0xFF2563EB))
                 else
                   const SizedBox(width: 16),
                 const SizedBox(width: 8),
@@ -1731,8 +2331,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           ),
       ],
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -1752,8 +2351,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_drop_down,
-                size: 18, color: Color(0xFF2563EB)),
+            const Icon(
+              Icons.arrow_drop_down,
+              size: 18,
+              color: Color(0xFF2563EB),
+            ),
           ],
         ),
       ),
@@ -1795,7 +2397,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 // Active badge
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: isActive
                         ? const Color(0xFF16A34A)
@@ -1849,13 +2453,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                     foregroundColor: const Color(0xFF475569),
                     side: const BorderSide(color: Color(0xFFCBD5E1)),
                     textStyle: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.w700),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6)),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                   child: const Text('GET REPORT'),
                 ),
@@ -1873,13 +2482,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                     foregroundColor: const Color(0xFF2563EB),
                     side: const BorderSide(color: Color(0xFF2563EB)),
                     textStyle: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.w700),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6)),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -1888,10 +2502,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   onPressed: () => showDialog<void>(
                     context: context,
                     barrierDismissible: false,
-                    builder: (_) => _ProduceDialog(
-                      bomId: bomId,
-                      storeId: widget.storeId,
-                    ),
+                    builder: (_) =>
+                        _ProduceDialog(bomId: bomId, storeId: widget.storeId),
                   ),
                   icon: const Icon(Icons.settings_outlined, size: 13),
                   label: const Text('PRODUCE'),
@@ -1899,14 +2511,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
                     textStyle: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.w700),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6)),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                 ),
               ],
@@ -1927,19 +2544,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           // Output Qty + Components
           Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
                 // Output Qty card
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color: const Color(0xFF2563EB), width: 1.5),
+                        color: const Color(0xFF2563EB),
+                        width: 1.5,
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1949,8 +2569,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF2563EB)
-                                .withValues(alpha: 0.8),
+                            color: const Color(
+                              0xFF2563EB,
+                            ).withValues(alpha: 0.8),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -1979,12 +2600,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey[50],
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2217,20 +2839,28 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                     TextField(
                       controller: _qtyController,
                       keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Quantity to Produce',
                         labelStyle: const TextStyle(
-                            fontSize: 13, color: Color(0xFF64748B)),
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                        ),
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: const BorderSide(
-                              color: Color(0xFF2563EB), width: 2),
+                            color: Color(0xFF2563EB),
+                            width: 2,
+                          ),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 14),
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -2246,11 +2876,12 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                  color: const Color(0xFF2563EB)),
+                                color: const Color(0xFF2563EB),
+                              ),
                             ),
                             child: const Center(
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2)),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
                           )
                         : DropdownButtonFormField<String?>(
                             initialValue: _selectedGodownId,
@@ -2264,21 +2895,29 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: const BorderSide(
-                                    color: Color(0xFF2563EB), width: 1.5),
+                                  color: Color(0xFF2563EB),
+                                  width: 1.5,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: const BorderSide(
-                                    color: Color(0xFF2563EB), width: 2),
+                                  color: Color(0xFF2563EB),
+                                  width: 2,
+                                ),
                               ),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 14),
+                                horizontal: 14,
+                                vertical: 14,
+                              ),
                             ),
                             items: [
                               const DropdownMenuItem<String?>(
                                 value: null,
-                                child: Text('All Godowns (Global)',
-                                    overflow: TextOverflow.ellipsis),
+                                child: Text(
+                                  'All Godowns (Global)',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                               for (final g in _godowns)
                                 DropdownMenuItem<String?>(
@@ -2309,11 +2948,14 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                           backgroundColor: const Color(0xFF2563EB),
                           foregroundColor: Colors.white,
                           textStyle: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w700,
-                              letterSpacing: 0.8),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           elevation: 0,
                         ),
                         child: _validating
@@ -2321,8 +2963,9 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                                 height: 18,
                                 width: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white),
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : const Text('GENERATE REPORT'),
                       ),
@@ -2334,24 +2977,29 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                         padding: const EdgeInsets.only(top: 12),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: const Color(0xFFFCA5A5)),
+                            border: Border.all(color: const Color(0xFFFCA5A5)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline,
-                                  color: Color(0xFFDC2626), size: 18),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Color(0xFFDC2626),
+                                size: 18,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _error!,
                                   style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF991B1B)),
+                                    fontSize: 12,
+                                    color: Color(0xFF991B1B),
+                                  ),
                                 ),
                               ),
                             ],
@@ -2374,8 +3022,7 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
             // ── Footer ────────────────────────────────────────────────────
             const Divider(height: 1),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -2385,12 +3032,17 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                       foregroundColor: const Color(0xFF64748B),
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
                       textStyle: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: const Text('CLOSE'),
                   ),
@@ -2454,7 +3106,9 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: feasible
                       ? const Color(0xFF16A34A)
@@ -2514,16 +3168,20 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.warning_amber_rounded,
-                              size: 14, color: Color(0xFFCA8A04)),
+                          const Icon(
+                            Icons.warning_amber_rounded,
+                            size: 14,
+                            color: Color(0xFFCA8A04),
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               w.toString(),
                               style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF78350F),
-                                  height: 1.4),
+                                fontSize: 11,
+                                color: Color(0xFF78350F),
+                                height: 1.4,
+                              ),
                             ),
                           ),
                         ],
@@ -2569,10 +3227,7 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
           children: [
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFF94A3B8),
-              ),
+              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
             ),
             const SizedBox(height: 4),
             Text(
@@ -2604,9 +3259,7 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: sufficient
-              ? const Color(0xFFE2E8F0)
-              : const Color(0xFFFCA5A5),
+          color: sufficient ? const Color(0xFFE2E8F0) : const Color(0xFFFCA5A5),
         ),
       ),
       child: Column(
@@ -2625,8 +3278,7 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: sufficient
                       ? const Color(0xFFDCFCE7)
@@ -2664,15 +3316,19 @@ class _FeasibilityReportDialogState extends State<_FeasibilityReportDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 11, color: Color(0xFF94A3B8))),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+          ),
           const SizedBox(height: 3),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B))),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E293B),
+            ),
+          ),
         ],
       ),
     );
@@ -2701,8 +3357,9 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
 
   Future<void> _load() async {
     try {
-      final data =
-          await StoreOwnerApiService.getBomDetails(bomId: widget.bomId);
+      final data = await StoreOwnerApiService.getBomDetails(
+        bomId: widget.bomId,
+      );
       final bom = (data['response'] as Map?)?.cast<String, dynamic>()['bom'];
       if (!mounted) return;
       if (bom is Map) {
@@ -2757,7 +3414,8 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                     style: IconButton.styleFrom(
-                        foregroundColor: const Color(0xFF64748B)),
+                      foregroundColor: const Color(0xFF64748B),
+                    ),
                   ),
                 ],
               ),
@@ -2772,20 +3430,20 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : _error != null
-                      ? Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Text(_error!,
-                              style: const TextStyle(
-                                  color: Color(0xFFDC2626))),
-                        )
-                      : _buildBody(_bom!),
+                  ? Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: Color(0xFFDC2626)),
+                      ),
+                    )
+                  : _buildBody(_bom!),
             ),
 
             // ── Footer ────────────────────────────────────────────────────
             const Divider(height: 1),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -2795,13 +3453,17 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       elevation: 0,
                     ),
                     child: const Text('CLOSE'),
@@ -2856,7 +3518,9 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
               // Version
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 5),
+                  horizontal: 12,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(20),
@@ -2874,7 +3538,9 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
               // Output qty
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 5),
+                  horizontal: 12,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(20),
@@ -2891,7 +3557,9 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
               // Active / Inactive
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 5),
+                  horizontal: 12,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: isActive
                       ? const Color(0xFF16A34A)
@@ -2940,10 +3608,11 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
   }
 
   Widget _componentRow(Map<String, dynamic> c) {
-    final name       = c['raw_item']?.toString() ?? '—';
-    final qty        = c['quantity']?.toString() ?? '—';
-    final unit       = c['unit']?.toString() ?? '';
-    final scrap      = double.tryParse(c['scrap_percentage']?.toString() ?? '0') ?? 0.0;
+    final name = c['raw_item']?.toString() ?? '—';
+    final qty = c['quantity']?.toString() ?? '—';
+    final unit = c['unit']?.toString() ?? '';
+    final scrap =
+        double.tryParse(c['scrap_percentage']?.toString() ?? '0') ?? 0.0;
     final isOptional = c['is_optional'] == true;
 
     return Container(
@@ -2978,11 +3647,15 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
                     if (isOptional)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                              color: const Color(0xFF2563EB), width: 1.2),
+                            color: const Color(0xFF2563EB),
+                            width: 1.2,
+                          ),
                         ),
                         child: const Text(
                           'Optional',
@@ -3013,8 +3686,7 @@ class _BomDetailsDialogState extends State<_BomDetailsDialog> {
           const SizedBox(width: 10),
           // Right: qty chip
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
@@ -3144,8 +3816,11 @@ class _ProduceDialogState extends State<_ProduceDialog> {
       final status = data['status'] as int?;
       final response = data['response'] as Map?;
       final success = status == 200 || status == 201;
-      final message = response?['message']?.toString() ??
-          (success ? 'Production completed successfully.' : 'Production failed.');
+      final message =
+          response?['message']?.toString() ??
+          (success
+              ? 'Production completed successfully.'
+              : 'Production failed.');
 
       // Close dialog then show result
       Navigator.of(context).pop();
@@ -3218,15 +3893,20 @@ class _ProduceDialogState extends State<_ProduceDialog> {
               const SizedBox(height: 16),
               _resultInfo('Voucher', response['voucher_number']?.toString()),
               _resultInfo('Output Item', response['output_item']?.toString()),
-              _resultInfo('Output Qty', response['output_quantity']?.toString()),
               _resultInfo(
-                  'Components Used',
-                  response['components_consumed']?.toString()),
+                'Output Qty',
+                response['output_quantity']?.toString(),
+              ),
               _resultInfo(
-                  'Total Cost',
-                  response['total_cost'] != null
-                      ? '₹${response['total_cost']}'
-                      : null),
+                'Components Used',
+                response['components_consumed']?.toString(),
+              ),
+              _resultInfo(
+                'Total Cost',
+                response['total_cost'] != null
+                    ? '₹${response['total_cost']}'
+                    : null,
+              ),
             ],
             const SizedBox(height: 20),
           ],
@@ -3234,9 +3914,13 @@ class _ProduceDialogState extends State<_ProduceDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('CLOSE',
-                style: TextStyle(
-                    color: Color(0xFF2563EB), fontWeight: FontWeight.w700)),
+            child: const Text(
+              'CLOSE',
+              style: TextStyle(
+                color: Color(0xFF2563EB),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -3249,15 +3933,19 @@ class _ProduceDialogState extends State<_ProduceDialog> {
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
-          Text('$label: ',
-              style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF475569))),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF475569),
+            ),
+          ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 12, color: Color(0xFF1E293B))),
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF1E293B)),
+            ),
           ),
         ],
       ),
@@ -3294,10 +3982,12 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close, size: 20),
-                    onPressed:
-                        _producing ? null : () => Navigator.of(context).pop(),
+                    onPressed: _producing
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     style: IconButton.styleFrom(
-                        foregroundColor: const Color(0xFF64748B)),
+                      foregroundColor: const Color(0xFF64748B),
+                    ),
                   ),
                 ],
               ),
@@ -3318,23 +4008,29 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                       decoration: InputDecoration(
                         labelText: 'Quantity Multiplier',
                         labelStyle: const TextStyle(
-                            fontSize: 13, color: Color(0xFF64748B)),
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                        ),
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: const BorderSide(
-                              color: Color(0xFF2563EB), width: 2),
+                            color: Color(0xFF2563EB),
+                            width: 2,
+                          ),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 14),
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Scales all component requirements proportionally.',
-                      style: TextStyle(
-                          fontSize: 11, color: Color(0xFF94A3B8)),
+                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                     ),
                     const SizedBox(height: 16),
 
@@ -3343,8 +4039,7 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                         ? const Center(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 14),
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           )
                         : DropdownButtonFormField<String?>(
@@ -3353,26 +4048,35 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                             decoration: InputDecoration(
                               labelText: 'Select Godown',
                               labelStyle: const TextStyle(
-                                  fontSize: 13, color: Color(0xFF64748B)),
+                                fontSize: 13,
+                                color: Color(0xFF64748B),
+                              ),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: const BorderSide(
-                                    color: Color(0xFF2563EB), width: 2),
+                                  color: Color(0xFF2563EB),
+                                  width: 2,
+                                ),
                               ),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 14),
+                                horizontal: 14,
+                                vertical: 14,
+                              ),
                             ),
                             hint: const Text('Select Godown'),
                             items: _godowns
-                                .map((g) => DropdownMenuItem<String?>(
-                                      value: g['id']?.toString(),
-                                      child: Text(
-                                        g['name']?.toString() ?? '—',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ))
+                                .map(
+                                  (g) => DropdownMenuItem<String?>(
+                                    value: g['id']?.toString(),
+                                    child: Text(
+                                      g['name']?.toString() ?? '—',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
                                 .toList(),
                             onChanged: (v) {
                               setState(() {
@@ -3386,8 +4090,7 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                     const SizedBox(height: 4),
                     const Text(
                       'Where production output will be stored.',
-                      style: TextStyle(
-                          fontSize: 11, color: Color(0xFF94A3B8)),
+                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                     ),
                     const SizedBox(height: 16),
 
@@ -3396,8 +4099,7 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                         ? const Center(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 14),
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           )
                         : DropdownButtonFormField<String?>(
@@ -3406,46 +4108,54 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                             decoration: InputDecoration(
                               labelText: 'Select Rack',
                               labelStyle: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF64748B)),
+                                fontSize: 13,
+                                color: Color(0xFF64748B),
+                              ),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: const BorderSide(
-                                    color: Color(0xFF2563EB), width: 2),
+                                  color: Color(0xFF2563EB),
+                                  width: 2,
+                                ),
                               ),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 14),
+                                horizontal: 14,
+                                vertical: 14,
+                              ),
                             ),
                             hint: Text(
                               _selectedGodownId == null
                                   ? 'Select a godown first'
                                   : _racks.isEmpty
-                                      ? 'No racks available'
-                                      : 'Select Rack (Optional)',
+                                  ? 'No racks available'
+                                  : 'Select Rack (Optional)',
                               style: const TextStyle(
-                                  color: Color(0xFF94A3B8), fontSize: 13),
+                                color: Color(0xFF94A3B8),
+                                fontSize: 13,
+                              ),
                             ),
                             items: _racks
-                                .map((r) => DropdownMenuItem<String?>(
-                                      value: r['id']?.toString(),
-                                      child: Text(
-                                        r['name']?.toString() ?? '—',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ))
+                                .map(
+                                  (r) => DropdownMenuItem<String?>(
+                                    value: r['id']?.toString(),
+                                    child: Text(
+                                      r['name']?.toString() ?? '—',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
                                 .toList(),
                             onChanged: _selectedGodownId == null
                                 ? null
-                                : (v) =>
-                                    setState(() => _selectedRackId = v),
+                                : (v) => setState(() => _selectedRackId = v),
                           ),
                     const SizedBox(height: 4),
                     const Text(
                       'Select a godown first.',
-                      style: TextStyle(
-                          fontSize: 11, color: Color(0xFF94A3B8)),
+                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                     ),
 
                     // Error
@@ -3454,24 +4164,29 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                         padding: const EdgeInsets.only(top: 12),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: const Color(0xFFFCA5A5)),
+                            border: Border.all(color: const Color(0xFFFCA5A5)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline,
-                                  color: Color(0xFFDC2626), size: 18),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Color(0xFFDC2626),
+                                size: 18,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _error!,
                                   style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF991B1B)),
+                                    fontSize: 12,
+                                    color: Color(0xFF991B1B),
+                                  ),
                                 ),
                               ),
                             ],
@@ -3488,25 +4203,29 @@ class _ProduceDialogState extends State<_ProduceDialog> {
             // ── Footer ────────────────────────────────────────────────────
             const Divider(height: 1),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed:
-                        _producing ? null : () => Navigator.of(context).pop(),
+                    onPressed: _producing
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF64748B),
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
                       textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: const Text('CANCEL'),
                   ),
@@ -3518,7 +4237,9 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                             height: 14,
                             width: 14,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Icon(Icons.settings_outlined, size: 16),
                     label: const Text('PRODUCE'),
@@ -3526,13 +4247,17 @@ class _ProduceDialogState extends State<_ProduceDialog> {
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       elevation: 0,
                     ),
                   ),
@@ -3631,8 +4356,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
     }
   }
 
-  Future<void> _searchCombinations(
-      _BomComponentRow row, String query) async {
+  Future<void> _searchCombinations(_BomComponentRow row, String query) async {
     if (query.trim().isEmpty) {
       setState(() {
         row.searchQuery = '';
@@ -3651,8 +4375,9 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
         query: query.trim(),
       );
       if (!mounted) return;
-      final results =
-          List<Map<String, dynamic>>.from(data['response'] as List? ?? []);
+      final results = List<Map<String, dynamic>>.from(
+        data['response'] as List? ?? [],
+      );
       setState(() {
         row.searchResults = results;
         row.searching = false;
@@ -3678,13 +4403,15 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
       final c = _components[i];
       if (c.combinationId == null) {
         setState(
-            () => _error = 'Select a raw material for Component #${i + 1}.');
+          () => _error = 'Select a raw material for Component #${i + 1}.',
+        );
         return;
       }
       final qty = double.tryParse(c.qtyCtrl.text.trim());
       if (qty == null || qty <= 0) {
-        setState(() =>
-            _error = 'Enter a valid quantity for Component #${i + 1}.');
+        setState(
+          () => _error = 'Enter a valid quantity for Component #${i + 1}.',
+        );
         return;
       }
     }
@@ -3699,8 +4426,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
         final map = <String, dynamic>{
           'raw_combination_id': c.combinationId!,
           'quantity': double.parse(c.qtyCtrl.text.trim()),
-          'scrap_percentage':
-              double.tryParse(c.scrapCtrl.text.trim()) ?? 0.0,
+          'scrap_percentage': double.tryParse(c.scrapCtrl.text.trim()) ?? 0.0,
           'is_optional': c.isOptional,
         };
         if (c.unitId != null) map['unit_id'] = c.unitId!;
@@ -3724,7 +4450,8 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
       if (success) {
         setState(() => _saving = false);
         final resp = data['response'];
-        final msg = (resp is Map ? resp['message'] : null)?.toString() ??
+        final msg =
+            (resp is Map ? resp['message'] : null)?.toString() ??
             'BOM created successfully.';
         _showResult(success: true, message: msg);
       } else {
@@ -3763,8 +4490,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3802,7 +4528,10 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+                fontSize: 13,
+                color: Color(0xFF64748B),
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 20),
           ],
@@ -3810,10 +4539,13 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK',
-                style: TextStyle(
-                    color: Color(0xFF2563EB),
-                    fontWeight: FontWeight.w700)),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                color: Color(0xFF2563EB),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -3824,8 +4556,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -3845,17 +4576,20 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                     child: Text(
                       'Create New Bill of Materials',
                       style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E293B)),
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
+                      ),
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 20),
-                    onPressed:
-                        _saving ? null : () => Navigator.of(context).pop(false),
+                    onPressed: _saving
+                        ? null
+                        : () => Navigator.of(context).pop(false),
                     style: IconButton.styleFrom(
-                        foregroundColor: const Color(0xFF64748B)),
+                      foregroundColor: const Color(0xFF64748B),
+                    ),
                   ),
                 ],
               ),
@@ -3874,24 +4608,29 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                     TextField(
                       readOnly: true,
                       controller: TextEditingController(
-                          text: widget.productName),
+                        text: widget.productName,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Finished Product Combination',
                         labelStyle: const TextStyle(
-                            fontSize: 13, color: Color(0xFF94A3B8)),
+                          fontSize: 13,
+                          color: Color(0xFF94A3B8),
+                        ),
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         filled: true,
                         fillColor: const Color(0xFFF8FAFC),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 14),
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Combination is autofilled and cannot be changed.',
-                      style: TextStyle(
-                          fontSize: 11, color: Color(0xFF94A3B8)),
+                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                     ),
                     const SizedBox(height: 18),
 
@@ -3906,25 +4645,29 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                           width: 110,
                           child: TextField(
                             controller: _outputQtyCtrl,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(
-                                    decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             decoration: InputDecoration(
                               labelText: 'Output Qty',
                               labelStyle: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF64748B)),
+                                fontSize: 13,
+                                color: Color(0xFF64748B),
+                              ),
                               border: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(8)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: const BorderSide(
-                                    color: Color(0xFF2563EB), width: 2),
+                                  color: Color(0xFF2563EB),
+                                  width: 2,
+                                ),
                               ),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 14),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
                             ),
                           ),
                         ),
@@ -3934,10 +4677,10 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                           child: _unitsLoading
                               ? const Center(
                                   child: Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(vertical: 14),
+                                    padding: EdgeInsets.symmetric(vertical: 14),
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2),
+                                      strokeWidth: 2,
+                                    ),
                                   ),
                                 )
                               : DropdownButtonFormField<String?>(
@@ -3946,35 +4689,37 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                                   decoration: InputDecoration(
                                     labelText: 'Select unit',
                                     labelStyle: const TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF64748B)),
-                                    border: OutlineInputBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(8)),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(8),
-                                      borderSide: const BorderSide(
-                                          color: Color(0xFF2563EB),
-                                          width: 2),
+                                      fontSize: 13,
+                                      color: Color(0xFF64748B),
                                     ),
-                                    contentPadding:
-                                        const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 14),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF2563EB),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 14,
+                                    ),
                                   ),
                                   items: _units
-                                      .map((u) =>
-                                          DropdownMenuItem<String?>(
-                                            value: u['id']?.toString(),
-                                            child: Text(
-                                              '${u['code'] ?? ''} — ${u['description'] ?? ''}',
-                                              overflow:
-                                                  TextOverflow.ellipsis,
-                                            ),
-                                          ))
+                                      .map(
+                                        (u) => DropdownMenuItem<String?>(
+                                          value: u['id']?.toString(),
+                                          child: Text(
+                                            '${u['code'] ?? ''} — ${u['description'] ?? ''}',
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      )
                                       .toList(),
-                                  onChanged: (v) => setState(
-                                      () => _selectedUnitId = v),
+                                  onChanged: (v) =>
+                                      setState(() => _selectedUnitId = v),
                                 ),
                         ),
                       ],
@@ -3987,30 +4732,39 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                       decoration: InputDecoration(
                         labelText: 'Universal Recipe (optional)',
                         labelStyle: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF64748B)),
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                        ),
                         border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: const BorderSide(
-                              color: Color(0xFF2563EB), width: 2),
+                            color: Color(0xFF2563EB),
+                            width: 2,
+                          ),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 14),
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
                       ),
                       items: [
                         const DropdownMenuItem<String?>(
                           value: null,
-                          child: Text('Universal Recipe',
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            'Universal Recipe',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         for (final m in widget.orderMethods)
                           DropdownMenuItem<String?>(
                             value: m['id'],
-                            child: Text(m['name'] ?? '',
-                                overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              m['name'] ?? '',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                       ],
                       onChanged: (v) =>
@@ -4019,17 +4773,19 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                     const SizedBox(height: 20),
 
                     // ── RAW MATERIAL COMPONENTS ───────────────────
-                    _sectionLabel(
-                        'RAW MATERIAL COMPONENTS'),
+                    _sectionLabel('RAW MATERIAL COMPONENTS'),
                     for (int i = 0; i < _components.length; i++)
                       _buildComponentCard(i),
 
                     // ADD COMPONENT
                     TextButton.icon(
-                      onPressed: () => setState(
-                          () => _components.add(_BomComponentRow())),
-                      icon: const Icon(Icons.add,
-                          size: 16, color: Color(0xFF2563EB)),
+                      onPressed: () =>
+                          setState(() => _components.add(_BomComponentRow())),
+                      icon: const Icon(
+                        Icons.add,
+                        size: 16,
+                        color: Color(0xFF2563EB),
+                      ),
                       label: const Text(
                         'ADD COMPONENT',
                         style: TextStyle(
@@ -4046,23 +4802,30 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                         padding: const EdgeInsets.only(top: 8, bottom: 4),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: const Color(0xFFFCA5A5)),
+                            border: Border.all(color: const Color(0xFFFCA5A5)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline,
-                                  color: Color(0xFFDC2626), size: 18),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Color(0xFFDC2626),
+                                size: 18,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: Text(_error!,
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Color.fromRGBO(153, 27, 27, 1))),
+                                child: Text(
+                                  _error!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color.fromRGBO(153, 27, 27, 1),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -4077,8 +4840,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
             // ── Footer ────────────────────────────────────────────
             const Divider(height: 1),
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -4090,11 +4852,16 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                       foregroundColor: const Color(0xFF64748B),
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
                       textStyle: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: const Text('CANCEL'),
                   ),
@@ -4106,20 +4873,26 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                             height: 14,
                             width: 14,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
-                        : const Icon(Icons.shopping_cart_outlined,
-                            size: 16),
+                        : const Icon(Icons.shopping_cart_outlined, size: 16),
                     label: const Text('SAVE BOM'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       textStyle: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       elevation: 0,
                     ),
                   ),
@@ -4174,8 +4947,11 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
               const Spacer(),
               if (_components.length > 1)
                 IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      size: 18, color: Color(0xFF94A3B8)),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: Color(0xFF94A3B8),
+                  ),
                   onPressed: () => setState(() {
                     row.dispose();
                     _components.removeAt(index);
@@ -4201,13 +4977,16 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                   }),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 13),
+                      horizontal: 12,
+                      vertical: 13,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color: const Color(0xFF2563EB),
-                          width: 1.5),
+                        color: const Color(0xFF2563EB),
+                        width: 1.5,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -4222,8 +5001,11 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Icon(Icons.close,
-                            size: 14, color: Color(0xFF2563EB)),
+                        const Icon(
+                          Icons.close,
+                          size: 14,
+                          color: Color(0xFF2563EB),
+                        ),
                       ],
                     ),
                   ),
@@ -4236,8 +5018,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                   onChanged: (q) => _searchCombinations(row, q),
                   onSelected: (item) => setState(() {
                     row.combinationId = item['id']?.toString();
-                    row.combinationName =
-                        item['product_name']?.toString();
+                    row.combinationName = item['product_name']?.toString();
                     row.searchResults = [];
                     row.searchQuery = '';
                   }),
@@ -4245,8 +5026,7 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
               const SizedBox(height: 4),
               const Text(
                 'The ingredient/input product combination.',
-                style: TextStyle(
-                    fontSize: 10, color: Color(0xFF94A3B8)),
+                style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
               ),
             ],
           ),
@@ -4260,21 +5040,29 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                 flex: 2,
                 child: TextField(
                   controller: row.qtyCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Qty',
                     labelStyle: const TextStyle(
-                        fontSize: 12, color: Color(0xFF64748B)),
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(
-                          color: Color(0xFF2563EB), width: 2),
+                        color: Color(0xFF2563EB),
+                        width: 2,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 14),
+                      horizontal: 10,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
@@ -4290,30 +5078,43 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                         decoration: InputDecoration(
                           labelText: 'Unit (optional)',
                           labelStyle: const TextStyle(
-                              fontSize: 12, color: Color(0xFF64748B)),
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                          ),
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(
-                                color: Color(0xFF2563EB), width: 2),
+                              color: Color(0xFF2563EB),
+                              width: 2,
+                            ),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 14),
+                            horizontal: 10,
+                            vertical: 14,
+                          ),
                         ),
-                        hint: const Text('Auto',
-                            style: TextStyle(fontSize: 12)),
+                        hint: const Text(
+                          'Auto',
+                          style: TextStyle(fontSize: 12),
+                        ),
                         items: [
                           const DropdownMenuItem<String?>(
                             value: null,
-                            child: Text('Auto',
-                                overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              'Auto',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                           for (final u in _units)
                             DropdownMenuItem<String?>(
                               value: u['id']?.toString(),
-                              child: Text(u['code']?.toString() ?? '—',
-                                  overflow: TextOverflow.ellipsis),
+                              child: Text(
+                                u['code']?.toString() ?? '—',
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                         ],
                         onChanged: (v) => setState(() => row.unitId = v),
@@ -4325,21 +5126,29 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                 flex: 2,
                 child: TextField(
                   controller: row.scrapCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Scrap %',
                     labelStyle: const TextStyle(
-                        fontSize: 12, color: Color(0xFF64748B)),
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(
-                          color: Color(0xFF2563EB), width: 2),
+                        color: Color(0xFF2563EB),
+                        width: 2,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 14),
+                      horizontal: 10,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
@@ -4368,11 +5177,13 @@ class _CreateBomDialogState extends State<_CreateBomDialog> {
                           setState(() => row.isOptional = v ?? false),
                       activeColor: const Color(0xFF2563EB),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                       side: const BorderSide(
-                          color: Color(0xFF94A3B8), width: 1.5),
-                      materialTapTargetSize:
-                          MaterialTapTargetSize.shrinkWrap,
+                        color: Color(0xFF94A3B8),
+                        width: 1.5,
+                      ),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
@@ -4434,27 +5245,26 @@ class _SearchFieldState extends State<_SearchField> {
           onChanged: widget.onChanged,
           decoration: InputDecoration(
             labelText: widget.hint,
-            labelStyle: const TextStyle(
-                fontSize: 12, color: Color(0xFF64748B)),
-            border:
-                OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  const BorderSide(color: Color(0xFF2563EB), width: 2),
+              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 14,
+            ),
             suffixIcon: widget.searching
                 ? const Padding(
                     padding: EdgeInsets.all(12),
                     child: SizedBox(
-                        height: 14,
-                        width: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2)),
+                      height: 14,
+                      width: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
-                : const Icon(Icons.arrow_drop_down,
-                    color: Color(0xFF94A3B8)),
+                : const Icon(Icons.arrow_drop_down, color: Color(0xFF94A3B8)),
           ),
         ),
         if (widget.results.isNotEmpty)
@@ -4487,10 +5297,16 @@ class _SearchFieldState extends State<_SearchField> {
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    child: Text(name,
-                        style: const TextStyle(
-                            fontSize: 13, color: Color(0xFF1E293B))),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
                   ),
                 );
               },

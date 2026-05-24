@@ -60,7 +60,8 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
           printerName = null;
         }
       }
-    } else if (connType == InvoicePrintService.connectionWifi || connType == InvoicePrintService.connectionWired) {
+    } else if (connType == InvoicePrintService.connectionWifi ||
+        connType == InvoicePrintService.connectionWired) {
       if (InvoicePrintService.isDesktop) {
         printerName = await InvoicePrintService.getSavedPrinterName();
       } else {
@@ -86,45 +87,68 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
 
     final selected = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('How is your printer connected?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildConnectionOption(
-              ctx,
-              type: InvoicePrintService.connectionBluetooth,
-              icon: Icons.bluetooth_rounded,
-              title: 'Bluetooth',
-              subtitle: isDesktop
-                  ? 'Pair in Windows Settings first, then select here'
-                  : 'For Bluetooth thermal printers (e.g. Seznik)',
-              color: const Color(0xFF3B82F6),
-            ),
-            const SizedBox(height: 10),
-            _buildConnectionOption(
-              ctx,
-              type: InvoicePrintService.connectionWifi,
-              icon: Icons.wifi_rounded,
-              title: 'WiFi / Network',
-              subtitle: isDesktop
-                  ? 'Install printer in Windows Settings first'
-                  : 'Uses system print dialog automatically',
-              color: const Color(0xFF10B981),
-            ),
-            const SizedBox(height: 10),
-            _buildConnectionOption(
-              ctx,
-              type: InvoicePrintService.connectionWired,
-              icon: Icons.usb_rounded,
-              title: 'Wired (USB)',
-              subtitle: isDesktop
-                  ? 'Install printer in Windows Settings first'
-                  : 'Uses system print dialog automatically',
-              color: const Color(0xFFF59E0B),
-            ),
-          ],
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                child: Text(
+                  'How is your printer connected?',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildConnectionOption(
+                      ctx,
+                      type: InvoicePrintService.connectionBluetooth,
+                      icon: Icons.bluetooth_rounded,
+                      title: 'Bluetooth',
+                      subtitle: isDesktop
+                          ? 'Pair in Windows Settings first, then select here'
+                          : 'For Bluetooth thermal printers (e.g. Seznik)',
+                      color: const Color(0xFF3B82F6),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildConnectionOption(
+                      ctx,
+                      type: InvoicePrintService.connectionWifi,
+                      icon: Icons.wifi_rounded,
+                      title: 'WiFi / Network',
+                      subtitle: isDesktop
+                          ? 'Install printer in Windows Settings first'
+                          : 'Uses system print dialog automatically',
+                      color: const Color(0xFF10B981),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildConnectionOption(
+                      ctx,
+                      type: InvoicePrintService.connectionWired,
+                      icon: Icons.usb_rounded,
+                      title: 'Wired (USB)',
+                      subtitle: isDesktop
+                          ? 'Install printer in Windows Settings first'
+                          : 'Uses system print dialog automatically',
+                      color: const Color(0xFFF59E0B),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -139,39 +163,87 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
           // Guide user: pair BT printer in Windows, then pick from system printers.
           final goToPick = await showDialog<bool>(
             context: context,
-            builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, color: Color(0xFF3B82F6), size: 28),
-                  SizedBox(width: 10),
-                  Expanded(child: Text('Bluetooth on Desktop', style: TextStyle(fontSize: 18))),
-                ],
+            builder: (ctx) => Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              content: const Text(
-                'To use a Bluetooth printer on Windows:\n\n'
-                '1. Go to Windows Settings > Bluetooth & devices\n'
-                '2. Pair your thermal printer\n'
-                '3. Go to Settings > Printers & scanners\n'
-                '4. Add the paired printer\n\n'
-                'Once added, tap "Select Printer" below to pick it.',
-                style: TextStyle(fontSize: 14, color: Color(0xFF475569)),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Later'),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            color: Color(0xFF3B82F6),
+                            size: 28,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Bluetooth on Desktop',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        'To use a Bluetooth printer on Windows:\n\n'
+                        '1. Go to Windows Settings > Bluetooth & devices\n'
+                        '2. Pair your thermal printer\n'
+                        '3. Go to Settings > Printers & scanners\n'
+                        '4. Add the paired printer\n\n'
+                        'Once added, tap "Select Printer" below to pick it.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Later'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF3B82F6),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Select Printer'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3B82F6),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Select Printer'),
-                ),
-              ],
+              ),
             ),
           );
           if (goToPick == true && mounted) {
@@ -181,7 +253,8 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
           // On mobile, use blue_thermal_printer to scan BT devices
           await BluetoothPrintService.showPrinterPickerDialog(context);
         }
-      } else if (selected == InvoicePrintService.connectionWifi || selected == InvoicePrintService.connectionWired) {
+      } else if (selected == InvoicePrintService.connectionWifi ||
+          selected == InvoicePrintService.connectionWired) {
         if (isDesktop) {
           // On desktop, list installed system printers
           await InvoicePrintService.showPrinterPickerDialog(context);
@@ -191,7 +264,8 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
           if (mounted) {
             BluetoothPrintService.showTopRightNotification(
               context,
-              message: '${InvoicePrintService.getConnectionTypeLabel(selected)} selected!',
+              message:
+                  '${InvoicePrintService.getConnectionTypeLabel(selected)} selected!',
               detail: 'System will find printer automatically on print.',
               icon: Icons.check_circle_rounded,
               backgroundColor: const Color(0xFF10B981),
@@ -235,17 +309,20 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    title, 
+                    title,
                     style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                      fontWeight: isSelected
+                          ? FontWeight.w800
+                          : FontWeight.w600,
                       fontSize: 14, // slightly smaller to prevent overflow
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    subtitle, 
+                    subtitle,
                     style: const TextStyle(
-                      fontSize: 11, color: Color(0xFF94A3B8),
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -256,7 +333,7 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
             if (isSelected) ...[
               const SizedBox(width: 6),
               Icon(Icons.check_circle, color: color),
-            ]
+            ],
           ],
         ),
       ),
@@ -271,35 +348,77 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
 
       final shouldSetup = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.settings_rounded, color: Color(0xFF8B5CF6), size: 28),
-              SizedBox(width: 10),
-              Expanded(child: Text('Setup Printer')),
-            ],
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          content: const Text(
-            'You need to set up your printer before printing. '
-            'Choose how your printer is connected (Bluetooth, WiFi, USB, etc.)',
-            style: TextStyle(fontSize: 14, color: Color(0xFF475569)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.settings_rounded,
+                        color: Color(0xFF8B5CF6),
+                        size: 28,
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Setup Printer',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Text(
+                    'You need to set up your printer before printing. '
+                    'Choose how your printer is connected (Bluetooth, WiFi, USB, etc.)',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF475569)),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF8B5CF6),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Setup Printer'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF8B5CF6),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Setup Printer'),
-            ),
-          ],
+          ),
         ),
       );
 
@@ -317,8 +436,9 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
       if (!btAvailable) {
         // Only show notification if not debounced
         final now = DateTime.now();
-        if (mounted && (_lastErrorNotificationTime == null ||
-            now.difference(_lastErrorNotificationTime!).inSeconds > 5)) {
+        if (mounted &&
+            (_lastErrorNotificationTime == null ||
+                now.difference(_lastErrorNotificationTime!).inSeconds > 5)) {
           _lastErrorNotificationTime = now;
           BluetoothPrintService.showTopRightNotification(
             context,
@@ -385,11 +505,11 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
     setState(() => _isLoading = true);
 
     if (mounted) {
-      String typeLabel = type == 'quick' 
-          ? 'Quick Print' 
-          : type == 'invoice' 
-              ? 'Invoice' 
-              : 'Order Ticket';
+      String typeLabel = type == 'quick'
+          ? 'Quick Print'
+          : type == 'invoice'
+          ? 'Invoice'
+          : 'Order Ticket';
 
       BluetoothPrintService.showTopRightNotification(
         context,
@@ -441,73 +561,109 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
 
     final selected = await showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-        title: const Text(
-          'Select Receipt Size',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ...InvoicePrintService.paperSizeOptions.map((option) {
-              final widthInMm = option['widthInMm'] as double;
-              final label = option['label'] as String;
-              final isSelected = widthInMm == currentSize;
-              return Container(
-                margin: const EdgeInsets.symmetric(vertical: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFF3B82F6)
-                        : const Color(0xFFE2E8F0),
-                    width: isSelected ? 2 : 1,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  color: isSelected
-                      ? const Color(0xFFEFF6FF)
-                      : Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                child: Text(
+                  'Select Receipt Size',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: Icon(
-                    Icons.straighten_rounded,
-                    color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFF94A3B8),
-                  ),
-                  title: Text(
-                    label,
-                    style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                      color: isSelected ? const Color(0xFF1E293B) : const Color(0xFF475569),
-                      fontSize: 15,
-                    ),
-                  ),
-                  trailing: isSelected
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF3B82F6))
-                      : null,
-                  onTap: () => Navigator.pop(ctx, widthInMm),
-                ),
-              );
-            }),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF64748B),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
-                  ),
-                ),
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ...InvoicePrintService.paperSizeOptions.map((option) {
+                      final widthInMm = option['widthInMm'] as double;
+                      final label = option['label'] as String;
+                      final isSelected = widthInMm == currentSize;
+                      return Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFFE2E8F0),
+                            width: isSelected ? 2 : 1,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          color: isSelected
+                              ? const Color(0xFFEFF6FF)
+                              : Colors.white,
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 2,
+                          ),
+                          leading: Icon(
+                            Icons.straighten_rounded,
+                            color: isSelected
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFF94A3B8),
+                          ),
+                          title: Text(
+                            label,
+                            style: TextStyle(
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
+                              color: isSelected
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFF475569),
+                              fontSize: 15,
+                            ),
+                          ),
+                          trailing: isSelected
+                              ? const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF3B82F6),
+                                )
+                              : null,
+                          onTap: () => Navigator.pop(ctx, widthInMm),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF64748B),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -560,287 +716,303 @@ class _PosPrintOptionsDialogState extends State<PosPrintOptionsDialog> {
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Title
-                  Text(
-                    widget.title,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: titleSize,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1E293B),
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  if (widget.orderId.isNotEmpty) ...[
-                    SizedBox(height: spacing / 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: TranslatedText(
-                        'Order #${widget.orderId.length > 8 ? widget.orderId.substring(0, 8) : widget.orderId}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
-                        ),
+                  children: [
+                    // Title
+                    Text(
+                      widget.title,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: titleSize,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1E293B),
+                        letterSpacing: -0.5,
                       ),
                     ),
-                  ],
-                  SizedBox(height: sectionSpacing),
-
-                  // ── Settings Row: Printer + Paper Size ──
-                  Row(
-                    children: [
-                      // Printer chip — shows connection type and printer name
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () async {
-                            await _showConnectionTypePicker();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: _savedPrinterName != null
-                                  ? const Color(0xFFF0FDF4)
-                                  : const Color(0xFFFEF2F2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: _savedPrinterName != null
-                                    ? const Color(0xFF10B981).withOpacity(0.3)
-                                    : const Color(0xFFEF4444).withOpacity(0.3),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      _connectionType != null
-                                          ? InvoicePrintService.getConnectionTypeIcon(_connectionType!)
-                                          : Icons.print_rounded,
-                                      size: 14,
-                                      color: _savedPrinterName != null
-                                          ? const Color(0xFF10B981)
-                                          : const Color(0xFFEF4444),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _connectionType != null
-                                          ? InvoicePrintService.getConnectionTypeLabel(_connectionType!)
-                                          : 'Printer',
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF64748B),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _savedPrinterName ?? 'Not set',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: _savedPrinterName != null
-                                        ? FontWeight.w800
-                                        : FontWeight.w500,
-                                    color: _savedPrinterName != null
-                                        ? const Color(0xFF1E293B)
-                                        : const Color(0xFFEF4444),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
+                    if (widget.orderId.isNotEmpty) ...[
+                      SizedBox(height: spacing / 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Paper Size chip — always shown
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _showPaperSizeSelector,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: _savedPaperSize != null
-                                  ? const Color(0xFFF0F9FF)
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: _savedPaperSize != null
-                                    ? const Color(0xFF3B82F6).withOpacity(0.3)
-                                    : const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.straighten_rounded,
-                                      size: 14,
-                                      color: _savedPaperSize != null
-                                          ? const Color(0xFF3B82F6)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Text(
-                                      'Receipt Size',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF64748B),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  paperSizeLabel,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: _savedPaperSize != null
-                                        ? FontWeight.w800
-                                        : FontWeight.w500,
-                                    color: _savedPaperSize != null
-                                        ? const Color(0xFF1E293B)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: TranslatedText(
+                          'Order #${widget.orderId.length > 8 ? widget.orderId.substring(0, 8) : widget.orderId}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                       ),
                     ],
-                  ),
-                  SizedBox(height: sectionSpacing),
+                    SizedBox(height: sectionSpacing),
 
-                  // Actions List
-                  if (widget.onViewOrder != null) ...[
+                    // ── Settings Row: Printer + Paper Size ──
+                    Row(
+                      children: [
+                        // Printer chip — shows connection type and printer name
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              await _showConnectionTypePicker();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _savedPrinterName != null
+                                    ? const Color(0xFFF0FDF4)
+                                    : const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _savedPrinterName != null
+                                      ? const Color(0xFF10B981).withOpacity(0.3)
+                                      : const Color(
+                                          0xFFEF4444,
+                                        ).withOpacity(0.3),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        _connectionType != null
+                                            ? InvoicePrintService.getConnectionTypeIcon(
+                                                _connectionType!,
+                                              )
+                                            : Icons.print_rounded,
+                                        size: 14,
+                                        color: _savedPrinterName != null
+                                            ? const Color(0xFF10B981)
+                                            : const Color(0xFFEF4444),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _connectionType != null
+                                            ? InvoicePrintService.getConnectionTypeLabel(
+                                                _connectionType!,
+                                              )
+                                            : 'Printer',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _savedPrinterName ?? 'Not set',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: _savedPrinterName != null
+                                          ? FontWeight.w800
+                                          : FontWeight.w500,
+                                      color: _savedPrinterName != null
+                                          ? const Color(0xFF1E293B)
+                                          : const Color(0xFFEF4444),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // Paper Size chip — always shown
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: _showPaperSizeSelector,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _savedPaperSize != null
+                                    ? const Color(0xFFF0F9FF)
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _savedPaperSize != null
+                                      ? const Color(0xFF3B82F6).withOpacity(0.3)
+                                      : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.straighten_rounded,
+                                        size: 14,
+                                        color: _savedPaperSize != null
+                                            ? const Color(0xFF3B82F6)
+                                            : const Color(0xFF94A3B8),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Text(
+                                        'Receipt Size',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    paperSizeLabel,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: _savedPaperSize != null
+                                          ? FontWeight.w800
+                                          : FontWeight.w500,
+                                      color: _savedPaperSize != null
+                                          ? const Color(0xFF1E293B)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: sectionSpacing),
+
+                    // Actions List
+                    if (widget.onViewOrder != null) ...[
+                      _buildActionTile(
+                        title: 'View Order Details',
+                        subtitle: 'Review items and payments',
+                        icon: Icons.receipt_long_rounded,
+                        iconColor: const Color(0xFF3B82F6),
+                        iconBgColor: const Color(0xFFEFF6FF),
+                        onTap: widget.onViewOrder!,
+                      ),
+                      SizedBox(height: spacing),
+                    ],
+
                     _buildActionTile(
-                      title: 'View Order Details',
-                      subtitle: 'Review items and payments',
-                      icon: Icons.receipt_long_rounded,
-                      iconColor: const Color(0xFF3B82F6),
-                      iconBgColor: const Color(0xFFEFF6FF),
-                      onTap: widget.onViewOrder!,
+                      title: 'Quick Print',
+                      subtitle: '2 Tickets + 1 Invoice ($paperSizeLabel)',
+                      icon: Icons.print_rounded,
+                      iconColor: const Color(0xFF10B981),
+                      iconBgColor: const Color(0xFFECFDF5),
+                      onTap: () => _handlePrint('quick'),
+                      isHighlighted: true,
                     ),
                     SizedBox(height: spacing),
-                  ],
 
-                  _buildActionTile(
-                    title: 'Quick Print',
-                    subtitle: '2 Tickets + 1 Invoice ($paperSizeLabel)',
-                    icon: Icons.print_rounded,
-                    iconColor: const Color(0xFF10B981),
-                    iconBgColor: const Color(0xFFECFDF5),
-                    onTap: () => _handlePrint('quick'),
-                    isHighlighted: true,
-                  ),
-                  SizedBox(height: spacing),
-
-                  _buildActionTile(
-                    title: 'Print Invoice',
-                    subtitle: 'Invoice only ($paperSizeLabel)',
-                    icon: Icons.receipt_rounded,
-                    iconColor: const Color(0xFF6366F1),
-                    iconBgColor: const Color(0xFFEEF2FF),
-                    onTap: () => _handlePrint('invoice'),
-                  ),
-                  SizedBox(height: spacing),
-
-                  _buildActionTile(
-                    title: 'Print Order Ticket',
-                    subtitle: 'Kitchen ticket ($paperSizeLabel)',
-                    icon: Icons.local_activity_rounded,
-                    iconColor: const Color(0xFFF59E0B),
-                    iconBgColor: const Color(0xFFFFFBEB),
-                    onTap: () => _handlePrint('ticket'),
-                  ),
-                  SizedBox(height: spacing),
-
-                  // Customize Layout
-                  _buildActionTile(
-                    title: 'Customize Layout',
-                    subtitle: 'Edit receipt & KOT sections, auto-cut, break lines',
-                    icon: Icons.design_services_rounded,
-                    iconColor: const Color(0xFF8B5CF6),
-                    iconBgColor: const Color(0xFFF5F3FF),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ReceiptKotEditorScreen(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  SizedBox(height: sectionSpacing * 1.2),
-
-                  // Bottom CTA
-                  if (widget.onNewOrder != null)
-                    SizedBox(
-                      width: double.infinity,
-                      height: ctaHeight,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E293B),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        onPressed: widget.onNewOrder,
-                        child: const TranslatedText(
-                          'Start New Order',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    SizedBox(
-                      width: double.infinity,
-                      height: ctaHeight,
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF64748B),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
-                          ),
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                        child: const TranslatedText(
-                          'Close Options',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
+                    _buildActionTile(
+                      title: 'Print Invoice',
+                      subtitle: 'Invoice only ($paperSizeLabel)',
+                      icon: Icons.receipt_rounded,
+                      iconColor: const Color(0xFF6366F1),
+                      iconBgColor: const Color(0xFFEEF2FF),
+                      onTap: () => _handlePrint('invoice'),
                     ),
-                ],
-              ),
+                    SizedBox(height: spacing),
+
+                    _buildActionTile(
+                      title: 'Print Order Ticket',
+                      subtitle: 'Kitchen ticket ($paperSizeLabel)',
+                      icon: Icons.local_activity_rounded,
+                      iconColor: const Color(0xFFF59E0B),
+                      iconBgColor: const Color(0xFFFFFBEB),
+                      onTap: () => _handlePrint('ticket'),
+                    ),
+                    SizedBox(height: spacing),
+
+                    // Customize Layout
+                    _buildActionTile(
+                      title: 'Customize Layout',
+                      subtitle:
+                          'Edit receipt & KOT sections, auto-cut, break lines',
+                      icon: Icons.design_services_rounded,
+                      iconColor: const Color(0xFF8B5CF6),
+                      iconBgColor: const Color(0xFFF5F3FF),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ReceiptKotEditorScreen(),
+                          ),
+                        );
+                      },
+                    ),
+
+                    SizedBox(height: sectionSpacing * 1.2),
+
+                    // Bottom CTA
+                    if (widget.onNewOrder != null)
+                      SizedBox(
+                        width: double.infinity,
+                        height: ctaHeight,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E293B),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: widget.onNewOrder,
+                          child: const TranslatedText(
+                            'Start New Order',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        height: ctaHeight,
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF64748B),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: const BorderSide(
+                                color: Color(0xFFE2E8F0),
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                          child: const TranslatedText(
+                            'Close Options',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
 

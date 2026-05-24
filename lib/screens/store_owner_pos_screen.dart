@@ -20,6 +20,9 @@ import 'package:exanor/utils/event_bus.dart';
 import 'package:exanor/utils/keyboard_shortcuts.dart';
 import 'package:exanor/utils/platform_helper.dart';
 import 'package:exanor/utils/fuzzy_search.dart';
+import 'package:exanor/services/print_settings_service.dart';
+import 'package:exanor/services/bluetooth_print_service.dart';
+import 'package:exanor/screens/receipt_kot_editor_screen.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -3963,29 +3966,58 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               _buildTopBanner(theme),
 
               Expanded(
-                child: _posCategoryLayout == 'left'
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildCategoriesSection(
-                            theme,
-                            constraints.maxWidth > 700,
-                          ),
-                          Expanded(child: _buildProductsGrid(theme)),
-                          if (constraints.maxWidth > 1100)
-                            _buildCheckoutPanel(theme, _checkoutPanelWidth),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildCategoriesSection(
-                            theme,
-                            constraints.maxWidth > 700,
-                          ),
-                          Expanded(child: _buildProductsGrid(theme)),
-                        ],
-                      ),
+                child: (constraints.maxWidth > 1100)
+                    ? (_posCategoryLayout == 'top'
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildCategoriesSection(theme, true),
+                                Expanded(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: _buildProductsGrid(theme),
+                                      ),
+                                      _buildCheckoutPanel(
+                                        theme,
+                                        _checkoutPanelWidth,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildCategoriesSection(theme, true),
+                                Expanded(child: _buildProductsGrid(theme)),
+                                _buildCheckoutPanel(theme, _checkoutPanelWidth),
+                              ],
+                            ))
+                    : (_posCategoryLayout == 'left'
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildCategoriesSection(
+                                  theme,
+                                  constraints.maxWidth > 700,
+                                ),
+                                Expanded(child: _buildProductsGrid(theme)),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildCategoriesSection(
+                                  theme,
+                                  constraints.maxWidth > 700,
+                                ),
+                                Expanded(child: _buildProductsGrid(theme)),
+                              ],
+                            )),
               ),
             ],
           );
@@ -4738,6 +4770,55 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   ),
                                   child: const Icon(
                                     Icons.menu_book_outlined,
+                                    color: Colors.blueGrey,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Print Settings Button
+                        SizedBox(
+                          width: 70,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TranslatedText(
+                                'PRINT',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 1.2,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: _showPrintSettingsDialog,
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.blueGrey.withOpacity(0.1),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.print_outlined,
                                     color: Colors.blueGrey,
                                     size: 24,
                                   ),
@@ -5805,29 +5886,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     StateSetter setStateLocal,
   ) {
     final isSelected = _posOptionsLayout == value;
+    final primary = Theme.of(context).primaryColor;
     return Expanded(
       child: InkWell(
         onTap: () => _persistOptionsLayout(value, setStateLocal: setStateLocal),
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFF5B4FE8).withOpacity(0.12)
-                : Colors.grey[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF5B4FE8) : Colors.grey[300]!,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF5B4FE8).withOpacity(0.18),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            color: isSelected ? primary : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isSelected ? primary : Colors.grey[300]!),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -5838,16 +5907,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     ? Icons.arrow_drop_down_circle_outlined
                     : Icons.view_day_outlined,
                 size: 16,
-                color: isSelected ? const Color(0xFF4C3AD6) : Colors.grey[700],
+                color: isSelected ? Colors.white : Colors.grey[700],
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected
-                      ? const Color(0xFF2E2A5B)
-                      : Colors.grey[800],
-                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : Colors.grey[800],
+                  fontWeight: FontWeight.w600,
                   fontSize: 12,
                 ),
               ),
@@ -6998,10 +7065,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     final effectiveSidebarWidth = _posCategoryLayout == 'left'
         ? _posCategorySize * sidebarScale
         : 0;
-    final checkoutPanelWidth =
-        (screenWidth > 1100 && _posCategoryLayout == 'left')
-        ? _checkoutPanelWidth
-        : 0.0;
+    final checkoutPanelWidth = (screenWidth > 1100) ? _checkoutPanelWidth : 0.0;
     final gridWidth =
         screenWidth - effectiveSidebarWidth - checkoutPanelWidth - 16;
 
@@ -8051,6 +8115,71 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showPrintSettingsDialog();
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.print_outlined,
+                            size: 20,
+                            color: Color(0xFF10B981),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Print Settings',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Printer config and layout',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_right,
+                          size: 20,
+                          color: Colors.grey[400],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -8638,6 +8767,145 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         onError('Polling error: $e');
       }
     });
+  }
+
+  void _showPrintSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDlg) {
+            String? connectionType;
+            String? printerName;
+            double? paperSize;
+
+            Future<void> load() async {
+              connectionType =
+                  await InvoicePrintService.getSavedConnectionType();
+              printerName = await InvoicePrintService.getSavedPrinterName();
+              paperSize = await InvoicePrintService.getSavedPaperSize();
+              if (printerName == null && InvoicePrintService.isDesktop) {
+                printerName = await BluetoothPrintService.getSavedPrinterName();
+              }
+              setDlg(() {});
+            }
+
+            if (connectionType == null) load();
+
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.print_outlined,
+                              color: Color(0xFF10B981),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Print Settings',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1A1A2E),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      if (connectionType != null) ...[
+                        Text(
+                          'Connection: $connectionType',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        if (printerName != null)
+                          Text(
+                            'Printer: $printerName',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        if (paperSize != null)
+                          Text(
+                            'Paper: ${paperSize}mm',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                      ] else ...[
+                        const Text(
+                          'No printer configured',
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () async {
+                          await InvoicePrintService.showPrinterPickerDialog(
+                            ctx,
+                          );
+                          load();
+                        },
+                        icon: const Icon(Icons.print_rounded),
+                        label: const Text('Select Printer'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF5B4FE8),
+                          side: const BorderSide(color: Color(0xFF5B4FE8)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ReceiptKotEditorScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.dashboard_customize_outlined),
+                        label: const Text('Customize Layout'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
 
