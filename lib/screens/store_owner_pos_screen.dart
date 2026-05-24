@@ -152,8 +152,23 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       'ask_first'; // 'ask_first', 'ask_at_checkout', 'skip'
   String? _guestSessionId;
 
-  // Checkout Options Layout
+  // Checkout Options Layout (desktop sidebar only)
   String _posOptionsLayout = 'dropdown'; // 'dropdown' or 'inline'
+
+  Future<void> _persistOptionsLayout(
+    String value, {
+    StateSetter? setStateLocal,
+  }) async {
+    if (!mounted) return;
+    setState(() => _posOptionsLayout = value);
+    setStateLocal?.call(() {});
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('pos_options_layout', value);
+  }
+
+  // Cached tables for inline selection
+  List<Map<String, dynamic>> _availableTables = [];
+  bool _isTablesLoading = false;
 
   @override
   void initState() {
@@ -166,6 +181,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     _fetchCategories();
     _fetchPaymentMethods();
     _fetchStoreBankDetails();
+    _fetchAvailableTables();
     _loadViewPreference(); // Load view preference (handles workflow inside)
     _initLocationAndCart(); // Load location then cart data
 
@@ -238,167 +254,317 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     return [];
   }
 
-  Future<void> _showTableSelectionDialog(StateSetter setSheetState) async {
-    // Show loading while fetching
+  Future<void> _fetchAvailableTables() async {
+    setState(() => _isTablesLoading = true);
+    _availableTables = await _fetchTablesForSelection();
+    if (mounted) setState(() => _isTablesLoading = false);
+  }
+
+  Future<void> _showTableSelectionSheet(StateSetter setSheetState) async {
     List<Map<String, dynamic>> tables = [];
     bool loadingTables = true;
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) {
-          if (loadingTables) {
-            _fetchTablesForSelection().then((result) {
-              if (ctx.mounted) {
-                setDlg(() {
-                  tables = result;
-                  loadingTables = false;
-                });
-              }
-            });
-          }
-          return Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 40,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Select Dining Table',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(ctx),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            shape: BoxShape.circle,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 12,
+          right: 12,
+        ),
+        child: StatefulBuilder(
+          builder: (ctx, setDlg) {
+            if (loadingTables) {
+              _fetchTablesForSelection().then((result) {
+                if (ctx.mounted) {
+                  setDlg(() {
+                    tables = result;
+                    loadingTables = false;
+                  });
+                }
+              });
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Select Table',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B),
                           ),
-                          child: const Icon(
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(
                             Icons.close_rounded,
                             size: 18,
-                            color: Color(0xFF64748B),
+                            color: Color(0xFF94A3B8),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  // Content
-                  loadingTables
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 32),
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      : tables.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(
-                            child: Text(
-                              'No active tables found',
-                              style: TextStyle(
-                                color: Color(0xFF94A3B8),
-                                fontSize: 14,
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    loadingTables
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : tables.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 18),
+                            child: Center(
+                              child: Text(
+                                'No active tables found',
+                                style: TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
+                          )
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildCompactTableChip(
+                                ctx,
+                                setDlg,
+                                setSheetState,
+                                null,
+                                'None',
+                                null,
+                              ),
+                              ...tables.map((t) {
+                                return _buildCompactTableChip(
+                                  ctx,
+                                  setDlg,
+                                  setSheetState,
+                                  t,
+                                  t['table_number']?.toString() ?? '',
+                                  t['additional_data']?['seats'],
+                                );
+                              }),
+                            ],
                           ),
-                        )
-                      : GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                                childAspectRatio: 1.1,
-                              ),
-                          itemCount: tables.length,
-                          itemBuilder: (_, i) {
-                            final t = tables[i];
-                            final tableNum =
-                                t['table_number']?.toString() ?? '—';
-                            final additional =
-                                t['additional_data'] as Map? ?? {};
-                            final seats = additional['seats'] ?? 0;
-                            final isSelected = _selectedTable?['id'] == t['id'];
-                            return GestureDetector(
-                              onTap: () {
-                                setDlg(() {});
-                                setSheetState(() {
-                                  _selectedTable = isSelected ? null : t;
-                                });
-                                Navigator.pop(ctx);
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(
-                                          0xFF5B4FE8,
-                                        ).withOpacity(0.08)
-                                      : const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? const Color(0xFF5B4FE8)
-                                        : const Color(0xFFE2E8F0),
-                                    width: isSelected ? 2 : 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      tableNum,
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: isSelected
-                                            ? const Color(0xFF5B4FE8)
-                                            : const Color(0xFF1E293B),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '$seats Seat${seats == 1 ? '' : 's'}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: isSelected
-                                            ? const Color(0xFF5B4FE8)
-                                            : const Color(0xFF94A3B8),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ],
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactTableChip(
+    BuildContext ctx,
+    void Function(void Function()) setDlg,
+    StateSetter setSheetState,
+    Map<String, dynamic>? table,
+    String label,
+    dynamic seats,
+  ) {
+    final isSelected = _selectedTable?['id'] == table?['id'];
+    return InkWell(
+      onTap: () {
+        setDlg(() {});
+        setSheetState(() {
+          _selectedTable = isSelected ? null : table;
+        });
+        Navigator.pop(ctx);
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF5B4FE8).withOpacity(0.08)
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF5B4FE8)
+                : const Color(0xFFE2E8F0),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: isSelected
+                    ? const Color(0xFF5B4FE8)
+                    : const Color(0xFF1E293B),
               ),
             ),
-          );
-        },
+            if (seats != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                '$seats Seat${seats == 1 ? '' : 's'}',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isSelected
+                      ? const Color(0xFF5B4FE8)
+                      : const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPaymentModeSelector(StateSetter setSheetState) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Select Payment Mode',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildPaymentOptionTile(
+                  'UNPAID',
+                  'Unpaid',
+                  Icons.money_off_csred_outlined,
+                  setSheetState,
+                ),
+                _buildPaymentOptionTile(
+                  'MULTI-MODE',
+                  'Split Payment',
+                  Icons.account_tree_outlined,
+                  setSheetState,
+                ),
+                ..._bankDetails.map(
+                  (bank) => _buildPaymentOptionTile(
+                    bank['id'].toString(),
+                    bank['bank_name'] ?? bank['account_holder_name'] ?? 'Bank',
+                    Icons.account_balance_outlined,
+                    setSheetState,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPaymentOptionTile(
+    String value,
+    String label,
+    IconData icon,
+    StateSetter setSheetState,
+  ) {
+    final isSelected = _selectedPaymentMode == value;
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context);
+        if (value == 'MULTI-MODE') {
+          setSheetState(() => _selectedPaymentMode = value);
+          _showMultiModeDialog(setSheetState);
+        } else {
+          setSheetState(() => _selectedPaymentMode = value);
+        }
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFF0EDFF) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF5B4FE8)
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected
+                  ? const Color(0xFF5B4FE8)
+                  : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected
+                      ? const Color(0xFF5B4FE8)
+                      : const Color(0xFF1A1A2E),
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Color(0xFF5B4FE8),
+                size: 20,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1335,99 +1501,34 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     );
   }
 
-  void _showPaymentModeSelector(StateSetter setSheetState) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Select Payment Mode',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A2E),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Unpaid
-                _buildPaymentOptionTile(
-                  'UNPAID',
-                  'Unpaid',
-                  Icons.money_off_csred_outlined,
-                  setSheetState,
-                ),
-                // Multi-mode
-                _buildPaymentOptionTile(
-                  'MULTI-MODE',
-                  'Split Payment',
-                  Icons.account_tree_outlined,
-                  setSheetState,
-                ),
-                // Bank options
-                ..._bankDetails.map(
-                  (bank) => _buildPaymentOptionTile(
-                    bank['id'].toString(),
-                    bank['bank_name'] ?? bank['account_holder_name'] ?? 'Bank',
-                    Icons.account_balance_outlined,
-                    setSheetState,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+  Widget _buildInlineOptionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey[500],
+        ),
+      ),
     );
   }
 
-  Widget _buildPaymentOptionTile(
-    String value,
-    String label,
-    IconData icon,
-    StateSetter setSheetState,
-  ) {
-    final isSelected = _selectedPaymentMode == value;
+  Widget _buildOptionChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    IconData? icon,
+  }) {
     return InkWell(
-      onTap: () {
-        Navigator.pop(context);
-        if (value == 'MULTI-MODE') {
-          setSheetState(() => _selectedPaymentMode = value);
-          _showMultiModeDialog(setSheetState);
-        } else {
-          setSheetState(() => _selectedPaymentMode = value);
-        }
-      },
-      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF0EDFF) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(10),
+          color: isSelected ? const Color(0xFF5B4FE8) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
                 ? const Color(0xFF5B4FE8)
@@ -1435,33 +1536,24 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           ),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: isSelected
-                  ? const Color(0xFF5B4FE8)
-                  : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected
-                      ? const Color(0xFF5B4FE8)
-                      : const Color(0xFF1A1A2E),
-                ),
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? Colors.white : Colors.grey[600],
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : const Color(0xFF475569),
               ),
             ),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle_rounded,
-                color: Color(0xFF5B4FE8),
-                size: 20,
-              ),
           ],
         ),
       ),
@@ -2567,9 +2659,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Options Layout: Dropdown vs Inline
-                              if (_posOptionsLayout == 'dropdown')
-                                // Unified clean options card
+                              if (_posOptionsLayout == 'dropdown') ...[
                                 Container(
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF8FAFC),
@@ -2580,7 +2670,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   ),
                                   child: Column(
                                     children: [
-                                      // Order Type Row
                                       InkWell(
                                         onTap: () async {
                                           await _showOrderMethodSelection();
@@ -2611,7 +2700,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                   color: Colors.orange.shade700,
                                                 ),
                                               ),
-                                              const SizedBox(width: 10),
+                                              const SizedBox(width: 12),
                                               Expanded(
                                                 child: Column(
                                                   crossAxisAlignment:
@@ -2621,7 +2710,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                       'Order Type',
                                                       style: TextStyle(
                                                         color: Colors.black45,
-                                                        fontSize: 11,
+                                                        fontSize: 10,
                                                         fontWeight:
                                                             FontWeight.w500,
                                                       ),
@@ -2650,15 +2739,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                           ),
                                         ),
                                       ),
-                                      const Divider(
-                                        height: 1,
-                                        indent: 56,
-                                        endIndent: 14,
-                                      ),
-                                      // Table Row
                                       InkWell(
-                                        onTap: () => _showTableSelectionDialog(
-                                          setSheetState,
+                                        onTap: () => _showTableSelectionSheet(
+                                          (fn) => setSheetState(fn),
                                         ),
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
@@ -2688,7 +2771,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                       : Colors.grey[400],
                                                 ),
                                               ),
-                                              const SizedBox(width: 10),
+                                              const SizedBox(width: 12),
                                               Expanded(
                                                 child: _selectedTable != null
                                                     ? Column(
@@ -2701,7 +2784,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                             style: TextStyle(
                                                               color: Colors
                                                                   .black45,
-                                                              fontSize: 11,
+                                                              fontSize: 10,
                                                               fontWeight:
                                                                   FontWeight
                                                                       .w500,
@@ -2756,291 +2839,204 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                           ),
                                         ),
                                       ),
-                                      const Divider(
-                                        height: 1,
-                                        indent: 56,
-                                        endIndent: 14,
-                                      ),
-                                      // Payment Row
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 4,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 32,
-                                              height: 32,
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF1F5F9),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Icon(
-                                                Icons.payments_outlined,
-                                                size: 16,
-                                                color: theme.primaryColor,
-                                              ),
+                                      InkWell(
+                                        onTap: () {
+                                          _showPaymentModeSelector(
+                                            (fn) => setSheetState(fn),
+                                          );
+                                        },
+                                        borderRadius:
+                                            const BorderRadius.vertical(
+                                              bottom: Radius.circular(12),
                                             ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: DropdownButtonHideUnderline(
-                                                child: DropdownButton<String>(
-                                                  value: _selectedPaymentMode,
-                                                  isExpanded: true,
-                                                  icon: Icon(
-                                                    Icons.expand_more_rounded,
-                                                    color: theme.primaryColor,
-                                                    size: 18,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 12,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 32,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFF1F5F9,
                                                   ),
-                                                  style: const TextStyle(
-                                                    fontSize: 13,
-                                                    color: Color(0xFF1A1A2E),
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                  items: [
-                                                    const DropdownMenuItem(
-                                                      value: 'UNPAID',
-                                                      child: TranslatedText(
-                                                        'Unpaid',
-                                                      ),
-                                                    ),
-                                                    const DropdownMenuItem(
-                                                      value: 'MULTI-MODE',
-                                                      child: TranslatedText(
-                                                        'Split',
-                                                      ),
-                                                    ),
-                                                    ..._bankDetails.map((bank) {
-                                                      final label =
-                                                          bank['bank_name'] ??
-                                                          bank['account_holder_name'] ??
-                                                          'Bank';
-                                                      return DropdownMenuItem(
-                                                        value: bank['id']
-                                                            .toString(),
-                                                        child: Text(
-                                                          label,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 13,
-                                                              ),
-                                                        ),
-                                                      );
-                                                    }),
-                                                  ],
-                                                  onChanged: (value) {
-                                                    if (value != null) {
-                                                      if (value ==
-                                                          'MULTI-MODE') {
-                                                        setSheetState(() {
-                                                          _selectedPaymentMode =
-                                                              value;
-                                                        });
-                                                        _showMultiModeDialog(
-                                                          setSheetState,
-                                                        );
-                                                      } else {
-                                                        setSheetState(() {
-                                                          _selectedPaymentMode =
-                                                              value;
-                                                        });
-                                                      }
-                                                    }
-                                                  },
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Icon(
+                                                  Icons.payments_outlined,
+                                                  size: 16,
+                                                  color: theme.primaryColor,
                                                 ),
                                               ),
-                                            ),
-                                          ],
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    const Text(
+                                                      'Payment',
+                                                      style: TextStyle(
+                                                        color: Colors.black45,
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      _selectedPaymentMode ==
+                                                              'UNPAID'
+                                                          ? 'Unpaid'
+                                                          : _selectedPaymentMode ==
+                                                                'MULTI-MODE'
+                                                          ? 'Split Payment'
+                                                          : (_bankDetails.firstWhere(
+                                                                      (b) =>
+                                                                          b['id']
+                                                                              .toString() ==
+                                                                          _selectedPaymentMode,
+                                                                      orElse: () => {
+                                                                        'bank_name':
+                                                                            'Paid',
+                                                                      },
+                                                                    )['bank_name'] ??
+                                                                    'Paid')
+                                                                .toString(),
+                                                      style: TextStyle(
+                                                        color:
+                                                            theme.primaryColor,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Icon(
+                                                Icons.keyboard_arrow_right,
+                                                size: 18,
+                                                color: Colors.grey[400],
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                )
-                              else
-                                // Inline layout: compact chips in a row
-                                Row(
+                                ),
+                              ] else ...[
+                                _buildInlineOptionLabel('Order Type'),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _orderMethods.map((method) {
+                                    final isSelected =
+                                        _selectedOrderMethod?['id'] ==
+                                        method['id'];
+                                    return _buildOptionChip(
+                                      label:
+                                          method['order_method_name']
+                                              ?.toString() ??
+                                          '',
+                                      isSelected: isSelected,
+                                      onTap: () => setSheetState(
+                                        () => _selectedOrderMethod = method,
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 12),
+                                _buildInlineOptionLabel('Table'),
+                                if (_isTablesLoading)
+                                  const SizedBox(
+                                    height: 32,
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _buildOptionChip(
+                                        label: 'None',
+                                        isSelected: _selectedTable == null,
+                                        onTap: () => setSheetState(
+                                          () => _selectedTable = null,
+                                        ),
+                                      ),
+                                      ..._availableTables.map((table) {
+                                        final isSelected =
+                                            _selectedTable?['id'] ==
+                                            table['id'];
+                                        return _buildOptionChip(
+                                          label:
+                                              'T${table['table_number']?.toString() ?? ''}',
+                                          isSelected: isSelected,
+                                          onTap: () => setSheetState(
+                                            () => _selectedTable = table,
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                const SizedBox(height: 12),
+                                _buildInlineOptionLabel('Payment'),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
                                   children: [
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: () async {
-                                          await _showOrderMethodSelection();
-                                          setSheetState(() {});
-                                        },
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.orange.shade50,
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.orange.shade200,
-                                            ),
-                                          ),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.room_service_outlined,
-                                                size: 16,
-                                                color: Colors.orange.shade700,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              TranslatedText(
-                                                _selectedOrderMethod?['order_method_name'] ??
-                                                    'Type',
-                                                style: TextStyle(
-                                                  color: Colors.orange.shade800,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 11,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                    _buildOptionChip(
+                                      label: 'Unpaid',
+                                      isSelected:
+                                          _selectedPaymentMode == 'UNPAID',
+                                      onTap: () => setSheetState(
+                                        () => _selectedPaymentMode = 'UNPAID',
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: () => _showTableSelectionDialog(
-                                          setSheetState,
-                                        ),
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _selectedTable != null
-                                                ? const Color(
-                                                    0xFF5B4FE8,
-                                                  ).withOpacity(0.08)
-                                                : const Color(0xFFF8FAFC),
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                            border: Border.all(
-                                              color: _selectedTable != null
-                                                  ? const Color(
-                                                      0xFF5B4FE8,
-                                                    ).withOpacity(0.3)
-                                                  : const Color(0xFFE2E8F0),
-                                            ),
-                                          ),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.table_restaurant_outlined,
-                                                size: 16,
-                                                color: _selectedTable != null
-                                                    ? const Color(0xFF5B4FE8)
-                                                    : Colors.grey[500],
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                _selectedTable != null
-                                                    ? _selectedTable!['table_number']
-                                                              ?.toString() ??
-                                                          'Table'
-                                                    : 'Table',
-                                                style: TextStyle(
-                                                  color: _selectedTable != null
-                                                      ? const Color(0xFF5B4FE8)
-                                                      : Colors.grey[600],
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 11,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
+                                    _buildOptionChip(
+                                      label: 'Split',
+                                      isSelected:
+                                          _selectedPaymentMode == 'MULTI-MODE',
+                                      onTap: () {
+                                        setSheetState(
+                                          () => _selectedPaymentMode =
+                                              'MULTI-MODE',
+                                        );
+                                        _showMultiModeDialog(setSheetState);
+                                      },
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: InkWell(
-                                        onTap: () {
-                                          _showPaymentModeSelector(
-                                            setSheetState,
-                                          );
-                                        },
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFF8FAFC),
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                            border: Border.all(
-                                              color: const Color(0xFFE2E8F0),
-                                            ),
-                                          ),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.payments_outlined,
-                                                size: 16,
-                                                color: theme.primaryColor,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                _selectedPaymentMode == 'UNPAID'
-                                                    ? 'Unpaid'
-                                                    : _selectedPaymentMode ==
-                                                          'MULTI-MODE'
-                                                    ? 'Split'
-                                                    : _bankDetails
-                                                          .firstWhere(
-                                                            (b) =>
-                                                                b['id']
-                                                                    .toString() ==
-                                                                _selectedPaymentMode,
-                                                            orElse: () => {
-                                                              'bank_name':
-                                                                  'Paid',
-                                                            },
-                                                          )['bank_name']
-                                                          .toString(),
-                                                style: TextStyle(
-                                                  color: const Color(
-                                                    0xFF1A1A2E,
-                                                  ),
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 11,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ],
-                                          ),
+                                    ..._bankDetails.map((bank) {
+                                      final bankId = bank['id'].toString();
+                                      final isSelected =
+                                          _selectedPaymentMode == bankId;
+                                      return _buildOptionChip(
+                                        label:
+                                            bank['bank_name']?.toString() ??
+                                            bank['account_holder_name']
+                                                ?.toString() ??
+                                            'Bank',
+                                        isSelected: isSelected,
+                                        onTap: () => setSheetState(
+                                          () => _selectedPaymentMode = bankId,
                                         ),
-                                      ),
-                                    ),
+                                      );
+                                    }),
                                   ],
                                 ),
+                              ],
                               const SizedBox(height: 14),
 
                               // Order Summary / Payment Breakdown
@@ -3154,7 +3150,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                     _reviewOrder();
                                   },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: theme.primaryColor,
+                                    backgroundColor: const Color(0xFF059669),
                                     foregroundColor: Colors.white,
                                     padding: EdgeInsets.zero,
                                     elevation: 0,
@@ -4652,103 +4648,155 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         ),
                       ),
 
-                      // Layout Settings Button
-                      SizedBox(
-                        width: 70,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TranslatedText(
-                              'LAYOUT',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.blueGrey[400],
-                                letterSpacing: 1.2,
+                      // Layout + Menu Sync — desktop: separate buttons, mobile: combined
+                      if (MediaQuery.of(context).size.width > 600) ...[
+                        // Layout Settings Button
+                        SizedBox(
+                          width: 70,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TranslatedText(
+                                'LAYOUT',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 1.2,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 4),
-                            InkWell(
-                              onTap: _showLayoutSettingsDialog,
-                              borderRadius: BorderRadius.circular(30),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                  border: Border.all(
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: _showLayoutSettingsDialog,
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
                                     color: Colors.white,
-                                    width: 2,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.blueGrey.withOpacity(0.1),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
                                     ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.dashboard_customize_outlined,
-                                  color: Colors.blueGrey,
-                                  size: 24,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.blueGrey.withOpacity(0.1),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.dashboard_customize_outlined,
+                                    color: Colors.blueGrey,
+                                    size: 24,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
+                        const SizedBox(width: 8),
 
-                      // Menu Sync Button
-                      SizedBox(
-                        width: 70,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TranslatedText(
-                              'MENU SYNC',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.blueGrey[400],
-                                letterSpacing: 1.2,
+                        // Menu Sync Button
+                        SizedBox(
+                          width: 70,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TranslatedText(
+                                'MENU SYNC',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 1.2,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 4),
-                            InkWell(
-                              onTap: _showMenuSyncDialog,
-                              borderRadius: BorderRadius.circular(30),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                  border: Border.all(
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: _showMenuSyncDialog,
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
                                     color: Colors.white,
-                                    width: 2,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.blueGrey.withOpacity(0.1),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
                                     ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.menu_book_outlined,
-                                  color: Colors.blueGrey,
-                                  size: 24,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.blueGrey.withOpacity(0.1),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.menu_book_outlined,
+                                    color: Colors.blueGrey,
+                                    size: 24,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
+                        const SizedBox(width: 8),
+                      ] else ...[
+                        // Mobile: single Tools button
+                        SizedBox(
+                          width: 70,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TranslatedText(
+                                'TOOLS',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 1.2,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: _showToolsBottomSheet,
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.blueGrey.withOpacity(0.1),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.apps_rounded,
+                                    color: Colors.blueGrey,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
 
                       // Customer Profile Button (with label and bigger size)
                       SizedBox(
@@ -5759,27 +5807,51 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     final isSelected = _posOptionsLayout == value;
     return Expanded(
       child: InkWell(
-        onTap: () => setStateLocal(() => _posOptionsLayout = value),
+        onTap: () => _persistOptionsLayout(value, setStateLocal: setStateLocal),
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
           decoration: BoxDecoration(
-            color: isSelected ? Theme.of(context).primaryColor : Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            color: isSelected
+                ? const Color(0xFF5B4FE8).withOpacity(0.12)
+                : Colors.grey[50],
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected
-                  ? Theme.of(context).primaryColor
-                  : Colors.grey[300]!,
+              color: isSelected ? const Color(0xFF5B4FE8) : Colors.grey[300]!,
             ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF5B4FE8).withOpacity(0.18),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.grey[800],
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                value == 'dropdown'
+                    ? Icons.arrow_drop_down_circle_outlined
+                    : Icons.view_day_outlined,
+                size: 16,
+                color: isSelected ? const Color(0xFF4C3AD6) : Colors.grey[700],
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected
+                      ? const Color(0xFF2E2A5B)
+                      : Colors.grey[800],
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -6091,9 +6163,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         Container(
           width: width,
           decoration: BoxDecoration(
-            color: const Color(0xFFF8F9FB),
+            color: const Color(0xFFF5F7FA),
             border: Border(
-              left: BorderSide(color: Colors.grey[200]!, width: 1),
+              left: BorderSide(color: Color(0xFFE2E8F0), width: 1),
             ),
           ),
           child: Column(
@@ -6225,11 +6297,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                                width: 1,
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.03),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
@@ -6464,21 +6540,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border(
-                      top: BorderSide(color: Colors.grey[100]!, width: 1),
+                      top: BorderSide(color: const Color(0xFFE2E8F0), width: 1),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 12,
-                        offset: const Offset(0, -4),
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, -6),
                       ),
                     ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Order Details Card
-                      if (_posOptionsLayout == 'dropdown')
+                      if (_posOptionsLayout == 'dropdown') ...[
+                        // Dropdown style rows
                         Container(
                           decoration: BoxDecoration(
                             color: const Color(0xFFF8FAFC),
@@ -6555,7 +6631,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                               ),
                               // Table Selector
                               InkWell(
-                                onTap: () => _showTableSelectionDialog(
+                                onTap: () => _showTableSelectionSheet(
                                   (fn) => setState(fn),
                                 ),
                                 child: Padding(
@@ -6729,178 +6805,109 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                               ),
                             ],
                           ),
-                        )
-                      else
-                        // Inline layout for desktop
-                        Row(
+                        ),
+                      ] else ...[
+                        // Inline chips style
+                        // Order Type
+                        _buildInlineOptionLabel('Order Type'),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _orderMethods.map((method) {
+                            final isSelected =
+                                _selectedOrderMethod?['id'] == method['id'];
+                            return _buildOptionChip(
+                              label:
+                                  method['order_method_name']?.toString() ?? '',
+                              isSelected: isSelected,
+                              onTap: () =>
+                                  setState(() => _selectedOrderMethod = method),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Table
+                        _buildInlineOptionLabel('Table'),
+                        if (_isTablesLoading)
+                          const SizedBox(
+                            height: 32,
+                            child: Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildOptionChip(
+                                label: 'None',
+                                isSelected: _selectedTable == null,
+                                onTap: () =>
+                                    setState(() => _selectedTable = null),
+                              ),
+                              ..._availableTables.map((table) {
+                                final isSelected =
+                                    _selectedTable?['id'] == table['id'];
+                                return _buildOptionChip(
+                                  label:
+                                      'T${table['table_number']?.toString() ?? ''}',
+                                  isSelected: isSelected,
+                                  onTap: () =>
+                                      setState(() => _selectedTable = table),
+                                );
+                              }),
+                            ],
+                          ),
+                        const SizedBox(height: 12),
+
+                        // Payment
+                        _buildInlineOptionLabel('Payment'),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: () async {
-                                  await _showOrderMethodSelection();
-                                  setState(() {});
-                                },
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.shade50,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: Colors.orange.shade200,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.room_service_outlined,
-                                        size: 16,
-                                        color: Colors.orange.shade700,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      TranslatedText(
-                                        _selectedOrderMethod?['order_method_name'] ??
-                                            'Type',
-                                        style: TextStyle(
-                                          color: Colors.orange.shade800,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 11,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                            _buildOptionChip(
+                              label: 'Unpaid',
+                              isSelected: _selectedPaymentMode == 'UNPAID',
+                              onTap: () => setState(
+                                () => _selectedPaymentMode = 'UNPAID',
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: InkWell(
-                                onTap: () => _showTableSelectionDialog(
-                                  (fn) => setState(fn),
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _selectedTable != null
-                                        ? const Color(
-                                            0xFF5B4FE8,
-                                          ).withOpacity(0.08)
-                                        : const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: _selectedTable != null
-                                          ? const Color(
-                                              0xFF5B4FE8,
-                                            ).withOpacity(0.3)
-                                          : const Color(0xFFE2E8F0),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.table_restaurant_outlined,
-                                        size: 16,
-                                        color: _selectedTable != null
-                                            ? const Color(0xFF5B4FE8)
-                                            : Colors.grey[500],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _selectedTable != null
-                                            ? _selectedTable!['table_number']
-                                                      ?.toString() ??
-                                                  'Table'
-                                            : 'Table',
-                                        style: TextStyle(
-                                          color: _selectedTable != null
-                                              ? const Color(0xFF5B4FE8)
-                                              : Colors.grey[600],
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 11,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                            _buildOptionChip(
+                              label: 'Split',
+                              isSelected: _selectedPaymentMode == 'MULTI-MODE',
+                              onTap: () {
+                                setState(
+                                  () => _selectedPaymentMode = 'MULTI-MODE',
+                                );
+                                _showMultiModeDialog((fn) => setState(fn));
+                              },
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: InkWell(
-                                onTap: () {
-                                  _showPaymentModeSelector(
-                                    (fn) => setState(fn),
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.payments_outlined,
-                                        size: 16,
-                                        color: theme.primaryColor,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _selectedPaymentMode == 'UNPAID'
-                                            ? 'Unpaid'
-                                            : _selectedPaymentMode ==
-                                                  'MULTI-MODE'
-                                            ? 'Split'
-                                            : _bankDetails
-                                                  .firstWhere(
-                                                    (b) =>
-                                                        b['id'].toString() ==
-                                                        _selectedPaymentMode,
-                                                    orElse: () => {
-                                                      'bank_name': 'Paid',
-                                                    },
-                                                  )['bank_name']
-                                                  .toString(),
-                                        style: const TextStyle(
-                                          color: Color(0xFF1A1A2E),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 11,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
+                            ..._bankDetails.map((bank) {
+                              final bankId = bank['id'].toString();
+                              final isSelected = _selectedPaymentMode == bankId;
+                              return _buildOptionChip(
+                                label:
+                                    bank['bank_name']?.toString() ??
+                                    bank['account_holder_name']?.toString() ??
+                                    'Bank',
+                                isSelected: isSelected,
+                                onTap: () => setState(
+                                  () => _selectedPaymentMode = bankId,
                                 ),
-                              ),
-                            ),
+                              );
+                            }),
                           ],
                         ),
+                      ],
                       const SizedBox(height: 14),
 
                       // Total & Place Order
@@ -6942,7 +6949,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                               child: ElevatedButton(
                                 onPressed: () => _reviewOrder(),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: theme.primaryColor,
+                                  backgroundColor: const Color(0xFF059669),
                                   foregroundColor: Colors.white,
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
@@ -7014,12 +7021,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     // Pick aspect ratio so card height stays comfortable
     double cardAspectRatio;
     if (_isTextOnlyMode) {
-      // Guarantee enough height for: pad*2 + name(2 lines) + gap + price + gap + button
-      // Min content needed: 8 + 32 + 4 + 22 + 6 + 28 = ~100px
-      // Add safety margin -> 110px
-      final minContentHeight = 110.0;
-      // Don't let card be taller than 1.6x its width
-      final targetHeight = math.max(minContentHeight, cardWidth / 1.0);
+      // Compact text-only card: 2-line name + price chip + add button.
+      // pad*2 (12) + name 2 lines (~30) + gap (6) + price chip (~22) + gap (6) + btn (28) ≈ 104px
+      // Keep height fixed regardless of width so wide cards don't stretch tall.
+      const targetHeight = 110.0;
       cardAspectRatio = cardWidth / targetHeight;
     } else if (crossAxisCount == 1) {
       final targetHeight = isDesktop ? 360 : (isTablet ? 320 : 280);
@@ -7222,29 +7227,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                 final gapPriceToBtn = h < 100 ? 4.0 : 6.0;
                 final gapNameToPrice = h < 100 ? 4.0 : 6.0;
 
+                final nameLineHeight = 1.25;
+                final nameTwoLineH = nameFontSize * nameLineHeight * 2;
                 return Padding(
                   padding: EdgeInsets.all(pad),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.max,
                     children: [
-                      // Name — takes available space above the bottom block
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.topLeft,
-                          child: TranslatedText(
-                            productName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: nameFontSize,
-                              color: Colors.black87,
-                              height: 1.25,
-                            ),
+                      // Name — fixed 2 lines, ellipsis after
+                      SizedBox(
+                        height: nameTwoLineH,
+                        width: double.infinity,
+                        child: TranslatedText(
+                          productName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: nameFontSize,
+                            color: Colors.black87,
+                            height: nameLineHeight,
                           ),
                         ),
                       ),
+                      const Spacer(),
                       SizedBox(height: gapNameToPrice),
                       // Price chip (pinned above button)
                       SizedBox(
@@ -7698,242 +7705,150 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   }
 
   Future<void> _showOrderMethodSelection() {
-    return showDialog(
+    return showModalBottomSheet(
       context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          backgroundColor:
-              Colors.transparent, // Transparent to let Container handle it
-          elevation: 0,
-          insetPadding: const EdgeInsets.all(20),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 420),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header with improved spacing and Cancel Button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const TranslatedText(
-                          'Order Type',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1E293B), // Slate 800
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        TranslatedText(
-                          'Select how to fulfill this order',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[500],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    // Refined Close Button
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => Navigator.pop(context),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            size: 20,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Options List
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: _orderMethods.map((method) {
-                        final isSelected =
-                            method['id'] == _selectedOrderMethod?['id'];
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _selectedOrderMethod = method;
-                                });
-                                Navigator.pop(context);
-                                _validateCart();
-                              },
-                              borderRadius: BorderRadius.circular(16),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? theme.primaryColor.withOpacity(0.04)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? theme.primaryColor
-                                        : Colors.grey[200]!,
-                                    width: isSelected ? 2 : 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    // Icon Box
-                                    Container(
-                                      width: 56,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey[50],
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? theme.primaryColor.withOpacity(
-                                                  0.1,
-                                                )
-                                              : Colors.transparent,
-                                        ),
-                                      ),
-                                      padding: const EdgeInsets.all(8),
-                                      child: method['img_url'] != null
-                                          ? ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              child: CustomCachedNetworkImage(
-                                                imgUrl: method['img_url'],
-                                                fit: BoxFit.cover,
-                                              ),
-                                            )
-                                          : Icon(
-                                              Icons.inventory_2_rounded,
-                                              color: isSelected
-                                                  ? theme.primaryColor
-                                                  : Colors.grey[400],
-                                              size: 28,
-                                            ),
-                                    ),
-                                    const SizedBox(width: 16),
-
-                                    // Text Content
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          TranslatedText(
-                                            method['order_method_name'] ??
-                                                'Unknown',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: isSelected
-                                                  ? const Color(0xFF1E293B)
-                                                  : const Color(0xFF334155),
-                                            ),
-                                          ),
-                                          if (method['order_method_description'] !=
-                                                  null &&
-                                              method['order_method_description']
-                                                  .toString()
-                                                  .isNotEmpty)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                top: 4,
-                                              ),
-                                              child: TranslatedText(
-                                                method['order_method_description'],
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.grey[500],
-                                                  height: 1.3,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // Selection Indicator
-                                    const SizedBox(width: 12),
-                                    Container(
-                                      width: 24,
-                                      height: 24,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? theme.primaryColor
-                                              : Colors.grey[300]!,
-                                          width: 2,
-                                        ),
-                                        color: isSelected
-                                            ? theme.primaryColor
-                                            : Colors.transparent,
-                                      ),
-                                      child: isSelected
-                                          ? const Icon(
-                                              Icons.check,
-                                              size: 16,
-                                              color: Colors.white,
-                                            )
-                                          : null,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Select Order Type',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ..._orderMethods.map((method) {
+                  final isSelected =
+                      method['id'] == _selectedOrderMethod?['id'];
+                  return InkWell(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _selectedOrderMethod = method;
+                      });
+                      _validateCart();
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFFF0EDFF)
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF5B4FE8)
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.grey[50],
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF5B4FE8).withOpacity(0.2)
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: method['img_url'] != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: CustomCachedNetworkImage(
+                                      imgUrl: method['img_url'],
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.inventory_2_rounded,
+                                    size: 20,
+                                    color: isSelected
+                                        ? const Color(0xFF5B4FE8)
+                                        : Colors.grey[400],
+                                  ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  method['order_method_name'] ?? 'Unknown',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? const Color(0xFF1E293B)
+                                        : const Color(0xFF334155),
+                                  ),
+                                ),
+                                if (method['order_method_description'] !=
+                                        null &&
+                                    method['order_method_description']
+                                        .toString()
+                                        .isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      method['order_method_description']
+                                          .toString(),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[500],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              size: 22,
+                              color: Color(0xFF5B4FE8),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -7968,6 +7883,179 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           _validateCart();
         },
       ),
+    );
+  }
+
+  void _showToolsBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Tools',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showLayoutSettingsDialog();
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF5B4FE8).withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.dashboard_customize_outlined,
+                            size: 20,
+                            color: Color(0xFF5B4FE8),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Layout Settings',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Customize your POS workspace',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_right,
+                          size: 20,
+                          color: Colors.grey[400],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showMenuSyncDialog();
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.menu_book_outlined,
+                            size: 20,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Menu Sync',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Sync menu from image or PDF',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_right,
+                          size: 20,
+                          color: Colors.grey[400],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
