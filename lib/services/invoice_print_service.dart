@@ -122,8 +122,16 @@ class InvoicePrintService {
       final double heightPt = estimatedHeightMm * PdfPageFormat.mm;
       final double marginPt = marginMm * PdfPageFormat.mm;
       final double marginRightPt = (isNarrow ? 2.0 : 1.0) * PdfPageFormat.mm;
-      final double marginBottomPt = (isNarrow ? marginMm : 2.0) * PdfPageFormat.mm;
-      pageFormat = PdfPageFormat(widthPt, heightPt, marginLeft: marginPt, marginRight: marginRightPt, marginTop: marginPt, marginBottom: marginBottomPt);
+      final double marginBottomPt =
+          (isNarrow ? marginMm : 2.0) * PdfPageFormat.mm;
+      pageFormat = PdfPageFormat(
+        widthPt,
+        heightPt,
+        marginLeft: marginPt,
+        marginRight: marginRightPt,
+        marginTop: marginPt,
+        marginBottom: marginBottomPt,
+      );
     }
 
     pw.ImageProvider? logoImage;
@@ -154,22 +162,40 @@ class InvoicePrintService {
           pw.Center(
             child: pw.Text(
               "KITCHEN TICKET",
-              style: pw.TextStyle(fontSize: headerSize, fontWeight: pw.FontWeight.bold),
+              style: pw.TextStyle(
+                fontSize: headerSize,
+                fontWeight: pw.FontWeight.bold,
+              ),
             ),
           ),
           pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
           pw.Text(
             "Store: ${storeInfo['name'] ?? ''}",
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize),
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              fontSize: bodySize,
+            ),
           ),
-          pw.Text("Order ID: ${storeInfo['order_number'] ?? ''}", style: pw.TextStyle(fontSize: bodySize, fontWeight: boldWeight)),
+          pw.Text(
+            "Order ID: ${storeInfo['order_number'] ?? ''}",
+            style: pw.TextStyle(fontSize: bodySize, fontWeight: boldWeight),
+          ),
           if (userInfo['name'] != null && userInfo['name'] != 'unnamed user')
-            pw.Text("Customer: ${userInfo['name']}", style: pw.TextStyle(fontSize: bodySize, fontWeight: boldWeight)),
-          pw.Text("Date: ${DateTime.now().toString().substring(0, 16)}", style: pw.TextStyle(fontSize: bodySize, fontWeight: boldWeight)),
+            pw.Text(
+              "Customer: ${userInfo['name']}",
+              style: pw.TextStyle(fontSize: bodySize, fontWeight: boldWeight),
+            ),
+          pw.Text(
+            "Date: ${DateTime.now().toString().substring(0, 16)}",
+            style: pw.TextStyle(fontSize: bodySize, fontWeight: boldWeight),
+          ),
           pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
           pw.Text(
             "ITEMS:",
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize),
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              fontSize: bodySize,
+            ),
           ),
           pw.SizedBox(height: sectionSpacing),
           ...products.map(
@@ -220,19 +246,28 @@ class InvoicePrintService {
                   pw.Text(
                     storeInfo['address'],
                     textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
+                    style: pw.TextStyle(
+                      fontSize: smallSize,
+                      fontWeight: boldWeight,
+                    ),
                   ),
                 if (storeInfo['phone'] != null)
                   pw.Text(
                     "Ph: ${storeInfo['phone']}",
                     textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
+                    style: pw.TextStyle(
+                      fontSize: smallSize,
+                      fontWeight: boldWeight,
+                    ),
                   ),
                 if (storeInfo['gst_number'] != null)
                   pw.Text(
                     "GSTIN: ${storeInfo['gst_number']}",
                     textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
+                    style: pw.TextStyle(
+                      fontSize: smallSize,
+                      fontWeight: boldWeight,
+                    ),
                   ),
               ],
             ),
@@ -269,14 +304,20 @@ class InvoicePrintService {
                 flex: itemFlex,
                 child: pw.Text(
                   "Item",
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: smallSize),
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: smallSize,
+                  ),
                 ),
               ),
               pw.SizedBox(
                 width: isNarrow ? 18 : 30,
                 child: pw.Text(
                   "Qty",
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: smallSize),
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: smallSize,
+                  ),
                   textAlign: pw.TextAlign.center,
                 ),
               ),
@@ -284,7 +325,10 @@ class InvoicePrintService {
                 flex: amountFlex,
                 child: pw.Text(
                   "Amt",
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: smallSize),
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: smallSize,
+                  ),
                   textAlign: pw.TextAlign.right,
                 ),
               ),
@@ -304,14 +348,20 @@ class InvoicePrintService {
                     flex: itemFlex,
                     child: pw.Text(
                       p['product_name'] ?? '',
-                      style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
+                      style: pw.TextStyle(
+                        fontSize: smallSize,
+                        fontWeight: boldWeight,
+                      ),
                     ),
                   ),
                   pw.SizedBox(
                     width: isNarrow ? 18 : 30,
                     child: pw.Text(
                       "${p['quantity'] ?? 0}",
-                      style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
+                      style: pw.TextStyle(
+                        fontSize: smallSize,
+                        fontWeight: boldWeight,
+                      ),
                       textAlign: pw.TextAlign.center,
                     ),
                   ),
@@ -319,7 +369,10 @@ class InvoicePrintService {
                     flex: amountFlex,
                     child: pw.Text(
                       "${pricing['selling_amount_including_tax'] ?? 0}",
-                      style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
+                      style: pw.TextStyle(
+                        fontSize: smallSize,
+                        fontWeight: boldWeight,
+                      ),
                       textAlign: pw.TextAlign.right,
                     ),
                   ),
@@ -361,12 +414,18 @@ class InvoicePrintService {
                   pw.Expanded(
                     child: pw.Text(
                       item['title'] ?? '',
-                      style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
+                      style: pw.TextStyle(
+                        fontSize: smallSize,
+                        fontWeight: boldWeight,
+                      ),
                     ),
                   ),
                   pw.Text(
                     "${item['value'] ?? 0}",
-                    style: pw.TextStyle(fontSize: smallSize, fontWeight: boldWeight),
+                    style: pw.TextStyle(
+                      fontSize: smallSize,
+                      fontWeight: boldWeight,
+                    ),
                     textAlign: pw.TextAlign.right,
                   ),
                 ],
@@ -415,7 +474,10 @@ class InvoicePrintService {
           pw.Center(
             child: pw.Text(
               "Thank you for your visit!",
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: thankYouSize),
+              style: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                fontSize: thankYouSize,
+              ),
             ),
           ),
           pw.SizedBox(height: 5),
@@ -505,7 +567,11 @@ class InvoicePrintService {
     String type = 'quick',
     double widthInMm = 76.2,
   }) async {
-    final pdfBytes = await generatePdfBytes(data, type: type, widthInMm: widthInMm);
+    final pdfBytes = await generatePdfBytes(
+      data,
+      type: type,
+      widthInMm: widthInMm,
+    );
 
     // Compute page format for print dialog
     final productsCount = (data['products'] as List? ?? []).length;
@@ -524,8 +590,16 @@ class InvoicePrintService {
       final double heightPt = estimatedHeightMm * PdfPageFormat.mm;
       final double marginPt = marginMm * PdfPageFormat.mm;
       final double marginRightPt = (isNarrow ? 2.0 : 1.0) * PdfPageFormat.mm;
-      final double marginBottomPt = (isNarrow ? marginMm : 2.0) * PdfPageFormat.mm;
-      dialogFormat = PdfPageFormat(widthPt, heightPt, marginLeft: marginPt, marginRight: marginRightPt, marginTop: marginPt, marginBottom: marginBottomPt);
+      final double marginBottomPt =
+          (isNarrow ? marginMm : 2.0) * PdfPageFormat.mm;
+      dialogFormat = PdfPageFormat(
+        widthPt,
+        heightPt,
+        marginLeft: marginPt,
+        marginRight: marginRightPt,
+        marginTop: marginPt,
+        marginBottom: marginBottomPt,
+      );
     }
 
     if (isDesktop) {
@@ -566,10 +640,7 @@ class InvoicePrintService {
 
   static Future<void> saveDefaultPrinter(Printer printer) async {
     final prefs = await SharedPreferences.getInstance();
-    final printerData = jsonEncode({
-      'name': printer.name,
-      'url': printer.url,
-    });
+    final printerData = jsonEncode({'name': printer.name, 'url': printer.url});
     await prefs.setString(_printerPrefKey, printerData);
   }
 
@@ -602,128 +673,216 @@ class InvoicePrintService {
 
     final selected = await showDialog<Printer>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(
-              printers.isEmpty ? Icons.warning_amber_rounded : Icons.print_rounded,
-              color: printers.isEmpty ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                printers.isEmpty ? 'No Printers Found' : 'Select Printer',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                child: Row(
+                  children: [
+                    Icon(
+                      printers.isEmpty
+                          ? Icons.warning_amber_rounded
+                          : Icons.print_rounded,
+                      color: printers.isEmpty
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        printers.isEmpty
+                            ? 'No Printers Found'
+                            : 'Select Printer',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-        titlePadding: const EdgeInsets.only(left: 20, top: 20, right: 20, bottom: 10),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: printers.isEmpty
-              // ── Empty state ──
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.print_disabled_rounded, size: 48, color: Color(0xFFCBD5E1)),
-                      const SizedBox(height: 12),
-                      Text(
-                        isDesktop
-                            ? 'No printers are installed on this computer.\n\n'
-                              'To add a printer:\n'
-                              '1. Open Windows Settings\n'
-                              '2. Go to Printers & scanners\n'
-                              '3. Click "Add device"\n'
-                              '4. Come back here and try again'
-                            : 'No printers detected.\n\n'
-                              '• Make sure your printer is on\n'
-                              '• Check it\'s on the same network\n'
-                              '• Install the manufacturer\'s app',
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: SizedBox(
+                    width: double.maxFinite,
+                    child: printers.isEmpty
+                        // ── Empty state ──
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.print_disabled_rounded,
+                                  size: 48,
+                                  color: Color(0xFFCBD5E1),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  isDesktop
+                                      ? 'No printers are installed on this computer.\n\n'
+                                            'To add a printer:\n'
+                                            '1. Open Windows Settings\n'
+                                            '2. Go to Printers & scanners\n'
+                                            '3. Click "Add device"\n'
+                                            '4. Come back here and try again'
+                                      : 'No printers detected.\n\n'
+                                            '• Make sure your printer is on\n'
+                                            '• Check it\'s on the same network\n'
+                                            '• Install the manufacturer\'s app',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          )
+                        // ── Printer list ──
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: printers.length,
+                            itemBuilder: (context, index) {
+                              final printer = printers[index];
+                              final isSelected = printer.name == currentName;
+                              return Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFE2E8F0),
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                  color: isSelected
+                                      ? const Color(
+                                          0xFF10B981,
+                                        ).withOpacity(0.05)
+                                      : Colors.transparent,
+                                ),
+                                child: ListTile(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  leading: Icon(
+                                    Icons.print_rounded,
+                                    color: isSelected
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                  title: Text(
+                                    printer.name,
+                                    style: TextStyle(
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  subtitle: printer.isDefault
+                                      ? const Text(
+                                          'System Default',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Color(0xFF94A3B8),
+                                          ),
+                                        )
+                                      : null,
+                                  trailing: isSelected
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          color: Color(0xFF10B981),
+                                        )
+                                      : null,
+                                  onTap: () => Navigator.pop(ctx, printer),
+                                ),
+                              );
+                            },
+                          ),
                   ),
-                )
-              // ── Printer list ──
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: printers.length,
-                  itemBuilder: (context, index) {
-                    final printer = printers[index];
-                    final isSelected = printer.name == currentName;
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
-                          width: isSelected ? 2 : 1,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (!printers.isEmpty && currentName != null)
+                      TextButton.icon(
+                        onPressed: () async {
+                          await clearDefaultPrinter();
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Color(0xFFEF4444),
                         ),
-                        color: isSelected ? const Color(0xFF10B981).withOpacity(0.05) : Colors.transparent,
-                      ),
-                      child: ListTile(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        leading: Icon(
-                          Icons.print_rounded,
-                          color: isSelected ? const Color(0xFF10B981) : const Color(0xFF64748B),
+                        label: const Text(
+                          'Clear',
+                          style: TextStyle(color: Color(0xFFEF4444)),
                         ),
-                        title: Text(
-                          printer.name,
-                          style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                            fontSize: 14,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
                           ),
                         ),
-                        subtitle: printer.isDefault
-                            ? const Text('System Default', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)))
-                            : null,
-                        trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF10B981)) : null,
-                        onTap: () => Navigator.pop(ctx, printer),
+                      )
+                    else
+                      const SizedBox.shrink(),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF475569),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                    );
-                  },
+                      child: Text(
+                        printers.isEmpty ? 'OK' : 'Cancel',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
                 ),
-        ),
-        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        actionsAlignment: MainAxisAlignment.spaceBetween,
-        actions: [
-          if (!printers.isEmpty && currentName != null)
-            TextButton.icon(
-              onPressed: () async {
-                await clearDefaultPrinter();
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
-              label: const Text('Clear', style: TextStyle(color: Color(0xFFEF4444))),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-            )
-          else
-            const SizedBox.shrink(),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              backgroundColor: const Color(0xFFF1F5F9),
-              foregroundColor: const Color(0xFF475569),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(printers.isEmpty ? 'OK' : 'Cancel', style: const TextStyle(fontWeight: FontWeight.w600)),
+            ],
           ),
-        ],
+        ),
       ),
     );
     if (selected != null) {
       await saveDefaultPrinter(selected);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Default printer set to: ${selected.name}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Default printer set to: ${selected.name}')),
+        );
       }
       return true;
     }
@@ -743,7 +902,7 @@ class InvoicePrintService {
   static Future<void> saveDefaultPaperSize(double widthInMm) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_paperSizePrefKey, widthInMm);
-    
+
     int chars = widthInMm <= 50.8 ? 32 : 48;
     final rConfig = await ReceiptLayoutConfig.load('receipt');
     rConfig.paperWidthChars = chars;
@@ -787,19 +946,27 @@ class InvoicePrintService {
 
   static String getConnectionTypeLabel(String type) {
     switch (type) {
-      case connectionBluetooth: return 'Bluetooth';
-      case connectionWifi: return 'WiFi / Network';
-      case connectionWired: return 'Wired (USB)';
-      default: return 'Unknown';
+      case connectionBluetooth:
+        return 'Bluetooth';
+      case connectionWifi:
+        return 'WiFi / Network';
+      case connectionWired:
+        return 'Wired (USB)';
+      default:
+        return 'Unknown';
     }
   }
 
   static IconData getConnectionTypeIcon(String type) {
     switch (type) {
-      case connectionBluetooth: return Icons.bluetooth_rounded;
-      case connectionWifi: return Icons.wifi_rounded;
-      case connectionWired: return Icons.usb_rounded;
-      default: return Icons.print_rounded;
+      case connectionBluetooth:
+        return Icons.bluetooth_rounded;
+      case connectionWifi:
+        return Icons.wifi_rounded;
+      case connectionWired:
+        return Icons.usb_rounded;
+      default:
+        return Icons.print_rounded;
     }
   }
 }

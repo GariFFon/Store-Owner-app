@@ -74,17 +74,22 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
   }
 
   Future<void> _checkAppVersion() async {
-    final String minRequiredVersion = FirebaseRemoteConfigService.getMinVersion();
-    final bool isOutdated = await VersionUtils.isVersionOutdated(minRequiredVersion);
-    
+    final String minRequiredVersion =
+        FirebaseRemoteConfigService.getMinVersion();
+    final bool isOutdated = await VersionUtils.isVersionOutdated(
+      minRequiredVersion,
+    );
+
     if (isOutdated && mounted) {
       final String currentVersion = await VersionUtils.getCurrentAppVersion();
-      final String downloadUrl = FirebaseRemoteConfigService.getAppDownloadUrl();
-      
+      final String downloadUrl =
+          FirebaseRemoteConfigService.getAppDownloadUrl();
+
       showGeneralDialog(
         context: context,
         barrierDismissible: false,
-        barrierColor: Colors.transparent, // backdrop filter on the dialog itself
+        barrierColor:
+            Colors.transparent, // backdrop filter on the dialog itself
         transitionDuration: const Duration(milliseconds: 300),
         pageBuilder: (context, animation, secondaryAnimation) {
           return OutdatedVersionDialog(
@@ -323,33 +328,72 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
         final shouldPop = await showDialog<bool>(
           context: context,
           builder: (context) {
-            return AlertDialog(
-              title: const TranslatedText('Exit App'),
-              content: const TranslatedText(
-                'Are you sure you want to close the app?',
-              ),
+            return Dialog(
+              backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const TranslatedText(
-                    'NO',
-                    style: TextStyle(color: Colors.grey),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Exit App',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const TranslatedText(
+                        'Are you sure you want to close the app?',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF475569),
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const TranslatedText(
+                              'NO',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFEF4444),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const TranslatedText(
+                              'YES',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const TranslatedText(
-                    'YES',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             );
           },
         );

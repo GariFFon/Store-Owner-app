@@ -1,0 +1,1 @@
+& "C:\Users\yashb\AppData\Local\Programs\Inno Setup 6\ISCC.exe" "C:\Users\yashb\Desktop\work\exanor-store-app-new\installer.iss"

@@ -181,7 +181,26 @@ class BluetoothPrintService {
     if (!context.mounted) return false;
 
     // Filter devices: separate likely printers from other devices
-    final printerKeywords = ['printer', 'thermal', 'pos', 'spp', 'rpp', 'pt-', 'bp-', 'print', 'receipt', 'label', 'seznik', 'epson', 'star', 'bixolon', 'zebra', 'tsc', 'xprinter', 'munbyn'];
+    final printerKeywords = [
+      'printer',
+      'thermal',
+      'pos',
+      'spp',
+      'rpp',
+      'pt-',
+      'bp-',
+      'print',
+      'receipt',
+      'label',
+      'seznik',
+      'epson',
+      'star',
+      'bixolon',
+      'zebra',
+      'tsc',
+      'xprinter',
+      'munbyn',
+    ];
     final likelyPrinters = <BluetoothDevice>[];
     final otherDevices = <BluetoothDevice>[];
 
@@ -203,138 +222,240 @@ class BluetoothPrintService {
         bool showAll = false;
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            final displayDevices = showAll ? [...likelyPrinters, ...otherDevices] : likelyPrinters;
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
-                children: [
-                  Icon(Icons.bluetooth_rounded, color: Color(0xFF3B82F6)),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Bluetooth Printer',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
+            final displayDevices = showAll
+                ? [...likelyPrinters, ...otherDevices]
+                : likelyPrinters;
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              titlePadding: const EdgeInsets.only(left: 20, top: 20, right: 20, bottom: 10),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-              content: SizedBox(
-                width: double.maxFinite,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (displayDevices.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.print_disabled_rounded, size: 48, color: Color(0xFFCBD5E1)),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No printer devices found.\nTry "Show all devices" below.',
-                              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Flexible(
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: displayDevices.length,
-                          itemBuilder: (context, index) {
-                            final device = displayDevices[index];
-                            final isSelected = device.address == currentAddress;
-                            final isPrinter = likelyPrinters.contains(device);
-                            return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
-                                  width: isSelected ? 2 : 1,
-                                ),
-                                color: isSelected ? const Color(0xFF10B981).withOpacity(0.05) : Colors.transparent,
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.bluetooth_rounded,
+                            color: Color(0xFF3B82F6),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Bluetooth Printer',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
-                              child: ListTile(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                leading: Icon(
-                                  isPrinter ? Icons.print_rounded : Icons.bluetooth_rounded,
-                                  color: isSelected ? const Color(0xFF10B981) : const Color(0xFF64748B),
-                                ),
-                                title: Text(
-                                  device.name ?? 'Unknown Device',
-                                  style: TextStyle(
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                    fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: SizedBox(
+                          width: double.maxFinite,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (displayDevices.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 16,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.print_disabled_rounded,
+                                        size: 48,
+                                        color: Color(0xFFCBD5E1),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'No printer devices found.\nTry "Show all devices" below.',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Flexible(
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: displayDevices.length,
+                                    itemBuilder: (context, index) {
+                                      final device = displayDevices[index];
+                                      final isSelected =
+                                          device.address == currentAddress;
+                                      final isPrinter = likelyPrinters.contains(
+                                        device,
+                                      );
+                                      return Container(
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? const Color(0xFF10B981)
+                                                : const Color(0xFFE2E8F0),
+                                            width: isSelected ? 2 : 1,
+                                          ),
+                                          color: isSelected
+                                              ? const Color(
+                                                  0xFF10B981,
+                                                ).withOpacity(0.05)
+                                              : Colors.transparent,
+                                        ),
+                                        child: ListTile(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          leading: Icon(
+                                            isPrinter
+                                                ? Icons.print_rounded
+                                                : Icons.bluetooth_rounded,
+                                            color: isSelected
+                                                ? const Color(0xFF10B981)
+                                                : const Color(0xFF64748B),
+                                          ),
+                                          title: Text(
+                                            device.name ?? 'Unknown Device',
+                                            style: TextStyle(
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.w600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            device.address ?? '',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                          trailing: isSelected
+                                              ? const Icon(
+                                                  Icons.check_circle,
+                                                  color: Color(0xFF10B981),
+                                                )
+                                              : null,
+                                          onTap: () =>
+                                              Navigator.pop(ctx, device),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
-                                subtitle: Text(
-                                  device.address ?? '',
-                                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                              // "Show all" toggle
+                              if (otherDevices.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: TextButton.icon(
+                                    onPressed: () => setDialogState(
+                                      () => showAll = !showAll,
+                                    ),
+                                    icon: Icon(
+                                      showAll
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
+                                      size: 16,
+                                      color: const Color(0xFF64748B),
+                                    ),
+                                    label: Text(
+                                      showAll
+                                          ? 'Show printers only (${likelyPrinters.length})'
+                                          : 'Show all devices (${devices.length})',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                                trailing: isSelected
-                                    ? const Icon(Icons.check_circle, color: Color(0xFF10B981))
-                                    : null,
-                                onTap: () => Navigator.pop(ctx, device),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          currentAddress != null
+                              ? TextButton.icon(
+                                  onPressed: () async {
+                                    await clearDefaultPrinter();
+                                    if (ctx.mounted) Navigator.pop(ctx);
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 18,
+                                    color: Color(0xFFEF4444),
+                                  ),
+                                  label: const Text(
+                                    'Clear',
+                                    style: TextStyle(color: Color(0xFFEF4444)),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
                               ),
-                            );
-                          },
-                        ),
-                      ),
-                    // "Show all" toggle
-                    if (otherDevices.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: TextButton.icon(
-                          onPressed: () => setDialogState(() => showAll = !showAll),
-                          icon: Icon(
-                            showAll ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                            size: 16,
-                            color: const Color(0xFF64748B),
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              foregroundColor: const Color(0xFF475569),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
-                          label: Text(
-                            showAll
-                                ? 'Show printers only (${likelyPrinters.length})'
-                                : 'Show all devices (${devices.length})',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                          ),
-                        ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
               ),
-              actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              actionsAlignment: MainAxisAlignment.spaceBetween,
-              actions: [
-                currentAddress != null
-                    ? TextButton.icon(
-                        onPressed: () async {
-                          await clearDefaultPrinter();
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        },
-                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
-                        label: const Text('Clear', style: TextStyle(color: Color(0xFFEF4444))),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    foregroundColor: const Color(0xFF475569),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ],
             );
           },
         );
@@ -358,7 +479,8 @@ class BluetoothPrintService {
           showTopRightNotification(
             context,
             message: 'Could not connect to ${selected.name ?? 'Unknown'}',
-            detail: 'Printer may be off or out of range. Will retry when printing.',
+            detail:
+                'Printer may be off or out of range. Will retry when printing.',
             icon: Icons.warning_amber_rounded,
             backgroundColor: const Color(0xFFF59E0B),
           );
@@ -431,8 +553,10 @@ class BluetoothPrintService {
     }
   }
 
-
-  static Future<void> _printTicket(Map<String, dynamic> data, double widthInMm) async {
+  static Future<void> _printTicket(
+    Map<String, dynamic> data,
+    double widthInMm,
+  ) async {
     final storeInfo = data['store_info'] ?? {};
     final userInfo = data['user_info'] ?? {};
     final products = data['products'] as List? ?? [];
@@ -440,11 +564,19 @@ class BluetoothPrintService {
     final config = await ReceiptLayoutConfig.load('kot');
     final int lineWidth = config.paperWidthChars;
     final int bSize = config.globalFontSize;
-    print('[BluetoothPrint] KOT config loaded: width=$lineWidth, fontSize=$bSize, sections=${config.enabledSections.map((s) => s.id).toList()}');
+    print(
+      '[BluetoothPrint] KOT config loaded: width=$lineWidth, fontSize=$bSize, sections=${config.enabledSections.map((s) => s.id).toList()}',
+    );
 
     void printBreakLine() {
       if (config.showBreakLine) {
-        String bl = config.breakLineStyle == 'solid' ? '_' : config.breakLineStyle == 'dotted' ? '.' : config.breakLineStyle == 'double' ? '=' : '-';
+        String bl = config.breakLineStyle == 'solid'
+            ? '_'
+            : config.breakLineStyle == 'dotted'
+            ? '.'
+            : config.breakLineStyle == 'double'
+            ? '='
+            : '-';
         _bluetooth.printCustom(bl * lineWidth, bSize, 0);
       } else {
         _bluetooth.printCustom(" ", bSize, 0);
@@ -464,16 +596,30 @@ class BluetoothPrintService {
           break;
         case 'order_info':
           if (opts['showOrderId'] == true) {
-            _bluetooth.printCustom("Order ID: ${storeInfo['order_number'] ?? ''}", bSize, 0);
+            _bluetooth.printCustom(
+              "Order ID: ${storeInfo['order_number'] ?? ''}",
+              bSize,
+              0,
+            );
           }
           if (opts['showTokenNo'] == true) {
-            _bluetooth.printCustom("Token No: ${storeInfo['token_number'] ?? data['token_number'] ?? ''}", bSize, 0);
+            _bluetooth.printCustom(
+              "Token No: ${storeInfo['token_number'] ?? data['token_number'] ?? ''}",
+              bSize,
+              0,
+            );
           }
-          if (opts['showCustomerName'] == true && userInfo['name'] != null && userInfo['name'] != 'unnamed user') {
+          if (opts['showCustomerName'] == true &&
+              userInfo['name'] != null &&
+              userInfo['name'] != 'unnamed user') {
             _bluetooth.printCustom("Customer: ${userInfo['name']}", bSize, 0);
           }
           if (opts['showDate'] == true) {
-            _bluetooth.printCustom("Date: ${DateTime.now().toString().substring(0, 16)}", bSize, 0);
+            _bluetooth.printCustom(
+              "Date: ${DateTime.now().toString().substring(0, 16)}",
+              bSize,
+              0,
+            );
           }
           printBreakLine();
           break;
@@ -481,8 +627,15 @@ class BluetoothPrintService {
           _bluetooth.printCustom("ITEMS:", bSize, 0);
           for (int i = 0; i < products.length; i++) {
             final p = products[i];
-            String qty = opts['showQuantity'] == true ? "${p['quantity']}x " : "";
-            _printWrappedLine("$qty${p['product_name']}", lineWidth, align: 0, size: bSize);
+            String qty = opts['showQuantity'] == true
+                ? "${p['quantity']}x "
+                : "";
+            _printWrappedLine(
+              "$qty${p['product_name']}",
+              lineWidth,
+              align: 0,
+              size: bSize,
+            );
             if (i < products.length - 1) {
               _bluetooth.printCustom(" ", bSize, 0);
             }
@@ -490,7 +643,7 @@ class BluetoothPrintService {
           printBreakLine();
           break;
         case 'special_instructions':
-           // Future feature for instructions
+          // Future feature for instructions
           break;
         case 'kot_footer':
           final text = opts['text'] ?? '';
@@ -509,14 +662,21 @@ class BluetoothPrintService {
         for (int i = 0; i < config.autoCutFeedLines; i++) {
           _bluetooth.printNewLine();
         }
-        _bluetooth.writeBytes(InvoicePrintService.getAutoCutBytes(feedLines: config.autoCutFeedLines));
+        _bluetooth.writeBytes(
+          InvoicePrintService.getAutoCutBytes(
+            feedLines: config.autoCutFeedLines,
+          ),
+        );
       } catch (e) {
         print('Auto-cut command failed: $e');
       }
     }
   }
 
-  static Future<void> _printInvoice(Map<String, dynamic> data, double widthInMm) async {
+  static Future<void> _printInvoice(
+    Map<String, dynamic> data,
+    double widthInMm,
+  ) async {
     final storeInfo = data['store_info'] ?? {};
     final userInfo = data['user_info'] ?? {};
     final products = data['products'] as List? ?? [];
@@ -528,15 +688,23 @@ class BluetoothPrintService {
     final config = await ReceiptLayoutConfig.load('receipt');
     final int lineWidth = config.paperWidthChars;
     final int bSize = config.globalFontSize;
-    print('[BluetoothPrint] Receipt config loaded: width=$lineWidth, fontSize=$bSize, sections=${config.enabledSections.map((s) => s.id).toList()}');
-    
+    print(
+      '[BluetoothPrint] Receipt config loaded: width=$lineWidth, fontSize=$bSize, sections=${config.enabledSections.map((s) => s.id).toList()}',
+    );
+
     // Width configurations
     final int qtyW = lineWidth <= 32 ? 6 : 8;
     final int amtW = lineWidth <= 32 ? 8 : 12;
 
     void printBreakLine() {
       if (config.showBreakLine) {
-        String bl = config.breakLineStyle == 'solid' ? '_' : config.breakLineStyle == 'dotted' ? '.' : config.breakLineStyle == 'double' ? '=' : '-';
+        String bl = config.breakLineStyle == 'solid'
+            ? '_'
+            : config.breakLineStyle == 'dotted'
+            ? '.'
+            : config.breakLineStyle == 'double'
+            ? '='
+            : '-';
         _bluetooth.printCustom(bl * lineWidth, bSize, 0);
       } else {
         _bluetooth.printCustom(" ", bSize, 0);
@@ -547,26 +715,59 @@ class BluetoothPrintService {
       final opts = section.options;
       switch (section.id) {
         case 'store_name': // Also acts as header
-          _bluetooth.printCustom(storeInfo['name'] ?? '', bSize == 0 ? 1 : bSize + 1, 1);
+          _bluetooth.printCustom(
+            storeInfo['name'] ?? '',
+            bSize == 0 ? 1 : bSize + 1,
+            1,
+          );
           if (opts['showAddress'] == true && storeInfo['address'] != null) {
-            _printWrappedLine(storeInfo['address'], lineWidth, align: 1, size: bSize);
+            _printWrappedLine(
+              storeInfo['address'],
+              lineWidth,
+              align: 1,
+              size: bSize,
+            );
           }
           if (opts['showPhone'] == true && storeInfo['phone'] != null) {
             _bluetooth.printCustom("Ph: ${storeInfo['phone']}", bSize, 1);
           }
           if (opts['showGST'] == true && storeInfo['gst_number'] != null) {
-            _bluetooth.printCustom("GSTIN: ${storeInfo['gst_number']}", bSize, 1);
+            _bluetooth.printCustom(
+              "GSTIN: ${storeInfo['gst_number']}",
+              bSize,
+              1,
+            );
           }
           printBreakLine();
           break;
         case 'bill_info':
-          if (opts['showBillNo'] == true) _printWrappedLine("Bill No: ${storeInfo['bill_number'] ?? ''}", lineWidth, size: bSize);
-          if (opts['showTokenNo'] == true) _printWrappedLine("Token No: ${storeInfo['token_number'] ?? ''}", lineWidth, size: bSize);
-          if (opts['showDate'] == true) _bluetooth.printCustom("Date: ${DateTime.now().toString().substring(0, 16)}", bSize, 0);
+          if (opts['showBillNo'] == true)
+            _printWrappedLine(
+              "Bill No: ${storeInfo['bill_number'] ?? ''}",
+              lineWidth,
+              size: bSize,
+            );
+          if (opts['showTokenNo'] == true)
+            _printWrappedLine(
+              "Token No: ${storeInfo['token_number'] ?? ''}",
+              lineWidth,
+              size: bSize,
+            );
+          if (opts['showDate'] == true)
+            _bluetooth.printCustom(
+              "Date: ${DateTime.now().toString().substring(0, 16)}",
+              bSize,
+              0,
+            );
           printBreakLine();
           break;
         case 'customer_info':
-          if (opts['showName'] == true) _printWrappedLine("Customer: ${userInfo['name'] ?? 'Guest'}", lineWidth, size: bSize);
+          if (opts['showName'] == true)
+            _printWrappedLine(
+              "Customer: ${userInfo['name'] ?? 'Guest'}",
+              lineWidth,
+              size: bSize,
+            );
           if (opts['showPhone'] == true && userInfo['phone'] != null) {
             _bluetooth.printCustom("Phone: ${userInfo['phone']}", bSize, 0);
           }
@@ -574,9 +775,21 @@ class BluetoothPrintService {
           break;
         case 'products_table':
           if (opts['showHeader'] == true) {
-            try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 1])); } catch (_) {}
-            _printTabularItem("Item", "Qty", "Amt", lineWidth, qtyW, amtW, size: bSize);
-            try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 0])); } catch (_) {}
+            try {
+              _bluetooth.writeBytes(Uint8List.fromList([27, 69, 1]));
+            } catch (_) {}
+            _printTabularItem(
+              "Item",
+              "Qty",
+              "Amt",
+              lineWidth,
+              qtyW,
+              amtW,
+              size: bSize,
+            );
+            try {
+              _bluetooth.writeBytes(Uint8List.fromList([27, 69, 0]));
+            } catch (_) {}
             _bluetooth.printCustom(" ", bSize, 0);
           }
           for (int i = 0; i < products.length; i++) {
@@ -585,26 +798,56 @@ class BluetoothPrintService {
             final name = p['product_name'] ?? '';
             final qty = "${p['quantity'] ?? 0}";
             final amt = "${pricing['selling_amount_including_tax'] ?? 0}";
-            _printTabularItem(name, qty, amt, lineWidth, qtyW, amtW, size: bSize);
+            _printTabularItem(
+              name,
+              qty,
+              amt,
+              lineWidth,
+              qtyW,
+              amtW,
+              size: bSize,
+            );
             if (i < products.length - 1) _bluetooth.printCustom(" ", bSize, 0);
           }
           printBreakLine();
           break;
         case 'cart_totals':
           for (final item in cartTotal) {
-            _printTabularRight("${item['title'] ?? ''}", "${item['value'] ?? 0}", lineWidth, amtW, size: bSize);
+            _printTabularRight(
+              "${item['title'] ?? ''}",
+              "${item['value'] ?? 0}",
+              lineWidth,
+              amtW,
+              size: bSize,
+            );
           }
           break;
         case 'platform_fees':
           for (final item in platformFees) {
-            _printTabularRight("${item['title'] ?? ''}", "${item['value'] ?? 0}", lineWidth, amtW, size: bSize);
+            _printTabularRight(
+              "${item['title'] ?? ''}",
+              "${item['value'] ?? 0}",
+              lineWidth,
+              amtW,
+              size: bSize,
+            );
           }
           printBreakLine();
           break;
         case 'grand_total':
-          try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 1])); } catch (_) {}
-          _printTabularRight("GRAND TOTAL", "$grandTotal", lineWidth, amtW, size: bSize == 0 ? 1 : bSize + 1);
-          try { _bluetooth.writeBytes(Uint8List.fromList([27, 69, 0])); } catch (_) {}
+          try {
+            _bluetooth.writeBytes(Uint8List.fromList([27, 69, 1]));
+          } catch (_) {}
+          _printTabularRight(
+            "GRAND TOTAL",
+            "$grandTotal",
+            lineWidth,
+            amtW,
+            size: bSize == 0 ? 1 : bSize + 1,
+          );
+          try {
+            _bluetooth.writeBytes(Uint8List.fromList([27, 69, 0]));
+          } catch (_) {}
           printBreakLine();
           break;
         case 'qr_code':
@@ -631,7 +874,11 @@ class BluetoothPrintService {
         for (int i = 0; i < config.autoCutFeedLines; i++) {
           _bluetooth.printNewLine();
         }
-        _bluetooth.writeBytes(InvoicePrintService.getAutoCutBytes(feedLines: config.autoCutFeedLines));
+        _bluetooth.writeBytes(
+          InvoicePrintService.getAutoCutBytes(
+            feedLines: config.autoCutFeedLines,
+          ),
+        );
       } catch (e) {
         print('Auto-cut command failed: $e');
       }
@@ -639,7 +886,12 @@ class BluetoothPrintService {
   }
 
   /// Print text wrapping if it exceeds lineWidth
-  static void _printWrappedLine(String text, int width, {int align = 0, int size = 0}) {
+  static void _printWrappedLine(
+    String text,
+    int width, {
+    int align = 0,
+    int size = 0,
+  }) {
     int start = 0;
     while (start < text.length) {
       int end = start + width;
@@ -650,9 +902,17 @@ class BluetoothPrintService {
   }
 
   /// Format 3 columns: Item (wrap) | Qty | Amt
-  static void _printTabularItem(String name, String qty, String amt, int totalWidth, int qtyW, int amtW, {int size = 0}) {
+  static void _printTabularItem(
+    String name,
+    String qty,
+    String amt,
+    int totalWidth,
+    int qtyW,
+    int amtW, {
+    int size = 0,
+  }) {
     int nameW = totalWidth - qtyW - amtW;
-    
+
     // Split name into chunks
     List<String> nameChunks = [];
     int start = 0;
@@ -674,13 +934,13 @@ class BluetoothPrintService {
         _bluetooth.printCustom(nameChunks[i], size, 0);
       }
       // Print Qty and Amt gracefully right-aligned on the *next* line
-      String secondLine = " ".padRight(nameW) + qty.padLeft(qtyW) + amt.padLeft(amtW);
+      String secondLine =
+          " ".padRight(nameW) + qty.padLeft(qtyW) + amt.padLeft(amtW);
       _bluetooth.printCustom(secondLine, size, 0);
     } else {
       // First line prints name chunk + qty + amt
-      String firstLine = nameChunks[0].padRight(nameW) + 
-                         qty.padLeft(qtyW) + 
-                         amt.padLeft(amtW);
+      String firstLine =
+          nameChunks[0].padRight(nameW) + qty.padLeft(qtyW) + amt.padLeft(amtW);
       _bluetooth.printCustom(firstLine, size, 0);
 
       // Subsequent lines print the rest of the name
@@ -691,9 +951,15 @@ class BluetoothPrintService {
   }
 
   /// Format 2 columns: Title (wrap) | Amount
-  static void _printTabularRight(String title, String rightVal, int totalWidth, int rightW, {int size = 0}) {
+  static void _printTabularRight(
+    String title,
+    String rightVal,
+    int totalWidth,
+    int rightW, {
+    int size = 0,
+  }) {
     int titleW = totalWidth - rightW;
-    
+
     List<String> titleChunks = [];
     int start = 0;
     while (start < title.length) {
@@ -717,7 +983,8 @@ class BluetoothPrintService {
       _bluetooth.printCustom(secondLine, size, 0);
     } else {
       // First line
-      String firstLine = titleChunks[0].padRight(titleW) + rightVal.padLeft(rightW);
+      String firstLine =
+          titleChunks[0].padRight(titleW) + rightVal.padLeft(rightW);
       _bluetooth.printCustom(firstLine, size, 0);
 
       // Rest of title lines
@@ -751,10 +1018,7 @@ class BluetoothPrintService {
         lineLen += 1 + word.length;
       } else {
         // Flush current line with justification
-        _bluetooth.printCustom(
-          _buildJustifiedLine(lineWords, maxChars),
-          0, 0,
-        );
+        _bluetooth.printCustom(_buildJustifiedLine(lineWords, maxChars), 0, 0);
         lineWords = [word];
         lineLen = word.length;
       }
@@ -902,7 +1166,10 @@ class _TopRightNotificationState extends State<_TopRightNotification>
               },
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 300),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: widget.backgroundColor,
                   borderRadius: BorderRadius.circular(12),

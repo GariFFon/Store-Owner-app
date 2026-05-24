@@ -1,11 +1,12 @@
 ; ==========================================================================
 ; Exanor Store Partner — Inno Setup Installer Script
-; Version : 1.0.9+10
-; Updated : 2026-05-04
+; Version : 1.0.11+12
+; Updated : 2026-05-23
 ; ==========================================================================
 
 #define MyAppName      "Exanor Store App"
-#define MyAppVersion   "1.0.9"
+#define MyAppVersion   "1.0.11"
+#define MyAppBuild     "12"
 #define MyAppPublisher "Exanor"
 #define MyAppURL       "https://exanor.store"
 #define MyAppExeName   "exanor_user_new.exe"
@@ -52,7 +53,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 
 ; Misc
 UninstallDisplayName={#MyAppName}
-VersionInfoVersion={#MyAppVersion}.0
+VersionInfoVersion={#MyAppVersion}.{#MyAppBuild}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
 
