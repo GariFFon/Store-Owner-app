@@ -556,6 +556,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             padding: const EdgeInsets.all(8),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        // Refresh Button
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.blueGrey.withOpacity(0.2),
+                            ),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.refresh_rounded, size: 20),
+                            color: Colors.blueGrey[700],
+                            onPressed: () => _fetchProducts(reset: true),
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(8),
+                          ),
+                        ),
                       ],
                     )
                   else

@@ -33,6 +33,9 @@ import 'package:exanor/services/api_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_onscreen_keyboard/flutter_onscreen_keyboard.dart';
+import 'package:exanor/utils/pos_keyboard_layout.dart';
+import 'package:exanor/utils/onscreen_keyboard_prefs.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 
@@ -456,9 +459,16 @@ class _MyAppState extends State<MyApp> {
   String? _initialMessage;
   bool _resolved = false;
 
+  // ── On-screen keyboard persisted sizing ────────────────────────────────
+  double? _savedKeyboardWidth;
+  (double, double)? _savedKeyboardPos;
+
   @override
   void initState() {
     super.initState();
+
+    // Load persisted keyboard size/position early (non-blocking).
+    _loadKeyboardPrefs();
 
     // Initialize NotificationService with the navigator key
     NotificationService.initialize(ApiService.navigatorKey);
@@ -474,6 +484,18 @@ class _MyAppState extends State<MyApp> {
       );
       setState(() {
         _resolved = true;
+      });
+    }
+  }
+
+  /// Loads persisted keyboard width and position from SharedPreferences.
+  Future<void> _loadKeyboardPrefs() async {
+    final width = await OnscreenKeyboardPrefs.getWidth();
+    final pos = await OnscreenKeyboardPrefs.getPosition();
+    if (mounted) {
+      setState(() {
+        _savedKeyboardWidth = width;
+        _savedKeyboardPos = pos;
       });
     }
   }
@@ -630,6 +652,17 @@ class _MyAppState extends State<MyApp> {
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'exanor',
+            // Provides the on-screen keyboard overlay globally.
+            // The keyboard only pops up when an OnscreenKeyboardTextField/
+            // OnscreenKeyboardTextFormField is focused AND the user has enabled
+            // the feature in Layout Settings (tablet/desktop only).
+            builder: (context, child) {
+              return _PersistentOnscreenKeyboard(
+                savedWidth: _savedKeyboardWidth,
+                savedPosition: _savedKeyboardPos,
+                child: child!,
+              );
+            },
             theme: AppTheme.lightTheme,
             themeMode: ThemeManager().materialThemeMode,
             navigatorKey: ApiService.navigatorKey,
@@ -672,6 +705,141 @@ class _MyAppState extends State<MyApp> {
           ),
         );
       },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _PersistentOnscreenKeyboard
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Wraps [OnscreenKeyboard] with:
+/// * Our [PosKeyboardLayout] (QWERTY + numeric modes)
+/// * Persisted width (drag-to-resize arrow handle on the right edge)
+/// * Persisted position (restored on next open)
+class _PersistentOnscreenKeyboard extends StatefulWidget {
+  final Widget child;
+  final double? savedWidth;
+  final (double, double)? savedPosition;
+
+  const _PersistentOnscreenKeyboard({
+    required this.child,
+    this.savedWidth,
+    this.savedPosition,
+  });
+
+  @override
+  State<_PersistentOnscreenKeyboard> createState() =>
+      _PersistentOnscreenKeyboardState();
+}
+
+class _PersistentOnscreenKeyboardState
+    extends State<_PersistentOnscreenKeyboard> {
+  late double _keyboardWidth;
+  bool _positionRestored = false;
+
+  // Sensible default bounds
+  static const double _minWidth = 280;
+  static const double _maxWidth = 1200;
+
+  @override
+  void initState() {
+    super.initState();
+    _keyboardWidth = widget.savedWidth ?? 600;
+  }
+
+  @override
+  void didUpdateWidget(covariant _PersistentOnscreenKeyboard old) {
+    super.didUpdateWidget(old);
+    if (widget.savedWidth != null && old.savedWidth == null) {
+      _keyboardWidth = widget.savedWidth!;
+    }
+  }
+
+  /// Called once after the keyboard overlay is inserted.
+  void _restorePositionIfNeeded(BuildContext context) {
+    if (_positionRestored || widget.savedPosition == null) return;
+    _positionRestored = true;
+    // Restore after first frame so the keyboard state is ready.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final pos = widget.savedPosition!;
+        OnscreenKeyboard.of(context).setAlignment(
+          Alignment(pos.$1 * 2 - 1, pos.$2 * 2 - 1),
+        );
+      } catch (_) {
+        // Keyboard may not be visible yet — ignore.
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _restorePositionIfNeeded(context);
+
+    return OnscreenKeyboard(
+      layout: const PosKeyboardLayout(),
+      width: (_) => _keyboardWidth.clamp(_minWidth, _maxWidth),
+      showControlBar: true,
+      buildControlBarActions: (ctx) => [
+        // Move to bottom
+        IconButton(
+          onPressed: () => OnscreenKeyboard.of(ctx).moveToBottom(),
+          icon: const Icon(Icons.arrow_downward_rounded),
+          tooltip: 'Move to bottom',
+          iconSize: 16,
+        ),
+        // Move to top
+        IconButton(
+          onPressed: () => OnscreenKeyboard.of(ctx).moveToTop(),
+          icon: const Icon(Icons.arrow_upward_rounded),
+          tooltip: 'Move to top',
+          iconSize: 16,
+        ),
+        // Close & persist
+        IconButton(
+          onPressed: () {
+            OnscreenKeyboard.of(ctx).close();
+            // Persist width on close
+            OnscreenKeyboardPrefs.setWidth(_keyboardWidth);
+          },
+          icon: const Icon(Icons.close_rounded),
+          tooltip: 'Close',
+          iconSize: 16,
+        ),
+        // ── Drag-to-resize handle ──────────────────────────────
+        GestureDetector(
+          onHorizontalDragUpdate: (details) {
+            setState(() {
+              _keyboardWidth = (_keyboardWidth + details.delta.dx)
+                  .clamp(_minWidth, _maxWidth);
+            });
+          },
+          onHorizontalDragEnd: (_) {
+            // Persist width when user finishes resizing
+            OnscreenKeyboardPrefs.setWidth(_keyboardWidth);
+          },
+          child: MouseRegion(
+            cursor: SystemMouseCursors.resizeLeftRight,
+            child: Container(
+              width: 20,
+              height: 28,
+              alignment: Alignment.center,
+              margin: const EdgeInsets.only(right: 4),
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Icon(
+                Icons.drag_indicator_rounded,
+                size: 14,
+                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ],
+      child: widget.child,
     );
   }
 }

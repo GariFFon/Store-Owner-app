@@ -16,6 +16,7 @@ class DesktopActionController {
 /// Shortcut Reference:
 ///   Ctrl+S  → Focus search bar
 ///   Ctrl+F  → Focus search bar (alias)
+///   Ctrl+O  → Show recent orders carousel
 ///   Ctrl+P  → Print last receipt
 ///   Ctrl+1  → Switch to POS tab
 ///   Ctrl+2  → Switch to Orders tab
@@ -42,6 +43,7 @@ class ShortcutCallbacks {
   final void Function(int tabIndex)? onSwitchTab;
   final VoidCallback? onOpenAssistant;
   final VoidCallback? onEscape;
+  final VoidCallback? onShowOrdersCarousel;
 
   const ShortcutCallbacks({
     this.onSearch,
@@ -54,6 +56,7 @@ class ShortcutCallbacks {
     this.onSwitchTab,
     this.onOpenAssistant,
     this.onEscape,
+    this.onShowOrdersCarousel,
   });
 }
 
@@ -97,6 +100,12 @@ class DesktopShortcutWrapper extends StatelessWidget {
     if (callbacks.onSearch != null) {
       bindings[const SingleActivator(LogicalKeyboardKey.keyF, control: true)] =
           callbacks.onSearch!;
+    }
+
+    // Ctrl+O → Show Orders Carousel
+    if (callbacks.onShowOrdersCarousel != null) {
+      bindings[const SingleActivator(LogicalKeyboardKey.keyO, control: true)] =
+          callbacks.onShowOrdersCarousel!;
     }
 
     // Ctrl+P → Print
@@ -304,6 +313,7 @@ class KeyboardShortcutsOverlay extends StatelessWidget {
                           _sectionHeader('Actions', isDark),
                           _shortcutRow('Search Products', 'Ctrl + S', isDark),
                           _shortcutRow('Find (alias)', 'Ctrl + F', isDark),
+                          _shortcutRow('Show Orders', 'Ctrl + O', isDark),
                           _shortcutRow('Print Receipt', 'Ctrl + P', isDark),
                           _shortcutRow('Refresh', 'Ctrl + R / F5', isDark),
                           _shortcutRow('New Order', 'Ctrl + N', isDark),
