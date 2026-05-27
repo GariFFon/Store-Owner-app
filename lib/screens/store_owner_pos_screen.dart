@@ -111,6 +111,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   List<Map<String, dynamic>> _cartItemsUnavailable = [];
   Map<String, dynamic>? _cartData;
   double _grandTotal = 0.0;
+  double _cartSubtotal = 0.0;
+  double _cartTax = 0.0;
+  double _cartDiscount = 0.0;
 
   // Cart shimmer animation
   late AnimationController _cartShimmerController;
@@ -157,6 +160,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
   // Checkout Options Layout (desktop sidebar only)
   String _posOptionsLayout = 'dropdown'; // 'dropdown' or 'inline'
+
+  // Collapsible option states for side panel cart
+  bool _orderTypeExpanded = false;
+  bool _tableExpanded = false;
+  bool _paymentExpanded = false;
+  bool _optionsSectionExpanded = true; // Parent section for all order options
 
   Future<void> _persistOptionsLayout(
     String value, {
@@ -619,6 +628,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           _guestSessionId = guestSessionId;
         });
 
+        // For ask_at_checkout, ensure a guest session id exists so the user
+        // can add products to cart before a customer is linked.
+        if (_posCustomerWorkflow == 'ask_at_checkout' &&
+            (_guestSessionId == null || _guestSessionId!.isEmpty)) {
+          _guestSessionId = const Uuid().v4();
+          await prefs.setString('pos_guest_session_id', _guestSessionId!);
+        }
+
         // Handle customer workflow after preference is loaded
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_posCustomerWorkflow == 'ask_first') {
@@ -887,17 +904,26 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           ? {}
           : {'parent_category_id': categoryId};
 
+      final productBody = <String, dynamic>{
+        'store_id': widget.storeId,
+        'query': queryParam,
+        'page': _currentPage,
+        'page_size': 500,
+        'store_access': true,
+        'customer_user_id': customer_user_id ?? '',
+      };
+      // Include guest_session_id so the backend can correctly compute the
+      // `quantity` field for guest carts. Without this, the product card may
+      // show a stale quantity from a previous session.
+      if ((customer_user_id == null || customer_user_id!.isEmpty) &&
+          _guestSessionId != null &&
+          _guestSessionId!.isNotEmpty) {
+        productBody['guest_session_id'] = _guestSessionId!;
+      }
+
       final response = await ApiService.post(
         '/product/',
-        body: {
-          'store_id': widget.storeId,
-          'query': queryParam,
-          'page': _currentPage,
-          'page_size':
-              500, // Load all products at once for instant POS experience
-          'store_access': true,
-          'customer_user_id': customer_user_id ?? '',
-        },
+        body: productBody,
         useBearerToken: true,
       );
 
@@ -977,19 +1003,30 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
       dynamic response;
 
+      // Helper: include guest_session_id for guest carts so server-side
+      // `quantity` field reflects the guest cart, not stale state.
+      final bool isGuest =
+          (customer_user_id == null || customer_user_id!.isEmpty) &&
+          _guestSessionId != null &&
+          _guestSessionId!.isNotEmpty;
+
       if (isSearching) {
+        final searchBody = <String, dynamic>{
+          "customer_user_id": customer_user_id ?? "",
+          "is_store": false,
+          "lat": _lat,
+          "lng": _lng,
+          "page": _currentPage,
+          "query": _searchController.text,
+          "store_access": true,
+          "store_id": widget.storeId,
+        };
+        if (isGuest) {
+          searchBody['guest_session_id'] = _guestSessionId!;
+        }
         response = await ApiService.post(
           '/search-in-store/',
-          body: {
-            "customer_user_id": customer_user_id ?? "",
-            "is_store": false,
-            "lat": _lat,
-            "lng": _lng,
-            "page": _currentPage,
-            "query": _searchController.text,
-            "store_access": true,
-            "store_id": widget.storeId,
-          },
+          body: searchBody,
           useBearerToken: true,
         );
       } else {
@@ -998,17 +1035,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             ? {}
             : {'parent_category_id': _selectedCategoryId};
 
+        final productBody = <String, dynamic>{
+          'store_id': widget.storeId,
+          'query': queryParam,
+          'page': _currentPage,
+          'page_size': 500,
+          'store_access': true,
+          'customer_user_id': customer_user_id ?? '',
+        };
+        if (isGuest) {
+          productBody['guest_session_id'] = _guestSessionId!;
+        }
         response = await ApiService.post(
           '/product/',
-          body: {
-            'store_id': widget.storeId,
-            'query': queryParam,
-            'page': _currentPage,
-            'page_size':
-                500, // Load all products at once for instant POS experience
-            'store_access': true,
-            'customer_user_id': customer_user_id ?? '',
-          },
+          body: productBody,
           useBearerToken: true,
         );
       }
@@ -1166,6 +1206,35 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         _grandTotal = (data['grand_total'] ?? 0.0).toDouble();
         _cartData = data;
 
+        // Calculate breakdown from cart_total if available
+        if (data['cart_total'] != null && data['cart_total'] is List) {
+          final cartTotals = data['cart_total'] as List;
+          double subtotal = 0.0;
+          double tax = 0.0;
+          double discount = 0.0;
+          for (var total in cartTotals) {
+            if (total is Map) {
+              final code = total['code']?.toString() ?? '';
+              final value = (total['value'] ?? 0.0).toDouble();
+              if (code == 'sub_total') {
+                subtotal = value;
+              } else if (code == 'tax') {
+                tax = value;
+              } else if (code == 'discount') {
+                discount = value;
+              }
+            }
+          }
+          _cartSubtotal = subtotal;
+          _cartTax = tax;
+          _cartDiscount = discount;
+        } else {
+          // Fallback: calculate from items
+          _cartSubtotal = _grandTotal;
+          _cartTax = 0.0;
+          _cartDiscount = 0.0;
+        }
+
         // Build product_id -> total quantity map from product_in_cart
         // product_in_cart has the correct product_id that matches product grid IDs
         final Map<String, int> productQuantities = {};
@@ -1277,6 +1346,178 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: TranslatedText('Error updating cart: $e')),
       );
+    }
+  }
+
+  /// Removes a cart item entirely by decrementing until quantity reaches 0.
+  /// The backend automatically deletes items when quantity becomes 0.
+  Future<bool> _deleteCartItem({
+    required String productCombinationId,
+    required String productId,
+  }) async {
+    try {
+      // Find the item to get current quantity
+      int currentQty = 0;
+      for (var item in _cartItemsAvailable) {
+        if (item['product_combination_id']?.toString() ==
+                productCombinationId ||
+            item['product_id']?.toString() == productId) {
+          currentQty = (item['enquired_quantity'] ?? item['quantity'] ?? 0)
+              .toInt();
+          break;
+        }
+      }
+      if (currentQty == 0) {
+        for (var item in _cartItemsUnavailable) {
+          if (item['product_combination_id']?.toString() ==
+                  productCombinationId ||
+              item['product_id']?.toString() == productId) {
+            currentQty = (item['enquired_quantity'] ?? item['quantity'] ?? 0)
+                .toInt();
+            break;
+          }
+        }
+      }
+
+      // Optimistically remove from local lists immediately
+      if (mounted) {
+        setState(() {
+          _cartItemsAvailable.removeWhere(
+            (it) =>
+                it['product_combination_id']?.toString() ==
+                    productCombinationId ||
+                it['product_id']?.toString() == productId,
+          );
+          _cartItemsUnavailable.removeWhere(
+            (it) =>
+                it['product_combination_id']?.toString() ==
+                    productCombinationId ||
+                it['product_id']?.toString() == productId,
+          );
+          _totalProductsInCart =
+              _cartItemsAvailable.length + _cartItemsUnavailable.length;
+        });
+      }
+
+      // Call decrement API until quantity reaches 0 (backend removes item at 0)
+      for (int i = 0; i < currentQty; i++) {
+        await _decrementCartItem(productCombinationId, productId);
+      }
+
+      // Refresh cart to sync with backend
+      await _validateCart();
+      return true;
+    } catch (e) {
+      print('Error deleting cart item: $e');
+      // Refresh cart to restore correct state
+      await _validateCart();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: TranslatedText('Error removing item: $e')),
+        );
+      }
+      return false;
+    }
+  }
+
+  /// Confirm-then-delete wrapper used by the cart row trash icons and the
+  /// edit dialog's "Remove" action.
+  Future<bool> _confirmAndDeleteCartItem(
+    Map<String, dynamic> item,
+    VoidCallback? onDone,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const TranslatedText('Remove item?'),
+        content: TranslatedText(
+          'Remove "${item['product_name'] ?? 'this item'}" from the cart?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const TranslatedText('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFB91C1C),
+            ),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const TranslatedText('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    final ok = await _deleteCartItem(
+      productCombinationId: item['product_combination_id']?.toString() ?? '',
+      productId: item['product_id']?.toString() ?? '',
+    );
+    if (ok) onDone?.call();
+    return ok;
+  }
+
+  /// Sets a cart item to an exact quantity. Returns a result map:
+  /// `{ 'success': bool, 'message': String? }`. On success, the cart is
+  /// re-validated. On failure, the error message is returned so the caller
+  /// can show it inline (e.g. inside the edit dialog) instead of a snackbar.
+  Future<Map<String, dynamic>> _setCartItemQuantity(
+    String productCombinationId,
+    String productId,
+    int quantity, {
+    bool showSnackBarOnError = true,
+  }) async {
+    if (quantity < 1) {
+      return {'success': false, 'message': 'Quantity must be at least 1'};
+    }
+
+    try {
+      final body = {
+        "store_id": widget.storeId,
+        "product_id": productId,
+        "customer_user_id": customer_user_id ?? '',
+        "product_combination_id": productCombinationId,
+        "quantity": quantity,
+        "store_access": true,
+      };
+      if ((customer_user_id == null || customer_user_id!.isEmpty) &&
+          _guestSessionId != null &&
+          _guestSessionId!.isNotEmpty) {
+        body["guest_session_id"] = _guestSessionId!;
+      }
+
+      final response = await ApiService.post(
+        '/set-cart-item-quantity/',
+        body: body,
+        useBearerToken: true,
+      );
+
+      final data = response['data'];
+      if (response['statusCode'] == 200 &&
+          data != null &&
+          (data['status'] == 200)) {
+        await _validateCart();
+        return {'success': true, 'message': null};
+      } else {
+        final msg = (data?['response'] ?? 'Failed to update quantity')
+            .toString();
+        if (showSnackBarOnError && mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
+        }
+        return {'success': false, 'message': msg};
+      }
+    } catch (e) {
+      print('Error setting quantity: $e');
+      final msg = 'Error updating quantity: $e';
+      if (showSnackBarOnError && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: TranslatedText(msg)));
+      }
+      return {'success': false, 'message': msg};
     }
   }
 
@@ -1506,11 +1747,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
   Widget _buildInlineOptionLabel(String label) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
           color: Colors.grey[500],
         ),
@@ -1526,12 +1767,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(6),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF5B4FE8) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: isSelected
                 ? const Color(0xFF5B4FE8)
@@ -1544,15 +1785,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             if (icon != null) ...[
               Icon(
                 icon,
-                size: 14,
+                size: 12,
                 color: isSelected ? Colors.white : Colors.grey[600],
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
             ],
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: isSelected ? Colors.white : const Color(0xFF475569),
               ),
@@ -1560,6 +1801,478 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           ],
         ),
       ),
+    );
+  }
+
+  // Section label for premium chip sections
+  Widget _buildSectionLabel(String label) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey[500],
+        letterSpacing: 0.3,
+      ),
+    );
+  }
+
+  // Premium chip with customizable colors
+  Widget _buildPremiumChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color selectedColor,
+    required Color selectedTextColor,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? selectedColor : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? selectedColor.withOpacity(0.5)
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? selectedTextColor : const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper to get payment label
+  String _getPaymentLabel() {
+    if (_selectedPaymentMode == 'UNPAID') return 'Unpaid';
+    if (_selectedPaymentMode == 'MULTI-MODE') return 'Split';
+    final bank = _bankDetails.firstWhere(
+      (b) => b['id'].toString() == _selectedPaymentMode,
+      orElse: () => {},
+    );
+    if (bank.isNotEmpty) {
+      return bank['bank_name']?.toString() ??
+          bank['account_holder_name']?.toString() ??
+          'Bank';
+    }
+    return 'Select';
+  }
+
+  // Helper to get payment color
+  Color _getPaymentColor() {
+    if (_selectedPaymentMode == 'UNPAID') return const Color(0xFFB91C1C);
+    if (_selectedPaymentMode == 'MULTI-MODE') return const Color(0xFF4338CA);
+    return const Color(0xFF059669);
+  }
+
+  // Collapsible option container for side panel
+  Widget _buildCollapsibleOption({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required Color textColor,
+    required bool expanded,
+    required VoidCallback onToggle,
+    required Widget content,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header - always visible, tap to expand
+          InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(10),
+              bottom: expanded ? Radius.zero : const Radius.circular(10),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(icon, size: 14, color: textColor),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        Text(
+                          value,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    expanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: Colors.grey[400],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Expanded content
+          if (expanded)
+            Container(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: const Color(0xFFE2E8F0))),
+              ),
+              padding: const EdgeInsets.all(10),
+              child: content,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Inline options - section style with labels above chips
+  Widget _buildInlineOptions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Order Type Section
+        _buildSectionHeader(
+          'Order Type',
+          Icons.room_service_outlined,
+          const Color(0xFF4338CA),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: _orderMethods.map((method) {
+            final isSelected = _selectedOrderMethod?['id'] == method['id'];
+            return _buildMiniChip(
+              label: method['order_method_name']?.toString() ?? '',
+              isSelected: isSelected,
+              onTap: () => setState(() => _selectedOrderMethod = method),
+              selectedColor: const Color(0xFFE0E7FF),
+              selectedTextColor: const Color(0xFF4338CA),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        // Table Section
+        _buildSectionHeader(
+          'Table',
+          Icons.table_restaurant_outlined,
+          const Color(0xFF4338CA),
+        ),
+        const SizedBox(height: 6),
+        _isTablesLoading
+            ? const SizedBox(
+                height: 32,
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            : Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _buildMiniChip(
+                    label: 'None',
+                    isSelected: _selectedTable == null,
+                    onTap: () => setState(() => _selectedTable = null),
+                    selectedColor: const Color(0xFFF1F5F9),
+                    selectedTextColor: const Color(0xFF64748B),
+                  ),
+                  ..._availableTables.map((table) {
+                    final isSelected = _selectedTable?['id'] == table['id'];
+                    return _buildMiniChip(
+                      label: 'T${table['table_number']?.toString() ?? ''}',
+                      isSelected: isSelected,
+                      onTap: () => setState(() => _selectedTable = table),
+                      selectedColor: const Color(0xFFE0E7FF),
+                      selectedTextColor: const Color(0xFF4338CA),
+                    );
+                  }),
+                ],
+              ),
+        const SizedBox(height: 12),
+        // Payment Section
+        _buildSectionHeader(
+          'Payment',
+          Icons.payment_outlined,
+          _getPaymentColor(),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _buildMiniChip(
+              label: 'Unpaid',
+              isSelected: _selectedPaymentMode == 'UNPAID',
+              onTap: () => setState(() => _selectedPaymentMode = 'UNPAID'),
+              selectedColor: const Color(0xFFFEE2E2),
+              selectedTextColor: const Color(0xFFB91C1C),
+            ),
+            _buildMiniChip(
+              label: 'Split',
+              isSelected: _selectedPaymentMode == 'MULTI-MODE',
+              onTap: () {
+                setState(() => _selectedPaymentMode = 'MULTI-MODE');
+                _showMultiModeDialog((fn) => setState(fn));
+              },
+              selectedColor: const Color(0xFFE0E7FF),
+              selectedTextColor: const Color(0xFF4338CA),
+            ),
+            ..._bankDetails.map((bank) {
+              final bankId = bank['id'].toString();
+              final isSelected = _selectedPaymentMode == bankId;
+              return _buildMiniChip(
+                label:
+                    bank['bank_name']?.toString() ??
+                    bank['account_holder_name']?.toString() ??
+                    'Bank',
+                isSelected: isSelected,
+                onTap: () => setState(() => _selectedPaymentMode = bankId),
+                selectedColor: const Color(0xFFD1FAE5),
+                selectedTextColor: const Color(0xFF059669),
+              );
+            }),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Section header for inline mode
+  Widget _buildSectionHeader(String label, IconData icon, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Mini chip for inline mode - bigger and better
+  Widget _buildMiniChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color selectedColor,
+    required Color selectedTextColor,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? selectedColor : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? selectedTextColor.withOpacity(0.3)
+                : Colors.grey[300]!,
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? selectedTextColor : Colors.grey[600],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Dropdown options - the individual collapsible sections
+  Widget _buildDropdownOptions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Order Type Dropdown
+        _buildCollapsibleOption(
+          label: 'Order Type',
+          value:
+              _selectedOrderMethod?['order_method_name']?.toString() ??
+              'Select',
+          icon: Icons.room_service_outlined,
+          color: const Color(0xFFE0E7FF),
+          textColor: const Color(0xFF4338CA),
+          expanded: _orderTypeExpanded,
+          onToggle: () =>
+              setState(() => _orderTypeExpanded = !_orderTypeExpanded),
+          content: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _orderMethods.map((method) {
+              final isSelected = _selectedOrderMethod?['id'] == method['id'];
+              return _buildPremiumChip(
+                label: method['order_method_name']?.toString() ?? '',
+                isSelected: isSelected,
+                onTap: () {
+                  setState(() => _selectedOrderMethod = method);
+                  _orderTypeExpanded = false;
+                },
+                selectedColor: const Color(0xFFE0E7FF),
+                selectedTextColor: const Color(0xFF4338CA),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 6),
+        // Table Dropdown
+        _buildCollapsibleOption(
+          label: 'Table',
+          value: _selectedTable != null
+              ? 'T${_selectedTable!['table_number']?.toString() ?? ''}'
+              : 'None',
+          icon: Icons.table_restaurant_outlined,
+          color: const Color(0xFFE0E7FF),
+          textColor: const Color(0xFF4338CA),
+          expanded: _tableExpanded,
+          onToggle: () => setState(() => _tableExpanded = !_tableExpanded),
+          content: _isTablesLoading
+              ? const SizedBox(
+                  height: 28,
+                  child: Center(
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                )
+              : Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _buildPremiumChip(
+                      label: 'None',
+                      isSelected: _selectedTable == null,
+                      onTap: () {
+                        setState(() => _selectedTable = null);
+                        _tableExpanded = false;
+                      },
+                      selectedColor: const Color(0xFFF1F5F9),
+                      selectedTextColor: const Color(0xFF64748B),
+                    ),
+                    ..._availableTables.map((table) {
+                      final isSelected = _selectedTable?['id'] == table['id'];
+                      return _buildPremiumChip(
+                        label: 'T${table['table_number']?.toString() ?? ''}',
+                        isSelected: isSelected,
+                        onTap: () {
+                          setState(() => _selectedTable = table);
+                          _tableExpanded = false;
+                        },
+                        selectedColor: const Color(0xFFE0E7FF),
+                        selectedTextColor: const Color(0xFF4338CA),
+                      );
+                    }),
+                  ],
+                ),
+        ),
+        const SizedBox(height: 6),
+        // Payment Dropdown
+        _buildCollapsibleOption(
+          label: 'Payment',
+          value: _getPaymentLabel(),
+          icon: Icons.payment_outlined,
+          color: _getPaymentColor().withOpacity(0.1),
+          textColor: _getPaymentColor(),
+          expanded: _paymentExpanded,
+          onToggle: () => setState(() => _paymentExpanded = !_paymentExpanded),
+          content: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _buildPremiumChip(
+                label: 'Unpaid',
+                isSelected: _selectedPaymentMode == 'UNPAID',
+                onTap: () {
+                  setState(() => _selectedPaymentMode = 'UNPAID');
+                  _paymentExpanded = false;
+                },
+                selectedColor: const Color(0xFFFEE2E2),
+                selectedTextColor: const Color(0xFFB91C1C),
+              ),
+              _buildPremiumChip(
+                label: 'Split',
+                isSelected: _selectedPaymentMode == 'MULTI-MODE',
+                onTap: () {
+                  setState(() => _selectedPaymentMode = 'MULTI-MODE');
+                  _paymentExpanded = false;
+                  _showMultiModeDialog((fn) => setState(fn));
+                },
+                selectedColor: const Color(0xFFE0E7FF),
+                selectedTextColor: const Color(0xFF4338CA),
+              ),
+              ..._bankDetails.map((bank) {
+                final bankId = bank['id'].toString();
+                final isSelected = _selectedPaymentMode == bankId;
+                return _buildPremiumChip(
+                  label:
+                      bank['bank_name']?.toString() ??
+                      bank['account_holder_name']?.toString() ??
+                      'Bank',
+                  isSelected: isSelected,
+                  onTap: () {
+                    setState(() => _selectedPaymentMode = bankId);
+                    _paymentExpanded = false;
+                  },
+                  selectedColor: const Color(0xFFD1FAE5),
+                  selectedTextColor: const Color(0xFF059669),
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1820,6 +2533,484 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     );
   }
 
+  void _showEditCartItemDialog(
+    Map<String, dynamic> item,
+    VoidCallback? onUpdated,
+  ) {
+    final pricing = item['pricing_details'] ?? {};
+    final productName = item['product_name']?.toString() ?? '';
+    final unitPrice =
+        pricing['sale_price_excl_tax']?.toDouble() ??
+        pricing['selling_amount_excluding_tax']?.toDouble() ??
+        0.0;
+    final currentQty = (item['enquired_quantity'] ?? item['quantity'] ?? 1)
+        .toInt();
+    final maxDiscountPercent =
+        (pricing['max_discount_percent']?.toDouble() ?? 0).toDouble();
+    final currentDiscount = (pricing['discount_percent']?.toDouble() ?? 0)
+        .toDouble();
+
+    final qtyController = TextEditingController(text: currentQty.toString());
+    final discountController = TextEditingController(
+      text: currentDiscount > 0 ? currentDiscount.toStringAsFixed(0) : '',
+    );
+    String? qtyError;
+    String? discountError;
+
+    // Live-validation state. We debounce TextField/preset/+/- changes by 600ms
+    // and call /set-cart-item-quantity/ to validate (and apply) against backend.
+    Timer? qtyDebounce;
+    bool qtyValidating = false;
+    int lastSyncedQty = currentQty;
+
+    final presetQuantities = [5, 10, 20, 50, 100, 200, 500];
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDlgState) {
+            // Debounced validation: when the user pauses typing for 600 ms,
+            // call /set-cart-item-quantity/ to validate (and apply) the new
+            // quantity. Surfaces backend errors inline as `qtyError`.
+            void triggerQtyValidation() {
+              qtyDebounce?.cancel();
+              final parsed = int.tryParse(qtyController.text);
+              if (parsed == null || parsed < 1) {
+                setDlgState(() {
+                  qtyError = 'Enter a valid quantity (>= 1)';
+                  qtyValidating = false;
+                });
+                return;
+              }
+              setDlgState(() {
+                qtyError = null;
+              });
+              if (parsed == lastSyncedQty) return;
+              qtyDebounce = Timer(const Duration(milliseconds: 600), () async {
+                setDlgState(() {
+                  qtyValidating = true;
+                  qtyError = null;
+                });
+                final result = await _setCartItemQuantity(
+                  item['product_combination_id']?.toString() ?? '',
+                  item['product_id']?.toString() ?? '',
+                  parsed,
+                  showSnackBarOnError: false,
+                );
+                if (!ctx.mounted) return;
+                setDlgState(() {
+                  qtyValidating = false;
+                  if (result['success'] == true) {
+                    lastSyncedQty = parsed;
+                    qtyError = null;
+                    onUpdated?.call();
+                  } else {
+                    // Revert the input to the last accepted value so the user
+                    // sees the rejected quantity didn't actually take effect.
+                    qtyController.text = lastSyncedQty.toString();
+                    qtyController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: qtyController.text.length),
+                    );
+                    qtyError = result['message']?.toString();
+                  }
+                });
+                // Resync product card with the true cart state regardless of
+                // outcome (handles rare cases where the backend removed the
+                // item but local product quantity is stale).
+                if (mounted) {
+                  await _validateCart();
+                }
+              });
+            }
+
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Edit Cart Item',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1A1A2E),
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () => Navigator.pop(ctx),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Product info card
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              productName,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1A1A2E),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Unit Price: ₹${unitPrice.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Quantity
+                      const Text(
+                        'Set Quantity',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          // Decrement button
+                          InkWell(
+                            onTap: () {
+                              final current =
+                                  int.tryParse(qtyController.text) ?? 0;
+                              if (current > 1) {
+                                qtyController.text = (current - 1).toString();
+                                triggerQtyValidation();
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              width: 44,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.remove,
+                                size: 20,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: qtyController,
+                              keyboardType: TextInputType.number,
+                              autofocus: true,
+                              textAlign: TextAlign.center,
+                              decoration: InputDecoration(
+                                errorText: qtyError,
+                                suffixIcon: qtyValidating
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Color(0xFF5B4FE8),
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF5B4FE8),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                              ),
+                              onChanged: (_) => triggerQtyValidation(),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Increment button
+                          InkWell(
+                            onTap: () {
+                              final current =
+                                  int.tryParse(qtyController.text) ?? 0;
+                              qtyController.text = (current + 1).toString();
+                              triggerQtyValidation();
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              width: 44,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF5B4FE8),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                size: 20,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Tap a preset to add to current quantity',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: presetQuantities.map((q) {
+                          return InkWell(
+                            onTap: () {
+                              final current =
+                                  int.tryParse(qtyController.text) ?? 0;
+                              qtyController.text = (current + q).toString();
+                              triggerQtyValidation();
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: Text(
+                                '+$q',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                      // Discount
+                      const Text(
+                        'Apply Discount',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: discountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Discount (%)',
+                          errorText: discountError,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF5B4FE8),
+                              width: 1.5,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged: (val) {
+                          if (maxDiscountPercent <= 0) {
+                            setDlgState(() {
+                              discountError =
+                                  'Discounts are disabled for this product.';
+                            });
+                            return;
+                          }
+                          final parsed = double.tryParse(val) ?? -1;
+                          if (parsed < 0 || parsed > maxDiscountPercent) {
+                            setDlgState(() {
+                              discountError =
+                                  'Max allowed: ${maxDiscountPercent.toStringAsFixed(0)}%';
+                            });
+                          } else {
+                            setDlgState(() => discountError = null);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        maxDiscountPercent > 0
+                            ? 'Maximum discount allowed: ${maxDiscountPercent.toStringAsFixed(0)}%'
+                            : 'Discounts are disabled for this product.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                      ),
+                      const SizedBox(height: 20),
+                      // Actions
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () async {
+                              qtyDebounce?.cancel();
+                              final ok = await _confirmAndDeleteCartItem(
+                                item,
+                                onUpdated,
+                              );
+                              if (ok && ctx.mounted) {
+                                Navigator.pop(ctx);
+                              }
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFB91C1C),
+                            ),
+                            child: const TranslatedText('Remove'),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () {
+                              qtyDebounce?.cancel();
+                              Navigator.pop(ctx);
+                            },
+                            child: const TranslatedText('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed:
+                                (qtyError != null ||
+                                    qtyValidating ||
+                                    (discountError != null &&
+                                        discountController.text.isNotEmpty))
+                                ? null
+                                : () async {
+                                    qtyDebounce?.cancel();
+                                    final newQty =
+                                        int.tryParse(qtyController.text) ??
+                                        currentQty;
+                                    final newDiscount =
+                                        double.tryParse(
+                                          discountController.text,
+                                        ) ??
+                                        0;
+
+                                    Navigator.pop(ctx);
+
+                                    // Quantity is already live-synced via the
+                                    // 600ms debounced validator. Only flush a
+                                    // pending change if the user pressed Save
+                                    // before the debounce fired.
+                                    if (newQty != lastSyncedQty) {
+                                      await _setCartItemQuantity(
+                                        item['product_combination_id'] ?? '',
+                                        item['product_id'] ?? '',
+                                        newQty,
+                                      );
+                                    }
+
+                                    // Apply discount change
+                                    final productInCartId =
+                                        item['product_in_cart_id']
+                                            ?.toString() ??
+                                        '';
+                                    if (productInCartId.isNotEmpty &&
+                                        newDiscount != currentDiscount) {
+                                      await _applyProductDiscount(
+                                        productInCartId,
+                                        newDiscount,
+                                        onDone: onUpdated,
+                                      );
+                                    } else {
+                                      onUpdated?.call();
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2196F3),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const TranslatedText('Save'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _reviewOrder() async {
     // Check location permission before reviewing order
     try {
@@ -1973,14 +3164,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     // Validate required fields before placing order
     final orderMethodId = _selectedOrderMethod?['id']?.toString();
 
-    if (_posCustomerWorkflow == 'ask_at_checkout' &&
-        (customer_user_id == null || customer_user_id!.isEmpty)) {
-      await _showCustomerPhoneDialog();
-      if (customer_user_id == null || customer_user_id!.isEmpty) {
-        return;
-      }
-    }
-
     if (_selectedPaymentMethodId == null ||
         _selectedPaymentMethodId!.isEmpty ||
         customer_user_id == null ||
@@ -2009,21 +3192,27 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       await _sendDeviceData();
 
       dynamic response;
+      final placeOrderBody = {
+        "customer_user_id": customer_user_id,
+        "lat": _lat,
+        "lng": _lng,
+        "order_method_id": orderMethodId,
+        "payment_method_id": _selectedPaymentMethodId,
+        "store_access": true,
+        "store_id": widget.storeId,
+        "user_address_id": selected_address_id,
+        "coupon_code": "",
+        "order_additional_data": _buildOrderAdditionalData(),
+      };
+      // Include guest_session_id so the backend can find carts created before customer was linked
+      if (_guestSessionId != null && _guestSessionId!.isNotEmpty) {
+        placeOrderBody["guest_session_id"] = _guestSessionId!;
+      }
+
       if (_selectedPaymentMode == 'UNPAID') {
         response = await ApiService.post(
           '/place-order/',
-          body: {
-            "customer_user_id": customer_user_id,
-            "lat": _lat,
-            "lng": _lng,
-            "order_method_id": orderMethodId,
-            "payment_method_id": _selectedPaymentMethodId,
-            "store_access": true,
-            "store_id": widget.storeId,
-            "user_address_id": selected_address_id,
-            "coupon_code": "",
-            "order_additional_data": _buildOrderAdditionalData(),
-          },
+          body: placeOrderBody,
           useBearerToken: true,
         );
       } else {
@@ -2047,21 +3236,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           });
         }
 
+        placeOrderBody["payment_methods"] = paymentMethodsList;
+
         response = await ApiService.post(
           '/place-order-with-completion/',
-          body: {
-            "customer_user_id": customer_user_id,
-            "lat": _lat,
-            "lng": _lng,
-            "order_method_id": orderMethodId,
-            "payment_method_id": _selectedPaymentMethodId,
-            "store_access": true,
-            "store_id": widget.storeId,
-            "user_address_id": selected_address_id,
-            "payment_methods": paymentMethodsList,
-            "coupon_code": "",
-            "order_additional_data": _buildOrderAdditionalData(),
-          },
+          body: placeOrderBody,
           useBearerToken: true,
         );
       }
@@ -2096,13 +3275,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             });
           }
 
-          // If cart was migrated from guest, clear old guest session and generate new one
-          if (_guestSessionId != null && _guestSessionId!.isNotEmpty) {
-            _guestSessionId = const Uuid().v4();
-            SharedPreferences.getInstance().then((prefs) {
-              prefs.setString('pos_guest_session_id', _guestSessionId!);
-            });
-          }
+          // Always regenerate a fresh guest session post-order. This is required
+          // so the next cart (especially in `ask_at_checkout` workflow where
+          // customer_user_id is reset to null) has a valid guest_session_id to
+          // add products against. Without this, add-to-cart fails because
+          // neither customer_user_id nor guest_session_id is set.
+          _guestSessionId = const Uuid().v4();
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setString('pos_guest_session_id', _guestSessionId!);
+          });
 
           String? createdOrderId;
           if (data['response'] is Map) {
@@ -2114,61 +3295,129 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
           if (mounted && createdOrderId != null) {
             EventBus().fire(OrderPlacedEvent());
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (ctx) => PosPrintOptionsDialog(
-                orderId: createdOrderId!,
-                title: 'Order Placed Successfully!',
-                onViewOrder: () {
-                  Navigator.pop(ctx);
-                  _initLocationAndCart();
-                  _fetchProductsByCategory(
-                    _selectedCategoryId ?? 'all',
-                    isRefresh: true,
-                  );
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => OrderDetailsScreen(
-                        orderId: createdOrderId!,
-                        storeId: widget.storeId,
+            final autoPrintMode = await PrintSettingsService.getAutoPrintMode();
+            if (autoPrintMode == PrintSettingsService.modeNever) {
+              // Never mode - show top-right notification then auto-new-order
+              BluetoothPrintService.showTopRightNotification(
+                context,
+                message: 'Order Placed Successfully!',
+                detail: '',
+                icon: Icons.check_circle_rounded,
+                backgroundColor: const Color(0xFF10B981),
+              );
+              // Reset for new order
+              setState(() {
+                customer_user_id = null;
+                _currentCustomer = null;
+                selected_address_id = null;
+              });
+              _initLocationAndCart();
+              _fetchProductsByCategory(
+                _selectedCategoryId ?? 'all',
+                isRefresh: true,
+              );
+              if (_posCustomerWorkflow == 'ask_first') {
+                _showCustomerPhoneDialog();
+              } else if (_posCustomerWorkflow == 'skip') {
+                const String guestPhoneNumber = '910000000018';
+                _fetchCustomerData(guestPhoneNumber, silent: true).catchError((
+                  e,
+                ) {
+                  debugPrint('Guest customer fetch error (non-blocking): $e');
+                  return false;
+                });
+              }
+            } else if (autoPrintMode == PrintSettingsService.modeAlways) {
+              // Always mode - auto print then show notification + auto new order
+              final printSuccess = await _autoPrintOrder(createdOrderId);
+              BluetoothPrintService.showTopRightNotification(
+                context,
+                message: 'Order Placed Successfully!',
+                detail: printSuccess ? 'Printed successfully' : 'Print failed',
+                icon: printSuccess
+                    ? Icons.check_circle_rounded
+                    : Icons.error_outline_rounded,
+                backgroundColor: printSuccess
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFEF4444),
+              );
+              // Reset for new order
+              setState(() {
+                customer_user_id = null;
+                _currentCustomer = null;
+                selected_address_id = null;
+              });
+              _initLocationAndCart();
+              _fetchProductsByCategory(
+                _selectedCategoryId ?? 'all',
+                isRefresh: true,
+              );
+              if (_posCustomerWorkflow == 'ask_first') {
+                _showCustomerPhoneDialog();
+              } else if (_posCustomerWorkflow == 'skip') {
+                const String guestPhoneNumber = '910000000018';
+                _fetchCustomerData(guestPhoneNumber, silent: true).catchError((
+                  e,
+                ) {
+                  debugPrint('Guest customer fetch error (non-blocking): $e');
+                  return false;
+                });
+              }
+            } else {
+              // Ask mode - show the print options dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => PosPrintOptionsDialog(
+                  orderId: createdOrderId!,
+                  title: 'Order Placed Successfully!',
+                  onViewOrder: () {
+                    Navigator.pop(ctx);
+                    _initLocationAndCart();
+                    _fetchProductsByCategory(
+                      _selectedCategoryId ?? 'all',
+                      isRefresh: true,
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => OrderDetailsScreen(
+                          orderId: createdOrderId!,
+                          storeId: widget.storeId,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                onNewOrder: () {
-                  Navigator.pop(ctx);
-                  // Reset customer state for a fresh session
-                  setState(() {
-                    customer_user_id = null;
-                    _currentCustomer = null;
-                    selected_address_id = null;
-                  });
-                  _initLocationAndCart();
-                  _fetchProductsByCategory(
-                    _selectedCategoryId ?? 'all',
-                    isRefresh: true,
-                  );
-                  // Respect workflow for the next order
-                  if (_posCustomerWorkflow == 'ask_first') {
-                    _showCustomerPhoneDialog();
-                  } else if (_posCustomerWorkflow == 'skip') {
-                    const String guestPhoneNumber = '910000000018';
-                    _fetchCustomerData(
-                      guestPhoneNumber,
-                      silent: true,
-                    ).catchError((e) {
-                      debugPrint(
-                        'Guest customer fetch error (non-blocking): $e',
-                      );
-                      return false;
+                    );
+                  },
+                  onNewOrder: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      customer_user_id = null;
+                      _currentCustomer = null;
+                      selected_address_id = null;
                     });
-                  }
-                  // ask_at_checkout: browse as guest, no dialog until next checkout
-                },
-              ),
-            );
+                    _initLocationAndCart();
+                    _fetchProductsByCategory(
+                      _selectedCategoryId ?? 'all',
+                      isRefresh: true,
+                    );
+                    if (_posCustomerWorkflow == 'ask_first') {
+                      _showCustomerPhoneDialog();
+                    } else if (_posCustomerWorkflow == 'skip') {
+                      const String guestPhoneNumber = '910000000018';
+                      _fetchCustomerData(
+                        guestPhoneNumber,
+                        silent: true,
+                      ).catchError((e) {
+                        debugPrint(
+                          'Guest customer fetch error (non-blocking): $e',
+                        );
+                        return false;
+                      });
+                    }
+                  },
+                ),
+              );
+            }
           } else if (mounted) {
             EventBus().fire(OrderPlacedEvent());
             // Fallback refresh if createdOrderId is null
@@ -2205,18 +3454,26 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
   }
 
-  Widget _buildQtyBtn(IconData icon, VoidCallback onTap) {
+  Widget _buildQtyBtn(
+    IconData icon,
+    VoidCallback onTap, {
+    bool enabled = true,
+  }) {
     return Material(
-      color: const Color(0xFF3B82F6),
+      color: enabled ? const Color(0xFF3B82F6) : Colors.grey[300],
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
-        onTap: onTap,
+        onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(20),
         splashColor: Colors.white.withOpacity(0.3),
         highlightColor: Colors.white.withOpacity(0.15),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Icon(icon, size: 16, color: Colors.white),
+          child: Icon(
+            icon,
+            size: 16,
+            color: enabled ? Colors.white : Colors.grey[500],
+          ),
         ),
       ),
     );
@@ -2336,7 +3593,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
                       // Cart Items
                       Expanded(
-                        child: _cartItemsAvailable.isEmpty
+                        child:
+                            (_cartItemsAvailable.isEmpty &&
+                                _cartItemsUnavailable.isEmpty)
                             ? Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -2361,11 +3620,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                             : ListView.separated(
                                 controller: scrollController,
                                 padding: const EdgeInsets.all(20),
-                                itemCount: _cartItemsAvailable.length,
+                                itemCount:
+                                    _cartItemsAvailable.length +
+                                    _cartItemsUnavailable.length,
                                 separatorBuilder: (_, __) =>
                                     const SizedBox(height: 16),
                                 itemBuilder: (context, index) {
-                                  final item = _cartItemsAvailable[index];
+                                  final bool isAvailable =
+                                      index < _cartItemsAvailable.length;
+                                  final item = isAvailable
+                                      ? _cartItemsAvailable[index]
+                                      : _cartItemsUnavailable[index -
+                                            _cartItemsAvailable.length];
                                   final pricing = item['pricing_details'] ?? {};
                                   final quantity =
                                       item['enquired_quantity'] ??
@@ -2376,74 +3642,203 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                       item['image'] ??
                                       item['img_url'];
 
+                                  // Extract variant info if available
+                                  final variantInfo =
+                                      item['variant_info'] ?? {};
+                                  final attributes =
+                                      variantInfo['attributes'] ?? [];
+                                  String modifiersText = '';
+                                  if (attributes.isNotEmpty) {
+                                    modifiersText = attributes
+                                        .map(
+                                          (a) => '${a['name']}: ${a['value']}',
+                                        )
+                                        .join(' • ');
+                                  }
+
                                   return Container(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: const EdgeInsets.all(14),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: isAvailable
+                                          ? Colors.white
+                                          : const Color(0xFFFFF7F7),
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: Colors.grey[200]!,
+                                        color: isAvailable
+                                            ? const Color(0xFFE2E8F0)
+                                            : const Color(0xFFFCA5A5),
                                       ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.02),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
                                     ),
                                     child: Row(
                                       crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                          CrossAxisAlignment.center,
                                       children: [
-                                        // Product Image
+                                        // Product Image - Larger
                                         Container(
-                                          width: 72,
-                                          height: 72,
+                                          width: 76,
+                                          height: 76,
                                           decoration: BoxDecoration(
-                                            color: Colors.grey[100],
+                                            color: const Color(0xFFF8FAFC),
                                             borderRadius: BorderRadius.circular(
                                               12,
                                             ),
+                                            border: Border.all(
+                                              color: const Color(0xFFE2E8F0),
+                                            ),
                                           ),
+                                          clipBehavior: Clip.antiAlias,
                                           child: productImg != null
-                                              ? ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                  child:
-                                                      CustomCachedNetworkImage(
-                                                        imgUrl: productImg,
-                                                        fit: BoxFit.cover,
-                                                      ),
+                                              ? CustomCachedNetworkImage(
+                                                  imgUrl: productImg,
+                                                  fit: BoxFit.cover,
                                                 )
-                                              : const Icon(
+                                              : Icon(
                                                   Icons
                                                       .image_not_supported_outlined,
-                                                  color: Colors.grey,
+                                                  color: Colors.grey[400],
+                                                  size: 32,
                                                 ),
                                         ),
-                                        const SizedBox(width: 16),
+                                        const SizedBox(width: 14),
 
-                                        // Details
+                                        // Details Column
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              TranslatedText(
-                                                item['product_name'] ?? '',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 15,
-                                                  color: Colors.black87,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              // Discount badge
-                                              if ((pricing['discount_percent'] ??
-                                                      0) >
-                                                  0) ...[
-                                                const SizedBox(height: 4),
-                                                Row(
-                                                  children: [
+                                              // Product Name with Quantity inline
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: RichText(
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      text: TextSpan(
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          fontSize: 15,
+                                                          color: isAvailable
+                                                              ? const Color(
+                                                                  0xFF1E293B,
+                                                                )
+                                                              : const Color(
+                                                                  0xFFB91C1C,
+                                                                ),
+                                                          height: 1.3,
+                                                        ),
+                                                        children: [
+                                                          TextSpan(
+                                                            text:
+                                                                item['product_name'] ??
+                                                                '',
+                                                          ),
+                                                          TextSpan(
+                                                            text:
+                                                                '  ($quantity)',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                              color: Colors
+                                                                  .grey[500],
+                                                              fontSize: 14,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  if (!isAvailable) ...[
+                                                    const SizedBox(width: 6),
                                                     Container(
                                                       padding:
                                                           const EdgeInsets.symmetric(
                                                             horizontal: 6,
+                                                            vertical: 2,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(
+                                                          0xFFFEE2E2,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                      ),
+                                                      child: const Text(
+                                                        'Unavailable',
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                            0xFFB91C1C,
+                                                          ),
+                                                          fontSize: 9,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+
+                                              // Modifiers if any
+                                              if (modifiersText.isNotEmpty) ...[
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  modifiersText,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[500],
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+
+                                              const SizedBox(height: 8),
+
+                                              // Price Row
+                                              Row(
+                                                children: [
+                                                  TranslatedText(
+                                                    '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 17,
+                                                      color: theme.primaryColor,
+                                                    ),
+                                                  ),
+                                                  if ((pricing['discount_percent'] ??
+                                                          0) >
+                                                      0) ...[
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      '₹${(pricing['original_sale_price_excl_tax']?.toDouble() ?? pricing['selling_amount_excluding_tax']?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                                      style: TextStyle(
+                                                        color: Colors.grey[400],
+                                                        fontSize: 12,
+                                                        decoration:
+                                                            TextDecoration
+                                                                .lineThrough,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 5,
                                                             vertical: 2,
                                                           ),
                                                       decoration: BoxDecoration(
@@ -2456,7 +3851,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                             ),
                                                       ),
                                                       child: Text(
-                                                        '${pricing['discount_percent'].toStringAsFixed(0)}% OFF',
+                                                        '-${pricing['discount_percent'].toStringAsFixed(0)}%',
                                                         style: const TextStyle(
                                                           color: Color(
                                                             0xFF5B4FE8,
@@ -2467,41 +3862,97 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                         ),
                                                       ),
                                                     ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      '₹${(pricing['original_sale_price_excl_tax']?.toDouble() ?? pricing['selling_amount_excluding_tax']?.toDouble() ?? 0).toStringAsFixed(2)}',
-                                                      style: TextStyle(
-                                                        color: Colors.grey[400],
-                                                        fontSize: 11,
-                                                        decoration:
-                                                            TextDecoration
-                                                                .lineThrough,
-                                                      ),
-                                                    ),
                                                   ],
-                                                ),
-                                              ],
-                                              const SizedBox(height: 6),
+                                                ],
+                                              ),
+
+                                              const SizedBox(height: 12),
+
+                                              // Actions Row: Quantity + Edit/Delete
                                               Row(
                                                 mainAxisAlignment:
                                                     MainAxisAlignment
                                                         .spaceBetween,
                                                 children: [
-                                                  TranslatedText(
-                                                    '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 15,
-                                                      color: theme.primaryColor,
+                                                  // Quantity Controls
+                                                  Container(
+                                                    height: 36,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(
+                                                        0xFFF8FAFC,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: const Color(
+                                                          0xFFE2E8F0,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        _buildQtyBtn(
+                                                          Icons.remove,
+                                                          () async {
+                                                            await _decrementCartItem(
+                                                              item['product_combination_id'] ??
+                                                                  '',
+                                                              item['product_id'] ??
+                                                                  '',
+                                                            );
+                                                            setSheetState(
+                                                              () {},
+                                                            );
+                                                          },
+                                                        ),
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 12,
+                                                              ),
+                                                          child: Text(
+                                                            '$quantity',
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                  fontSize: 14,
+                                                                  color: Color(
+                                                                    0xFF1E293B,
+                                                                  ),
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        _buildQtyBtn(
+                                                          Icons.add,
+                                                          () async {
+                                                            await _incrementCartItem(
+                                                              item['product_combination_id'] ??
+                                                                  '',
+                                                              item['product_id'] ??
+                                                                  '',
+                                                            );
+                                                            setSheetState(
+                                                              () {},
+                                                            );
+                                                          },
+                                                          enabled: isAvailable,
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
-                                                  // Discount + Quantity
+
+                                                  // Action Buttons: Discount, Edit, Delete
                                                   Row(
                                                     mainAxisSize:
                                                         MainAxisSize.min,
                                                     children: [
-                                                      // Discount button
+                                                      // Discount
                                                       InkWell(
                                                         onTap: () {
                                                           _showDiscountDialog(
@@ -2523,7 +3974,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                         },
                                                         borderRadius:
                                                             BorderRadius.circular(
-                                                              16,
+                                                              18,
                                                             ),
                                                         child: Container(
                                                           width: 32,
@@ -2538,17 +3989,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                                   ).withOpacity(
                                                                     0.1,
                                                                   )
-                                                                : Colors
-                                                                      .grey[100],
+                                                                : const Color(
+                                                                    0xFFF1F5F9,
+                                                                  ),
                                                             borderRadius:
                                                                 BorderRadius.circular(
-                                                                  16,
+                                                                  18,
                                                                 ),
                                                           ),
                                                           child: Icon(
                                                             Icons
                                                                 .local_offer_outlined,
-                                                            size: 16,
+                                                            size: 14,
                                                             color:
                                                                 (pricing['discount_percent'] ??
                                                                         0) >
@@ -2562,70 +4014,75 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                         ),
                                                       ),
                                                       const SizedBox(width: 8),
-                                                      // Quantity Button
-                                                      Container(
-                                                        height: 32,
-                                                        decoration: BoxDecoration(
-                                                          color:
-                                                              Colors.grey[50],
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                20,
-                                                              ),
-                                                          border: Border.all(
+                                                      // Edit
+                                                      InkWell(
+                                                        onTap: () {
+                                                          _showEditCartItemDialog(
+                                                            item,
+                                                            () => setSheetState(
+                                                              () {},
+                                                            ),
+                                                          );
+                                                        },
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              18,
+                                                            ),
+                                                        child: Container(
+                                                          width: 32,
+                                                          height: 32,
+                                                          decoration: BoxDecoration(
+                                                            color: const Color(
+                                                              0xFFF1F5F9,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  18,
+                                                                ),
+                                                          ),
+                                                          child: Icon(
+                                                            Icons.edit_outlined,
+                                                            size: 14,
                                                             color: Colors
-                                                                .grey[200]!,
+                                                                .grey[600],
                                                           ),
                                                         ),
-                                                        child: Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            _buildQtyBtn(
-                                                              Icons.remove,
-                                                              () async {
-                                                                await _decrementCartItem(
-                                                                  item['product_combination_id'] ??
-                                                                      '',
-                                                                  item['product_id'] ??
-                                                                      '',
-                                                                );
-                                                                setSheetState(
-                                                                  () {},
-                                                                );
-                                                              },
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      // Delete
+                                                      InkWell(
+                                                        onTap: () async {
+                                                          await _confirmAndDeleteCartItem(
+                                                            item,
+                                                            () => setSheetState(
+                                                              () {},
                                                             ),
-                                                            Padding(
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    horizontal:
-                                                                        10,
-                                                                  ),
-                                                              child: Text(
-                                                                '$quantity',
-                                                                style: const TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                  fontSize: 14,
+                                                          );
+                                                        },
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              18,
+                                                            ),
+                                                        child: Container(
+                                                          width: 32,
+                                                          height: 32,
+                                                          decoration: BoxDecoration(
+                                                            color: const Color(
+                                                              0xFFFEE2E2,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  18,
                                                                 ),
-                                                              ),
+                                                          ),
+                                                          child: const Icon(
+                                                            Icons
+                                                                .delete_outline,
+                                                            size: 14,
+                                                            color: Color(
+                                                              0xFFB91C1C,
                                                             ),
-                                                            _buildQtyBtn(
-                                                              Icons.add,
-                                                              () async {
-                                                                await _incrementCartItem(
-                                                                  item['product_combination_id'] ??
-                                                                      '',
-                                                                  item['product_id'] ??
-                                                                      '',
-                                                                );
-                                                                setSheetState(
-                                                                  () {},
-                                                                );
-                                                              },
-                                                            ),
-                                                          ],
+                                                          ),
                                                         ),
                                                       ),
                                                     ],
@@ -2645,7 +4102,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       // Bottom Section: Payment Breakdown & Checkout
                       if (_cartItemsAvailable.isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             boxShadow: [
@@ -2953,15 +4410,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                     );
                                   }).toList(),
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 _buildInlineOptionLabel('Table'),
                                 if (_isTablesLoading)
                                   const SizedBox(
-                                    height: 32,
+                                    height: 28,
                                     child: Center(
                                       child: SizedBox(
-                                        width: 16,
-                                        height: 16,
+                                        width: 14,
+                                        height: 14,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                         ),
@@ -2970,8 +4427,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   )
                                 else
                                   Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
+                                    spacing: 6,
+                                    runSpacing: 6,
                                     children: [
                                       _buildOptionChip(
                                         label: 'None',
@@ -2995,11 +4452,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                       }),
                                     ],
                                   ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 _buildInlineOptionLabel('Payment'),
                                 Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
+                                  spacing: 6,
+                                  runSpacing: 6,
                                   children: [
                                     _buildOptionChip(
                                       label: 'Unpaid',
@@ -3040,7 +4497,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   ],
                                 ),
                               ],
-                              const SizedBox(height: 14),
+                              const SizedBox(height: 10),
 
                               // Order Summary / Payment Breakdown
                               if (_cartData != null &&
@@ -3146,7 +4603,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
                               // Place Order Button
                               SizedBox(
-                                height: 48,
+                                height: 40,
                                 child: ElevatedButton(
                                   onPressed: () {
                                     Navigator.pop(context);
@@ -3158,7 +4615,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                     padding: EdgeInsets.zero,
                                     elevation: 0,
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                   ),
                                   child: const Row(
@@ -3167,14 +4624,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                       TranslatedText(
                                         'Place Order',
                                         style: TextStyle(
-                                          fontSize: 14,
+                                          fontSize: 13,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      SizedBox(width: 8),
+                                      SizedBox(width: 6),
                                       Icon(
                                         Icons.arrow_forward_rounded,
-                                        size: 18,
+                                        size: 16,
                                       ),
                                     ],
                                   ),
@@ -3291,18 +4748,24 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         _currentPage = 1;
       });
 
+      final searchBody = <String, dynamic>{
+        "customer_user_id": customer_user_id ?? "",
+        "is_store": false,
+        "lat": _lat,
+        "lng": _lng,
+        "page": _currentPage,
+        "query": query,
+        "store_access": true,
+        "store_id": widget.storeId,
+      };
+      if ((customer_user_id == null || customer_user_id!.isEmpty) &&
+          _guestSessionId != null &&
+          _guestSessionId!.isNotEmpty) {
+        searchBody['guest_session_id'] = _guestSessionId!;
+      }
       final response = await ApiService.post(
         '/search-in-store/',
-        body: {
-          "customer_user_id": customer_user_id ?? "",
-          "is_store": false,
-          "lat": _lat,
-          "lng": _lng,
-          "page": _currentPage,
-          "query": query,
-          "store_access": true,
-          "store_id": widget.storeId,
-        },
+        body: searchBody,
         useBearerToken: true,
       );
 
@@ -3486,7 +4949,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
   }
 
-  // Customer Phone Bottom Sheet — Premium Redesign
+  // Customer Phone Bottom Sheet — Clean Design
   Future<void> _showCustomerPhoneDialog() async {
     final TextEditingController phoneController = TextEditingController();
     CountryCode selectedCountry = CountryCode.fromCountryCode('IN');
@@ -3507,13 +4970,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             return Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               padding: EdgeInsets.only(
-                bottom: bottomPadding + 24,
-                top: 24,
-                left: 28,
-                right: 28,
+                bottom: bottomPadding + 20,
+                top: 16,
+                left: 24,
+                right: 24,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -3532,24 +4995,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                   ),
                   const SizedBox(height: 24),
 
-                  // Hero icon
+                  // Clean icon
                   Center(
                     child: Container(
-                      width: 72,
-                      height: 72,
+                      width: 64,
+                      height: 64,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            primaryColor.withOpacity(0.15),
-                            primaryColor.withOpacity(0.05),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: primaryColor.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        Icons.person_outline_rounded,
+                        Icons.person_outline,
                         size: 32,
                         color: primaryColor,
                       ),
@@ -3557,15 +5013,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                   ),
                   const SizedBox(height: 20),
 
-                  // Title & subtitle
+                  // Clean title
                   const Center(
                     child: TranslatedText(
                       'Customer Details',
                       style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: -0.5,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1F2937),
                       ),
                     ),
                   ),
@@ -3573,31 +5028,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                   Center(
                     child: TranslatedText(
                       _posCustomerWorkflow == 'ask_at_checkout'
-                          ? 'Enter number to finalize the order'
-                          : 'Link customer for rewards & history',
-                      style: const TextStyle(
+                          ? 'Enter number to finalize order'
+                          : 'Link customer for rewards',
+                      style: TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[500],
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ),
                   const SizedBox(height: 28),
 
-                  // Phone input
+                  // Clean input field
                   Container(
-                    height: 60,
+                    height: 56,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFFE2E8F0),
+                        color: const Color(0xFFE5E7EB),
                         width: 1,
                       ),
                     ),
                     child: Row(
                       children: [
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 12),
                         CountryCodePicker(
                           onChanged: (CountryCode countryCode) {
                             setState(() => selectedCountry = countryCode);
@@ -3611,18 +5066,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           padding: EdgeInsets.zero,
                           textStyle: const TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF374151),
                           ),
                           boxDecoration: const BoxDecoration(
                             color: Colors.transparent,
                           ),
-                          flagWidth: 24,
+                          flagWidth: 22,
                         ),
                         Container(
                           width: 1,
                           height: 24,
-                          color: const Color(0xFFE2E8F0),
+                          color: const Color(0xFFE5E7EB),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -3630,23 +5085,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                             controller: phoneController,
                             keyboardType: TextInputType.phone,
                             style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                              color: Color(0xFF0F172A),
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF1F2937),
                             ),
                             decoration: const InputDecoration(
                               hintText: 'Phone number',
                               hintStyle: TextStyle(
-                                color: Color(0xFFCBD5E1),
-                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF9CA3AF),
+                                fontWeight: FontWeight.w400,
                                 fontSize: 16,
                               ),
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
-                              errorBorder: InputBorder.none,
-                              disabledBorder: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(
                                 horizontal: 4,
                                 vertical: 16,
@@ -3671,20 +5123,20 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                 phoneController.text = scannedCode;
                               }
                             },
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                             child: Container(
-                              width: 44,
-                              height: 44,
+                              width: 40,
+                              height: 40,
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: const Color(0xFFE2E8F0),
+                                  color: const Color(0xFFE5E7EB),
                                 ),
                               ),
-                              child: const Icon(
-                                Icons.qr_code_scanner_rounded,
-                                color: Color(0xFF64748B),
+                              child: Icon(
+                                Icons.qr_code_scanner,
+                                color: primaryColor,
                                 size: 20,
                               ),
                             ),
@@ -3694,92 +5146,107 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 16),
 
-                  // Primary action
+                  // Primary button - clean solid color
                   SizedBox(
-                    height: 54,
-                    child: ElevatedButton(
-                      onPressed: isLoading
-                          ? null
-                          : () async {
-                              final phone = phoneController.text.trim();
-                              if (phone.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: TranslatedText(
-                                      'Please enter a phone number',
-                                    ),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
-
-                              setState(() => isLoading = true);
-
-                              final countryCode =
-                                  selectedCountry.dialCode?.replaceAll(
-                                    '+',
-                                    '',
-                                  ) ??
-                                  '91';
-                              final fullPhoneNumber = '$countryCode$phone';
-
-                              try {
-                                bool found = await _fetchCustomerData(
-                                  fullPhoneNumber,
-                                );
-                                if (!found) {
-                                  await _addStoreCustomer(fullPhoneNumber);
-                                }
-                                if (mounted) Navigator.pop(context);
-                              } catch (e) {
-                                setState(() => isLoading = false);
-                                if (context.mounted) {
+                    height: 48,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor, primaryColor.withOpacity(0.8)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: isLoading
+                            ? null
+                            : () async {
+                                final phone = phoneController.text.trim();
+                                if (phone.isEmpty) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
+                                    const SnackBar(
                                       content: TranslatedText(
-                                        'Error: ${e.toString()}',
+                                        'Please enter a phone number',
                                       ),
                                       backgroundColor: Colors.red,
                                     ),
                                   );
+                                  return;
                                 }
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+
+                                setState(() => isLoading = true);
+
+                                final countryCode =
+                                    selectedCountry.dialCode?.replaceAll(
+                                      '+',
+                                      '',
+                                    ) ??
+                                    '91';
+                                final fullPhoneNumber = '$countryCode$phone';
+
+                                try {
+                                  bool found = await _fetchCustomerData(
+                                    fullPhoneNumber,
+                                  );
+                                  if (!found) {
+                                    await _addStoreCustomer(fullPhoneNumber);
+                                  }
+                                  if (mounted) Navigator.pop(context);
+                                } catch (e) {
+                                  setState(() => isLoading = false);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: TranslatedText(
+                                          'Error: ${e.toString()}',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  TranslatedText(
+                                    'Continue',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward_rounded, size: 20),
+                                ],
+                              ),
                       ),
-                      child: isLoading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : const TranslatedText(
-                              'Continue',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
                     ),
                   ),
                   const SizedBox(height: 12),
 
-                  // Secondary action — Continue as Guest
+                  // Modern secondary action with glass effect
                   SizedBox(
-                    height: 48,
+                    height: 50,
                     child: TextButton(
                       onPressed: isLoading
                           ? null
@@ -3810,18 +5277,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       style: TextButton.styleFrom(
                         foregroundColor: const Color(0xFF64748B),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
                         ),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
                       ),
-                      child: const TranslatedText(
-                        'Continue as Guest',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.person_off_outlined,
+                            size: 18,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 8),
+                          const TranslatedText(
+                            'Continue as Guest',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                  const SizedBox(height: 8),
                 ],
               ),
             );
@@ -4819,6 +6299,55 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   ),
                                   child: const Icon(
                                     Icons.print_outlined,
+                                    color: Colors.blueGrey,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Customer Workflow Button (desktop only)
+                        SizedBox(
+                          width: 70,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TranslatedText(
+                                'WORKFLOW',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.blueGrey[400],
+                                  letterSpacing: 1.2,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: _showCustomerWorkflowDialog,
+                                borderRadius: BorderRadius.circular(30),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.blueGrey.withOpacity(0.1),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.toggle_on_rounded,
                                     color: Colors.blueGrey,
                                     size: 24,
                                   ),
@@ -6226,57 +7755,52 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             ),
           ),
         ),
-        // Panel content
+        // Panel content - Floating premium look
         Container(
           width: width,
+          margin: const EdgeInsets.only(right: 12, top: 12, bottom: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFF5F7FA),
-            border: Border(
-              left: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-            ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
+          clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
-              // Premium Header
+              // Premium Header - Clean like reference images
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+                  horizontal: 16,
+                  vertical: 14,
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey[100]!, width: 1),
-                  ),
-                ),
+                decoration: const BoxDecoration(color: Colors.white),
                 child: Row(
                   children: [
-                    Container(
-                      width: 4,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: theme.primaryColor,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     const TranslatedText(
                       'Order Summary',
                       style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A2E),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
                         letterSpacing: -0.3,
                       ),
                     ),
                     const Spacer(),
+                    // Item count badge
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 4,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: theme.primaryColor.withOpacity(0.08),
+                        color: theme.primaryColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -6287,7 +7811,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                             size: 12,
                             color: theme.primaryColor,
                           ),
-                          const SizedBox(width: 5),
+                          const SizedBox(width: 4),
                           Text(
                             '$_totalProductsInCart',
                             style: TextStyle(
@@ -6305,7 +7829,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
               // Cart Items
               Expanded(
-                child: _cartItemsAvailable.isEmpty
+                child:
+                    (_cartItemsAvailable.isEmpty &&
+                        _cartItemsUnavailable.isEmpty)
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -6345,10 +7871,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       )
                     : ListView.separated(
                         padding: const EdgeInsets.all(14),
-                        itemCount: _cartItemsAvailable.length,
+                        itemCount:
+                            _cartItemsAvailable.length +
+                            _cartItemsUnavailable.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
-                          final item = _cartItemsAvailable[index];
+                          final bool isAvailable =
+                              index < _cartItemsAvailable.length;
+                          final item = isAvailable
+                              ? _cartItemsAvailable[index]
+                              : _cartItemsUnavailable[index -
+                                    _cartItemsAvailable.length];
                           final pricing = item['pricing_details'] ?? {};
                           final quantity =
                               item['enquired_quantity'] ??
@@ -6359,33 +7892,50 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                               item['image'] ??
                               item['img_url'];
 
+                          // Extract variant info if available
+                          final variantInfo = item['variant_info'] ?? {};
+                          final attributes = variantInfo['attributes'] ?? [];
+                          String modifiersText = '';
+                          if (attributes.isNotEmpty) {
+                            modifiersText = attributes
+                                .map((a) => '${a['name']}: ${a['value']}')
+                                .join(' • ');
+                          }
+
                           return Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: isAvailable
+                                  ? Colors.white
+                                  : const Color(0xFFFFF7F7),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: const Color(0xFFE2E8F0),
+                                color: isAvailable
+                                    ? const Color(0xFFE2E8F0)
+                                    : const Color(0xFFFCA5A5),
                                 width: 1,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
+                                  color: Colors.black.withOpacity(0.02),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                // Product Image
+                                // Product Image - Larger like reference
                                 Container(
-                                  width: 40,
-                                  height: 40,
+                                  width: 56,
+                                  height: 56,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF5F6F8),
+                                    color: const Color(0xFFF8FAFC),
                                     borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   clipBehavior: Clip.antiAlias,
                                   child: productImg != null
@@ -6393,37 +7943,57 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                           imgUrl: productImg,
                                           fit: BoxFit.cover,
                                         )
-                                      : const Icon(
+                                      : Icon(
                                           Icons.image_not_supported_outlined,
-                                          color: Colors.grey,
-                                          size: 18,
+                                          color: Colors.grey[400],
+                                          size: 24,
                                         ),
                                 ),
                                 const SizedBox(width: 12),
 
-                                // Details
+                                // Details Column
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      TranslatedText(
-                                        item['product_name'] ?? '',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                          color: Color(0xFF1A1A2E),
-                                          height: 1.3,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      // Discount badge
-                                      if ((pricing['discount_percent'] ?? 0) >
-                                          0) ...[
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
+                                      // Product Name with Quantity inline
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: RichText(
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              text: TextSpan(
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14,
+                                                  color: isAvailable
+                                                      ? const Color(0xFF1E293B)
+                                                      : const Color(0xFFB91C1C),
+                                                  height: 1.3,
+                                                ),
+                                                children: [
+                                                  TextSpan(
+                                                    text:
+                                                        item['product_name'] ??
+                                                        '',
+                                                  ),
+                                                  TextSpan(
+                                                    text: '  ($quantity)',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color: Colors.grey[500],
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          if (!isAvailable) ...[
+                                            const SizedBox(width: 6),
                                             Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -6431,167 +8001,264 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                     vertical: 2,
                                                   ),
                                               decoration: BoxDecoration(
-                                                color: const Color(
-                                                  0xFF5B4FE8,
-                                                ).withOpacity(0.1),
+                                                color: const Color(0xFFFEE2E2),
                                                 borderRadius:
                                                     BorderRadius.circular(4),
                                               ),
-                                              child: Text(
-                                                '${pricing['discount_percent'].toStringAsFixed(0)}% OFF',
-                                                style: const TextStyle(
-                                                  color: Color(0xFF5B4FE8),
-                                                  fontSize: 9,
+                                              child: const Text(
+                                                'Unavailable',
+                                                style: TextStyle(
+                                                  color: Color(0xFFB91C1C),
+                                                  fontSize: 8,
                                                   fontWeight: FontWeight.w700,
                                                 ),
                                               ),
                                             ),
-                                            const SizedBox(width: 5),
+                                          ],
+                                        ],
+                                      ),
+
+                                      // Modifiers/Attributes if any
+                                      if (modifiersText.isNotEmpty) ...[
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          modifiersText,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[500],
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+
+                                      const SizedBox(height: 6),
+
+                                      // Price Row with Discount
+                                      Row(
+                                        children: [
+                                          Text(
+                                            '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 15,
+                                              color: theme.primaryColor,
+                                            ),
+                                          ),
+                                          if ((pricing['discount_percent'] ??
+                                                  0) >
+                                              0) ...[
+                                            const SizedBox(width: 6),
                                             Text(
                                               '₹${(pricing['original_sale_price_excl_tax']?.toDouble() ?? pricing['selling_amount_excluding_tax']?.toDouble() ?? 0).toStringAsFixed(2)}',
                                               style: TextStyle(
                                                 color: Colors.grey[400],
-                                                fontSize: 10,
+                                                fontSize: 11,
                                                 decoration:
                                                     TextDecoration.lineThrough,
                                               ),
                                             ),
                                           ],
-                                        ),
-                                      ],
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13,
-                                              color: theme.primaryColor,
-                                            ),
-                                          ),
-                                          // Discount + Quantity
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              // Discount button
-                                              InkWell(
-                                                onTap: () {
-                                                  _showDiscountDialog(
-                                                    item['product_in_cart_id']
-                                                            ?.toString() ??
-                                                        '',
-                                                    (pricing['max_discount_percent']
-                                                                ?.toDouble() ??
-                                                            0)
-                                                        .toDouble(),
-                                                    (pricing['discount_percent']
-                                                                ?.toDouble() ??
-                                                            0)
-                                                        .toDouble(),
-                                                    () => setState(() {}),
-                                                  );
-                                                },
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                child: Container(
-                                                  width: 26,
-                                                  height: 26,
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        (pricing['discount_percent'] ??
-                                                                0) >
-                                                            0
-                                                        ? const Color(
-                                                            0xFF5B4FE8,
-                                                          ).withOpacity(0.1)
-                                                        : const Color(
-                                                            0xFFF5F6F8,
-                                                          ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  child: Icon(
-                                                    Icons.local_offer_outlined,
-                                                    size: 14,
-                                                    color:
-                                                        (pricing['discount_percent'] ??
-                                                                0) >
-                                                            0
-                                                        ? const Color(
-                                                            0xFF5B4FE8,
-                                                          )
-                                                        : Colors.grey[500],
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              // Quantity controls
-                                              Container(
-                                                height: 26,
-                                                decoration: BoxDecoration(
-                                                  color: const Color(
-                                                    0xFFF5F6F8,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    _buildQtyBtn(
-                                                      Icons.remove,
-                                                      () async {
-                                                        await _decrementCartItem(
-                                                          item['product_combination_id'] ??
-                                                              '',
-                                                          item['product_id'] ??
-                                                              '',
-                                                        );
-                                                      },
-                                                    ),
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                          ),
-                                                      child: Text(
-                                                        '$quantity',
-                                                        style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          fontSize: 12,
-                                                          color: Color(
-                                                            0xFF1A1A2E,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    _buildQtyBtn(
-                                                      Icons.add,
-                                                      () async {
-                                                        await _incrementCartItem(
-                                                          item['product_combination_id'] ??
-                                                              '',
-                                                          item['product_id'] ??
-                                                              '',
-                                                        );
-                                                      },
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
                                         ],
                                       ),
                                     ],
                                   ),
+                                ),
+
+                                const SizedBox(width: 10),
+
+                                // Right Side: Actions + Quantity
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Action Icons Row (Edit, Delete)
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        // Discount Button
+                                        InkWell(
+                                          onTap: () {
+                                            _showDiscountDialog(
+                                              item['product_in_cart_id']
+                                                      ?.toString() ??
+                                                  '',
+                                              (pricing['max_discount_percent']
+                                                          ?.toDouble() ??
+                                                      0)
+                                                  .toDouble(),
+                                              (pricing['discount_percent']
+                                                          ?.toDouble() ??
+                                                      0)
+                                                  .toDouble(),
+                                              () => setState(() {}),
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          child: Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  (pricing['discount_percent'] ??
+                                                          0) >
+                                                      0
+                                                  ? const Color(
+                                                      0xFF5B4FE8,
+                                                    ).withOpacity(0.1)
+                                                  : const Color(0xFFF1F5F9),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.local_offer_outlined,
+                                              size: 12,
+                                              color:
+                                                  (pricing['discount_percent'] ??
+                                                          0) >
+                                                      0
+                                                  ? const Color(0xFF5B4FE8)
+                                                  : Colors.grey[500],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        // Edit Button
+                                        InkWell(
+                                          onTap: () {
+                                            _showEditCartItemDialog(
+                                              item,
+                                              () => setState(() {}),
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          child: Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF1F5F9),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.edit_outlined,
+                                              size: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        // Delete Button
+                                        InkWell(
+                                          onTap: () async {
+                                            await _confirmAndDeleteCartItem(
+                                              item,
+                                              () => setState(() {}),
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          child: Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFFEE2E2),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: const Icon(
+                                              Icons.delete_outline,
+                                              size: 12,
+                                              color: Color(0xFFB91C1C),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 8),
+
+                                    // Quantity Controls
+                                    Container(
+                                      height: 28,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: const Color(0xFFE2E8F0),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          // Minus
+                                          InkWell(
+                                            onTap: () async {
+                                              await _decrementCartItem(
+                                                item['product_combination_id'] ??
+                                                    '',
+                                                item['product_id'] ?? '',
+                                              );
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Container(
+                                              width: 26,
+                                              height: 26,
+                                              child: Icon(
+                                                Icons.remove,
+                                                size: 14,
+                                                color: Colors.grey[700],
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            width: 28,
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              '$quantity',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13,
+                                                color: Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                          ),
+                                          // Plus
+                                          InkWell(
+                                            onTap: isAvailable
+                                                ? () async {
+                                                    await _incrementCartItem(
+                                                      item['product_combination_id'] ??
+                                                          '',
+                                                      item['product_id'] ?? '',
+                                                    );
+                                                  }
+                                                : null,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Container(
+                                              width: 26,
+                                              height: 26,
+                                              child: Icon(
+                                                Icons.add,
+                                                size: 14,
+                                                color: isAvailable
+                                                    ? theme.primaryColor
+                                                    : Colors.grey[400],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -6600,10 +8267,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       ),
               ),
 
-              // Bottom controls — unified card
+              // Bottom controls — Premium Design
               if (_cartItemsAvailable.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border(
@@ -6611,439 +8278,214 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 16,
-                        offset: const Offset(0, -6),
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 12,
+                        offset: const Offset(0, -4),
                       ),
                     ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (_posOptionsLayout == 'dropdown') ...[
-                        // Dropdown style rows
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Column(
-                            children: [
-                              // Order Type
-                              InkWell(
-                                onTap: () async {
-                                  await _showOrderMethodSelection();
-                                  setState(() {});
-                                },
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(12),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.shade50,
-                                          borderRadius: BorderRadius.circular(
-                                            7,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.room_service_outlined,
-                                          size: 15,
-                                          color: Colors.orange.shade700,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'Order Type',
-                                              style: TextStyle(
-                                                color: Colors.black45,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                            TranslatedText(
-                                              _selectedOrderMethod?['order_method_name'] ??
-                                                  'Select Type',
-                                              style: TextStyle(
-                                                color: Colors.orange.shade800,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Icon(
-                                        Icons.keyboard_arrow_right,
-                                        size: 16,
-                                        color: Colors.grey[400],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              // Table Selector
-                              InkWell(
-                                onTap: () => _showTableSelectionSheet(
-                                  (fn) => setState(fn),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: BoxDecoration(
-                                          color: _selectedTable != null
-                                              ? const Color(
-                                                  0xFF5B4FE8,
-                                                ).withOpacity(0.08)
-                                              : const Color(0xFFF1F5F9),
-                                          borderRadius: BorderRadius.circular(
-                                            7,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.table_restaurant_outlined,
-                                          size: 15,
-                                          color: _selectedTable != null
-                                              ? const Color(0xFF5B4FE8)
-                                              : Colors.grey[400],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: _selectedTable != null
-                                            ? Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  const Text(
-                                                    'Table',
-                                                    style: TextStyle(
-                                                      color: Colors.black45,
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    _selectedTable!['table_number']
-                                                            ?.toString() ??
-                                                        '',
-                                                    style: const TextStyle(
-                                                      color: Color(0xFF5B4FE8),
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ],
-                                              )
-                                            : Text(
-                                                'Select Table',
-                                                style: TextStyle(
-                                                  color: Colors.grey[500],
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                      ),
-                                      if (_selectedTable != null)
-                                        GestureDetector(
-                                          onTap: () => setState(
-                                            () => _selectedTable = null,
-                                          ),
-                                          child: Icon(
-                                            Icons.close_rounded,
-                                            size: 14,
-                                            color: Colors.grey[400],
-                                          ),
-                                        )
-                                      else
-                                        Icon(
-                                          Icons.keyboard_arrow_right,
-                                          size: 16,
-                                          color: Colors.grey[400],
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              // Payment Method
-                              InkWell(
-                                onTap: () {
-                                  _showPaymentModeSelector(
-                                    (fn) => setState(fn),
-                                  );
-                                },
-                                borderRadius: const BorderRadius.vertical(
-                                  bottom: Radius.circular(12),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFF1F5F9),
-                                          borderRadius: BorderRadius.circular(
-                                            7,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.payments_outlined,
-                                          size: 15,
-                                          color: theme.primaryColor,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'Payment',
-                                              style: TextStyle(
-                                                color: Colors.black45,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                            Text(
-                                              _selectedPaymentMode == 'UNPAID'
-                                                  ? 'Unpaid'
-                                                  : _selectedPaymentMode ==
-                                                        'MULTI-MODE'
-                                                  ? 'Split Payment'
-                                                  : (_bankDetails.firstWhere(
-                                                              (b) =>
-                                                                  b['id']
-                                                                      .toString() ==
-                                                                  _selectedPaymentMode,
-                                                              orElse: () => {
-                                                                'bank_name':
-                                                                    'Paid',
-                                                              },
-                                                            )['bank_name'] ??
-                                                            'Paid')
-                                                        .toString(),
-                                              style: TextStyle(
-                                                color: theme.primaryColor,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Icon(
-                                        Icons.keyboard_arrow_right,
-                                        size: 16,
-                                        color: Colors.grey[400],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        // Inline chips style
-                        // Order Type
-                        _buildInlineOptionLabel('Order Type'),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _orderMethods.map((method) {
-                            final isSelected =
-                                _selectedOrderMethod?['id'] == method['id'];
-                            return _buildOptionChip(
-                              label:
-                                  method['order_method_name']?.toString() ?? '',
-                              isSelected: isSelected,
-                              onTap: () =>
-                                  setState(() => _selectedOrderMethod = method),
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Table
-                        _buildInlineOptionLabel('Table'),
-                        if (_isTablesLoading)
-                          const SizedBox(
-                            height: 32,
-                            child: Center(
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _buildOptionChip(
-                                label: 'None',
-                                isSelected: _selectedTable == null,
-                                onTap: () =>
-                                    setState(() => _selectedTable = null),
-                              ),
-                              ..._availableTables.map((table) {
-                                final isSelected =
-                                    _selectedTable?['id'] == table['id'];
-                                return _buildOptionChip(
-                                  label:
-                                      'T${table['table_number']?.toString() ?? ''}',
-                                  isSelected: isSelected,
-                                  onTap: () =>
-                                      setState(() => _selectedTable = table),
-                                );
-                              }),
-                            ],
-                          ),
-                        const SizedBox(height: 12),
-
-                        // Payment
-                        _buildInlineOptionLabel('Payment'),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _buildOptionChip(
-                              label: 'Unpaid',
-                              isSelected: _selectedPaymentMode == 'UNPAID',
-                              onTap: () => setState(
-                                () => _selectedPaymentMode = 'UNPAID',
-                              ),
-                            ),
-                            _buildOptionChip(
-                              label: 'Split',
-                              isSelected: _selectedPaymentMode == 'MULTI-MODE',
-                              onTap: () {
-                                setState(
-                                  () => _selectedPaymentMode = 'MULTI-MODE',
-                                );
-                                _showMultiModeDialog((fn) => setState(fn));
-                              },
-                            ),
-                            ..._bankDetails.map((bank) {
-                              final bankId = bank['id'].toString();
-                              final isSelected = _selectedPaymentMode == bankId;
-                              return _buildOptionChip(
-                                label:
-                                    bank['bank_name']?.toString() ??
-                                    bank['account_holder_name']?.toString() ??
-                                    'Bank',
-                                isSelected: isSelected,
-                                onTap: () => setState(
-                                  () => _selectedPaymentMode = bankId,
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 14),
-
-                      // Total & Place Order
+                      // Parent collapsible section for all order options
                       Container(
-                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A2E),
-                          borderRadius: BorderRadius.circular(14),
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Total Amount',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.white70,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '₹${_grandTotal.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                ],
+                            // Header with toggle
+                            InkWell(
+                              onTap: () => setState(
+                                () => _optionsSectionExpanded =
+                                    !_optionsSectionExpanded,
                               ),
-                            ),
-                            SizedBox(
-                              height: 44,
-                              child: ElevatedButton(
-                                onPressed: () => _reviewOrder(),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF059669),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                  ),
+                              borderRadius: BorderRadius.vertical(
+                                top: const Radius.circular(10),
+                                bottom: _optionsSectionExpanded
+                                    ? Radius.zero
+                                    : const Radius.circular(10),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
                                 ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
+                                child: Row(
                                   children: [
-                                    Text(
-                                      'Place Order',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
+                                    Icon(
+                                      Icons.tune_outlined,
+                                      size: 16,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Order Options',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey[800],
+                                        ),
                                       ),
                                     ),
-                                    SizedBox(width: 6),
-                                    Icon(Icons.arrow_forward_rounded, size: 16),
+                                    // Show mini summary when collapsed
+                                    if (!_optionsSectionExpanded) ...[
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFE0E7FF),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _selectedOrderMethod?['order_method_name']
+                                                  ?.toString() ??
+                                              'Select Type',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF4338CA),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      if (_selectedTable != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE0E7FF),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'T${_selectedTable!['table_number']?.toString() ?? ''}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF4338CA),
+                                            ),
+                                          ),
+                                        ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _getPaymentColor().withOpacity(
+                                            0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _getPaymentLabel(),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                            color: _getPaymentColor(),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    Icon(
+                                      _optionsSectionExpanded
+                                          ? Icons.keyboard_arrow_up
+                                          : Icons.keyboard_arrow_down,
+                                      size: 18,
+                                      color: Colors.grey[400],
+                                    ),
                                   ],
                                 ),
                               ),
                             ),
+                            // Expanded content - Order Options
+                            if (_optionsSectionExpanded)
+                              Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                ),
+                                padding: const EdgeInsets.all(10),
+                                child: _posOptionsLayout == 'inline'
+                                    ? _buildInlineOptions()
+                                    : _buildDropdownOptions(),
+                              ),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Simple Total & Place Order
+                      Row(
+                        children: [
+                          // Total Price
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Total Amount',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                                Text(
+                                  '₹${_grandTotal.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: theme.primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Place Order Button
+                          SizedBox(
+                            height: 44,
+                            child: ElevatedButton(
+                              onPressed: () => _reviewOrder(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0F172A),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                              ),
+                              child: const Text(
+                                'Place Order',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -7086,18 +8528,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     double cardAspectRatio;
     if (_isTextOnlyMode) {
       // Compact text-only card: 2-line name + price chip + add button.
-      // pad*2 (12) + name 2 lines (~30) + gap (6) + price chip (~22) + gap (6) + btn (28) ≈ 104px
+      // pad*2 (10) + name 2 lines (~28) + gap (4) + price chip (~20) + gap (4) + btn (26) ≈ 92px
       // Keep height fixed regardless of width so wide cards don't stretch tall.
-      const targetHeight = 110.0;
+      const targetHeight = 100.0;
       cardAspectRatio = cardWidth / targetHeight;
     } else if (crossAxisCount == 1) {
-      final targetHeight = isDesktop ? 360 : (isTablet ? 320 : 280);
+      final targetHeight = isDesktop ? 360 : (isTablet ? 260 : 240);
       cardAspectRatio = cardWidth / targetHeight;
     } else if (crossAxisCount == 2) {
-      final targetHeight = isDesktop ? 320 : (isTablet ? 280 : 250);
+      final targetHeight = isDesktop ? 320 : (isTablet ? 220 : 205);
       cardAspectRatio = cardWidth / targetHeight;
     } else {
-      final targetHeight = isDesktop ? 280 : (isTablet ? 250 : 200);
+      final targetHeight = isDesktop ? 280 : (isTablet ? 195 : 175);
       cardAspectRatio = cardWidth / targetHeight;
     }
 
@@ -7283,13 +8725,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               builder: (context, constraints) {
                 final h = constraints.maxHeight;
                 final w = constraints.maxWidth;
-                final pad = h < 90 ? 6.0 : (h < 120 ? 8.0 : 10.0);
-                final btnH = h < 90 ? 24.0 : (h < 120 ? 26.0 : 30.0);
+                final pad = h < 90 ? 5.0 : (h < 120 ? 6.0 : 8.0);
+                final btnH = h < 90 ? 22.0 : (h < 120 ? 24.0 : 28.0);
                 final nameFontSize = w < 100 ? 11.0 : 12.0;
                 final priceFontSize = w < 100 ? 10.0 : 11.0;
-                final priceChipH = priceFontSize * 1.4 + 6;
-                final gapPriceToBtn = h < 100 ? 4.0 : 6.0;
-                final gapNameToPrice = h < 100 ? 4.0 : 6.0;
+                final priceChipH = priceFontSize * 1.4 + 4;
+                final gapPriceToBtn = h < 100 ? 3.0 : 5.0;
+                final gapNameToPrice = h < 100 ? 3.0 : 5.0;
 
                 final nameLineHeight = 1.25;
                 final nameTwoLineH = nameFontSize * nameLineHeight * 2;
@@ -7395,16 +8837,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               final w = constraints.maxWidth;
 
               // Bottom section sizing — adaptive to card height
-              final bottomPad = math.min(14.0, math.max(6.0, h * 0.05));
-              final gap = math.min(8.0, math.max(2.0, h * 0.025));
-              final btnH = math.min(32.0, math.max(22.0, h * 0.14));
-              final nameH = math.min(32.0, math.max(16.0, h * 0.14));
+              final topPad = math.min(5.0, math.max(3.0, h * 0.015));
+              final bottomPad = math.min(5.0, math.max(3.0, h * 0.015));
+              final gap = math.min(5.0, math.max(2.0, h * 0.015));
+              final btnH = math.min(28.0, math.max(20.0, h * 0.12));
+              final nameH = math.min(28.0, math.max(14.0, h * 0.12));
               final bottomNeed =
-                  bottomPad + nameH + gap + btnH + 1; // +1 for separator
+                  topPad +
+                  bottomPad +
+                  nameH +
+                  gap +
+                  btnH +
+                  1; // +1 for separator
 
-              // Image gets the rest, but at least 25% of card
-              final imageH = math.max(h * 0.25, h - bottomNeed);
-              final actualBottomH = h - imageH - 1;
+              // Image gets the rest, but at least 30% of card
+              final imageH = math.max(h * 0.30, h - bottomNeed);
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -7505,7 +8952,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
                   // Product Details (Name + Button)
                   Container(
-                    height: actualBottomH,
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.vertical(
@@ -7514,13 +8960,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     ),
                     padding: EdgeInsets.fromLTRB(
                       math.min(6, w * 0.03),
-                      math.min(6, h * 0.02),
+                      topPad,
                       math.min(6, w * 0.03),
-                      math.min(8, h * 0.03),
+                      bottomPad,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         // Name
                         SizedBox(
@@ -8180,6 +9626,71 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showCustomerWorkflowDialog();
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF5B4FE8).withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.toggle_on_rounded,
+                            size: 20,
+                            color: Color(0xFF5B4FE8),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Customer Workflow',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'When to ask for customer details',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_right,
+                          size: 20,
+                          color: Colors.grey[400],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -8769,33 +10280,82 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     });
   }
 
-  void _showPrintSettingsDialog() {
-    showDialog(
+  Future<void> _showPrintSettingsDialog() async {
+    await showDialog(
       context: context,
       builder: (ctx) {
+        String? connectionType;
+        String? printerName;
+        double? paperSize;
+        String autoPrintMode = PrintSettingsService.modeAsk;
+        int copiesKitchen = 1;
+        int copiesReceipt = 1;
+        bool isLoading = true;
+
+        Future<void> load(StateSetter setDlg) async {
+          final connType = await InvoicePrintService.getSavedConnectionType();
+          String? pName = await InvoicePrintService.getSavedPrinterName();
+          double? pSize = await InvoicePrintService.getSavedPaperSize();
+
+          if (connType == InvoicePrintService.connectionBluetooth) {
+            final btAvailable =
+                await BluetoothPrintService.isBluetoothAvailable();
+            if (!btAvailable) {
+              pName = null;
+            } else {
+              final btConnected = await BluetoothPrintService.isConnected();
+              final savedName =
+                  await BluetoothPrintService.getSavedPrinterName();
+              if (btConnected && savedName != null) {
+                pName = savedName;
+              } else if (savedName != null) {
+                pName = '$savedName (Disconnected)';
+              } else {
+                pName = null;
+              }
+            }
+          } else if (connType == InvoicePrintService.connectionWifi ||
+              connType == InvoicePrintService.connectionWired) {
+            if (!InvoicePrintService.isDesktop) {
+              pName = 'System Print Dialog';
+            }
+          }
+
+          connectionType = connType;
+          printerName = pName;
+          paperSize = pSize;
+          autoPrintMode = await PrintSettingsService.getAutoPrintMode();
+          copiesKitchen = await PrintSettingsService.getCopiesKitchen();
+          copiesReceipt = await PrintSettingsService.getCopiesReceipt();
+          setDlg(() => isLoading = false);
+        }
+
         return StatefulBuilder(
           builder: (ctx, setDlg) {
-            String? connectionType;
-            String? printerName;
-            double? paperSize;
-
-            Future<void> load() async {
-              connectionType =
-                  await InvoicePrintService.getSavedConnectionType();
-              printerName = await InvoicePrintService.getSavedPrinterName();
-              paperSize = await InvoicePrintService.getSavedPaperSize();
-              if (printerName == null && InvoicePrintService.isDesktop) {
-                printerName = await BluetoothPrintService.getSavedPrinterName();
-              }
-              setDlg(() {});
+            if (isLoading) {
+              load(setDlg);
+              return Dialog(
+                backgroundColor: Colors.white,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: 400, maxHeight: 300),
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
+              );
             }
 
-            if (connectionType == null) load();
+            final paperSizeLabel = paperSize != null
+                ? InvoicePrintService.getPaperSizeLabel(paperSize!)
+                : 'Not set';
+            final connLabel = connectionType != null
+                ? InvoicePrintService.getConnectionTypeLabel(connectionType!)
+                : 'Not set';
+
+            final primary = Theme.of(context).primaryColor;
 
             return Dialog(
-              backgroundColor: Colors.white,
+              backgroundColor: const Color(0xFFF7F8FA),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
               insetPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
@@ -8805,99 +10365,953 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                 constraints: const BoxConstraints(maxWidth: 400),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.print_outlined,
-                              color: Color(0xFF10B981),
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Text(
-                              'Print Settings',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF1A1A2E),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.print_outlined,
+                                color: primary,
+                                size: 24,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      if (connectionType != null) ...[
-                        Text(
-                          'Connection: $connectionType',
-                          style: const TextStyle(fontSize: 14),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Text(
+                                'Print Settings',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1F2937),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        if (printerName != null)
-                          Text(
-                            'Printer: $printerName',
-                            style: const TextStyle(fontSize: 14),
+                        const SizedBox(height: 20),
+
+                        // Printer Settings Section
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
-                        if (paperSize != null)
-                          Text(
-                            'Paper: ${paperSize}mm',
-                            style: const TextStyle(fontSize: 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: primary.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.print_rounded,
+                                      size: 16,
+                                      color: primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Printer Settings',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13.5,
+                                            color: Color(0xFF1F2937),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          'Connection, printer & paper size',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              _buildSettingRow(
+                                icon: connectionType != null
+                                    ? InvoicePrintService.getConnectionTypeIcon(
+                                        connectionType!,
+                                      )
+                                    : Icons.settings_ethernet_rounded,
+                                iconColor: connectionType != null
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFFEF4444),
+                                label: 'Connection',
+                                value: connLabel,
+                                onTap: () async {
+                                  final selected = await showDialog<String>(
+                                    context: ctx,
+                                    builder: (dialogCtx) => Dialog(
+                                      backgroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      insetPadding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 24,
+                                      ),
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 400,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Padding(
+                                              padding: EdgeInsets.fromLTRB(
+                                                20,
+                                                20,
+                                                20,
+                                                10,
+                                              ),
+                                              child: Text(
+                                                'How is your printer connected?',
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 8,
+                                                  ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  _buildConnectionOptionForSettings(
+                                                    dialogCtx,
+                                                    InvoicePrintService
+                                                        .connectionBluetooth,
+                                                    Icons.bluetooth_rounded,
+                                                    'Bluetooth',
+                                                    connectionType,
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  _buildConnectionOptionForSettings(
+                                                    dialogCtx,
+                                                    InvoicePrintService
+                                                        .connectionWifi,
+                                                    Icons.wifi_rounded,
+                                                    'WiFi / Network',
+                                                    connectionType,
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  _buildConnectionOptionForSettings(
+                                                    dialogCtx,
+                                                    InvoicePrintService
+                                                        .connectionWired,
+                                                    Icons.usb_rounded,
+                                                    'Wired (USB)',
+                                                    connectionType,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                  if (selected != null) {
+                                    await InvoicePrintService.saveConnectionType(
+                                      selected,
+                                    );
+                                    if (selected ==
+                                        InvoicePrintService
+                                            .connectionBluetooth) {
+                                      if (InvoicePrintService.isDesktop) {
+                                        final goToPick = await showDialog<bool>(
+                                          context: ctx,
+                                          builder: (dialogCtx) => Dialog(
+                                            backgroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            insetPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 20,
+                                                  vertical: 24,
+                                                ),
+                                            child: ConstrainedBox(
+                                              constraints: const BoxConstraints(
+                                                maxWidth: 400,
+                                              ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Padding(
+                                                    padding:
+                                                        EdgeInsets.fromLTRB(
+                                                          20,
+                                                          20,
+                                                          20,
+                                                          10,
+                                                        ),
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons
+                                                              .info_outline_rounded,
+                                                          color: Color(
+                                                            0xFF3B82F6,
+                                                          ),
+                                                          size: 28,
+                                                        ),
+                                                        SizedBox(width: 10),
+                                                        Expanded(
+                                                          child: Text(
+                                                            'Bluetooth on Desktop',
+                                                            style: TextStyle(
+                                                              fontSize: 18,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  const Padding(
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                          horizontal: 20,
+                                                          vertical: 8,
+                                                        ),
+                                                    child: Text(
+                                                      'To use a Bluetooth printer on Windows:\n\n'
+                                                      '1. Go to Windows Settings > Bluetooth & devices\n'
+                                                      '2. Pair your thermal printer\n'
+                                                      '3. Go to Settings > Printers & scanners\n'
+                                                      '4. Add the paired printer\n\n'
+                                                      'Once added, tap "Select Printer" below to pick it.',
+                                                      style: TextStyle(
+                                                        fontSize: 14,
+                                                        color: Color(
+                                                          0xFF475569,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          16,
+                                                        ),
+                                                    child: Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment.end,
+                                                      children: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                dialogCtx,
+                                                                false,
+                                                              ),
+                                                          child: const Text(
+                                                            'Later',
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        ElevatedButton(
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                const Color(
+                                                                  0xFF3B82F6,
+                                                                ),
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                            shape: RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    10,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                dialogCtx,
+                                                                true,
+                                                              ),
+                                                          child: const Text(
+                                                            'Select Printer',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                        if (goToPick == true) {
+                                          await InvoicePrintService.showPrinterPickerDialog(
+                                            ctx,
+                                          );
+                                        }
+                                      } else {
+                                        await BluetoothPrintService.showPrinterPickerDialog(
+                                          ctx,
+                                        );
+                                      }
+                                    } else if (selected ==
+                                            InvoicePrintService
+                                                .connectionWifi ||
+                                        selected ==
+                                            InvoicePrintService
+                                                .connectionWired) {
+                                      if (InvoicePrintService.isDesktop) {
+                                        await InvoicePrintService.showPrinterPickerDialog(
+                                          ctx,
+                                        );
+                                      } else {
+                                        BluetoothPrintService.showTopRightNotification(
+                                          ctx,
+                                          message:
+                                              '${InvoicePrintService.getConnectionTypeLabel(selected)} selected!',
+                                          detail:
+                                              'System will find printer automatically on print.',
+                                          icon: Icons.check_circle_rounded,
+                                          backgroundColor: const Color(
+                                            0xFF10B981,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                    load(setDlg);
+                                  }
+                                },
+                              ),
+                              const Divider(
+                                height: 1,
+                                color: Color(0xFFF1F5F9),
+                              ),
+                              _buildSettingRow(
+                                icon: Icons.print_rounded,
+                                iconColor: printerName != null
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFFEF4444),
+                                label: 'Printer',
+                                value: printerName ?? 'Not set',
+                                onTap: () async {
+                                  if (connectionType ==
+                                      InvoicePrintService.connectionBluetooth) {
+                                    if (InvoicePrintService.isDesktop) {
+                                      await InvoicePrintService.showPrinterPickerDialog(
+                                        ctx,
+                                      );
+                                    } else {
+                                      await BluetoothPrintService.showPrinterPickerDialog(
+                                        ctx,
+                                      );
+                                    }
+                                  } else if (connectionType != null) {
+                                    await InvoicePrintService.showPrinterPickerDialog(
+                                      ctx,
+                                    );
+                                  } else {
+                                    final shouldSetup = await showDialog<bool>(
+                                      context: ctx,
+                                      builder: (dialogCtx) => Dialog(
+                                        backgroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        insetPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 20,
+                                              vertical: 24,
+                                            ),
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 400,
+                                          ),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Padding(
+                                                padding: EdgeInsets.fromLTRB(
+                                                  20,
+                                                  20,
+                                                  20,
+                                                  10,
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.settings_rounded,
+                                                      color: Color(0xFF8B5CF6),
+                                                      size: 28,
+                                                    ),
+                                                    SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Setup Printer',
+                                                        style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 20,
+                                                  vertical: 8,
+                                                ),
+                                                child: Text(
+                                                  'You need to set up your printer before printing. '
+                                                  'Choose how your printer is connected (Bluetooth, WiFi, USB, etc.)',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Color(0xFF475569),
+                                                  ),
+                                                ),
+                                              ),
+                                              Padding(
+                                                padding: const EdgeInsets.all(
+                                                  16,
+                                                ),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.end,
+                                                  children: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            dialogCtx,
+                                                            false,
+                                                          ),
+                                                      child: const Text(
+                                                        'Cancel',
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    ElevatedButton(
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor:
+                                                            const Color(
+                                                              0xFF8B5CF6,
+                                                            ),
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            dialogCtx,
+                                                            true,
+                                                          ),
+                                                      child: const Text(
+                                                        'Setup Printer',
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                    if (shouldSetup == true) {
+                                      await _showPrintSettingsDialog();
+                                    }
+                                    return;
+                                  }
+                                  load(setDlg);
+                                },
+                              ),
+                              const Divider(
+                                height: 1,
+                                color: Color(0xFFF1F5F9),
+                              ),
+                              _buildSettingRow(
+                                icon: Icons.straighten_rounded,
+                                iconColor: paperSize != null
+                                    ? const Color(0xFF3B82F6)
+                                    : const Color(0xFF94A3B8),
+                                label: 'Paper Size',
+                                value: paperSizeLabel,
+                                onTap: () async {
+                                  final currentSize = paperSize;
+                                  final selected = await showDialog<double>(
+                                    context: ctx,
+                                    builder: (dialogCtx) => Dialog(
+                                      backgroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      insetPadding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 24,
+                                      ),
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 400,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Padding(
+                                              padding: EdgeInsets.fromLTRB(
+                                                20,
+                                                20,
+                                                20,
+                                                10,
+                                              ),
+                                              child: Text(
+                                                'Select Receipt Size',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 18,
+                                                ),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                    20,
+                                                    8,
+                                                    20,
+                                                    16,
+                                                  ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  ...InvoicePrintService.paperSizeOptions.map((
+                                                    option,
+                                                  ) {
+                                                    final widthInMm =
+                                                        option['widthInMm']
+                                                            as double;
+                                                    final label =
+                                                        option['label']
+                                                            as String;
+                                                    final isSelected =
+                                                        widthInMm ==
+                                                        currentSize;
+                                                    return Container(
+                                                      margin:
+                                                          const EdgeInsets.symmetric(
+                                                            vertical: 6,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        border: Border.all(
+                                                          color: isSelected
+                                                              ? const Color(
+                                                                  0xFF3B82F6,
+                                                                )
+                                                              : const Color(
+                                                                  0xFFE2E8F0,
+                                                                ),
+                                                          width: isSelected
+                                                              ? 2
+                                                              : 1,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              14,
+                                                            ),
+                                                        color: isSelected
+                                                            ? const Color(
+                                                                0xFFEFF6FF,
+                                                              )
+                                                            : Colors.white,
+                                                      ),
+                                                      child: ListTile(
+                                                        contentPadding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 16,
+                                                              vertical: 2,
+                                                            ),
+                                                        leading: Icon(
+                                                          Icons
+                                                              .straighten_rounded,
+                                                          color: isSelected
+                                                              ? const Color(
+                                                                  0xFF3B82F6,
+                                                                )
+                                                              : const Color(
+                                                                  0xFF94A3B8,
+                                                                ),
+                                                        ),
+                                                        title: Text(
+                                                          label,
+                                                          style: TextStyle(
+                                                            fontWeight:
+                                                                isSelected
+                                                                ? FontWeight
+                                                                      .w800
+                                                                : FontWeight
+                                                                      .w500,
+                                                            color: isSelected
+                                                                ? const Color(
+                                                                    0xFF1E293B,
+                                                                  )
+                                                                : const Color(
+                                                                    0xFF475569,
+                                                                  ),
+                                                            fontSize: 15,
+                                                          ),
+                                                        ),
+                                                        trailing: isSelected
+                                                            ? const Icon(
+                                                                Icons
+                                                                    .check_circle_rounded,
+                                                                color: Color(
+                                                                  0xFF3B82F6,
+                                                                ),
+                                                              )
+                                                            : null,
+                                                        onTap: () =>
+                                                            Navigator.pop(
+                                                              dialogCtx,
+                                                              widthInMm,
+                                                            ),
+                                                      ),
+                                                    );
+                                                  }),
+                                                  const SizedBox(height: 20),
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    height: 50,
+                                                    child: TextButton(
+                                                      style: TextButton.styleFrom(
+                                                        foregroundColor:
+                                                            const Color(
+                                                              0xFF64748B,
+                                                            ),
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                14,
+                                                              ),
+                                                          side:
+                                                              const BorderSide(
+                                                                color: Color(
+                                                                  0xFFE2E8F0,
+                                                                ),
+                                                                width: 1.5,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            dialogCtx,
+                                                          ),
+                                                      child: const Text(
+                                                        'Cancel',
+                                                        style: TextStyle(
+                                                          fontSize: 15,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                  if (selected != null) {
+                                    await InvoicePrintService.saveDefaultPaperSize(
+                                      selected,
+                                    );
+                                    await PrintSettingsService.setPaperSize(
+                                      selected,
+                                    );
+                                    if (mounted) {
+                                      BluetoothPrintService.showTopRightNotification(
+                                        context,
+                                        message: 'Receipt size updated',
+                                        detail:
+                                            InvoicePrintService.getPaperSizeLabel(
+                                              selected,
+                                            ),
+                                        icon: Icons.straighten_rounded,
+                                        backgroundColor: const Color(
+                                          0xFF3B82F6,
+                                        ),
+                                      );
+                                    }
+                                    load(setDlg);
+                                  }
+                                },
+                              ),
+                            ],
                           ),
-                      ] else ...[
-                        const Text(
-                          'No printer configured',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Auto Print Section
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: primary.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.auto_mode_rounded,
+                                      size: 16,
+                                      color: primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Auto Print',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13.5,
+                                            color: Color(0xFF1F2937),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          'Choose when to print automatically',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  _buildAutoPrintChip(
+                                    'Always',
+                                    autoPrintMode ==
+                                        PrintSettingsService.modeAlways,
+                                    () async {
+                                      await PrintSettingsService.setAutoPrintMode(
+                                        PrintSettingsService.modeAlways,
+                                      );
+                                      setDlg(
+                                        () => autoPrintMode =
+                                            PrintSettingsService.modeAlways,
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildAutoPrintChip(
+                                    'Ask',
+                                    autoPrintMode ==
+                                        PrintSettingsService.modeAsk,
+                                    () async {
+                                      await PrintSettingsService.setAutoPrintMode(
+                                        PrintSettingsService.modeAsk,
+                                      );
+                                      setDlg(
+                                        () => autoPrintMode =
+                                            PrintSettingsService.modeAsk,
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildAutoPrintChip(
+                                    'Never',
+                                    autoPrintMode ==
+                                        PrintSettingsService.modeNever,
+                                    () async {
+                                      await PrintSettingsService.setAutoPrintMode(
+                                        PrintSettingsService.modeNever,
+                                      );
+                                      setDlg(
+                                        () => autoPrintMode =
+                                            PrintSettingsService.modeNever,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Copies Section
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: primary.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.copy_all_rounded,
+                                      size: 16,
+                                      color: primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Copies',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13.5,
+                                            color: Color(0xFF1F2937),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          'Kitchen & receipt copies',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildCopiesRow(
+                                      'Kitchen',
+                                      copiesKitchen,
+                                      (v) async {
+                                        await PrintSettingsService.setCopiesKitchen(
+                                          v,
+                                        );
+                                        setDlg(() => copiesKitchen = v);
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildCopiesRow(
+                                      'Receipt',
+                                      copiesReceipt,
+                                      (v) async {
+                                        await PrintSettingsService.setCopiesReceipt(
+                                          v,
+                                        );
+                                        setDlg(() => copiesReceipt = v);
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Customize Layout button
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF5B4FE8),
+                            side: const BorderSide(color: Color(0xFF5B4FE8)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ReceiptKotEditorScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.dashboard_customize_outlined),
+                          label: const Text('Customize Layout'),
                         ),
                       ],
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: () async {
-                          await InvoicePrintService.showPrinterPickerDialog(
-                            ctx,
-                          );
-                          load();
-                        },
-                        icon: const Icon(Icons.print_rounded),
-                        label: const Text('Select Printer'),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF5B4FE8),
-                          side: const BorderSide(color: Color(0xFF5B4FE8)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ReceiptKotEditorScreen(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.dashboard_customize_outlined),
-                        label: const Text('Customize Layout'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -8905,6 +11319,434 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           },
         );
       },
+    );
+  }
+
+  Widget _buildSettingRow({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    required GestureTapCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.keyboard_arrow_right, size: 20, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConnectionOptionForSettings(
+    BuildContext dialogCtx,
+    String type,
+    IconData icon,
+    String title,
+    String? currentType,
+  ) {
+    final isSelected = currentType == type;
+    final color = type == InvoicePrintService.connectionBluetooth
+        ? const Color(0xFF3B82F6)
+        : type == InvoicePrintService.connectionWifi
+        ? const Color(0xFF10B981)
+        : const Color(0xFFF59E0B);
+    return GestureDetector(
+      onTap: () => Navigator.pop(dialogCtx, type),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : const Color(0xFFE2E8F0),
+            width: isSelected ? 2 : 1,
+          ),
+          color: isSelected ? color.withOpacity(0.05) : null,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.check_circle, color: color),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAutoPrintChip(
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    final primary = Theme.of(context).primaryColor;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? primary : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isSelected ? primary : Colors.grey[300]!),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.grey[800],
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCopiesRow(String label, int value, ValueChanged<int> onChanged) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              InkWell(
+                onTap: value > 0 ? () => onChanged(value - 1) : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: value > 0
+                        ? const Color(0xFF5B4FE8)
+                        : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.remove,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  '$value',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: value < 5 ? () => onChanged(value + 1) : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: value < 5
+                        ? const Color(0xFF5B4FE8)
+                        : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.add, size: 16, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _autoPrintOrder(String orderId) async {
+    final connType = await InvoicePrintService.getSavedConnectionType();
+    final paperSize = await InvoicePrintService.getSavedPaperSize() ?? 80.0;
+
+    if (connType == null) {
+      BluetoothPrintService.showTopRightNotification(
+        context,
+        message: 'Printer not configured',
+        detail: 'Please set up your printer in Print Settings',
+        icon: Icons.error_outline_rounded,
+        backgroundColor: const Color(0xFFEF4444),
+      );
+      return false;
+    }
+
+    bool success = false;
+    if (connType == InvoicePrintService.connectionBluetooth) {
+      if (InvoicePrintService.isDesktop) {
+        success = await InvoicePrintService.printPosInvoice(
+          orderId,
+          type: connType,
+          widthInMm: paperSize,
+        );
+      } else {
+        success = await BluetoothPrintService.printPosInvoice(
+          orderId,
+          type: connType,
+          widthInMm: paperSize,
+        );
+      }
+    } else {
+      success = await InvoicePrintService.printPosInvoice(
+        orderId,
+        type: connType,
+        widthInMm: paperSize,
+      );
+    }
+
+    if (success) {
+      BluetoothPrintService.showTopRightNotification(
+        context,
+        message: 'Printed successfully',
+        detail: 'Receipt sent to printer',
+        icon: Icons.check_circle_rounded,
+        backgroundColor: const Color(0xFF10B981),
+      );
+    } else {
+      BluetoothPrintService.showTopRightNotification(
+        context,
+        message: 'Print failed',
+        detail: 'Could not print receipt',
+        icon: Icons.error_outline_rounded,
+        backgroundColor: const Color(0xFFEF4444),
+      );
+    }
+    return success;
+  }
+
+  void _showCustomerWorkflowDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) {
+          return Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 400),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Customer Workflow',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'When should customer details be collected?',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildWorkflowOption(
+                    setDlgState,
+                    value: 'ask_first',
+                    label: 'Ask First',
+                    subtitle: 'Prompt for customer before adding items',
+                    icon: Icons.person_add_alt_1_rounded,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildWorkflowOption(
+                    setDlgState,
+                    value: 'ask_at_checkout',
+                    label: 'Ask at Checkout',
+                    subtitle: 'Prompt for customer only at checkout',
+                    icon: Icons.shopping_cart_checkout_rounded,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildWorkflowOption(
+                    setDlgState,
+                    value: 'skip',
+                    label: 'Skip / Guest Only',
+                    subtitle: 'Use guest customer for all orders',
+                    icon: Icons.person_off_rounded,
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF5B4FE8),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Done'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildWorkflowOption(
+    StateSetter setDlgState, {
+    required String value,
+    required String label,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final isSelected = _posCustomerWorkflow == value;
+    return InkWell(
+      onTap: () async {
+        setDlgState(() => _posCustomerWorkflow = value);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('pos_customer_workflow', value);
+        // Apply workflow immediately
+        if (value == 'ask_first' &&
+            (customer_user_id == null || customer_user_id!.isEmpty)) {
+          _showCustomerPhoneDialog();
+        } else if (value == 'skip') {
+          const String guestPhoneNumber = '910000000018';
+          _fetchCustomerData(guestPhoneNumber, silent: true).catchError((e) {
+            debugPrint('Guest customer fetch error (non-blocking): $e');
+            return false;
+          });
+        }
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF5B4FE8).withOpacity(0.08)
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF5B4FE8).withOpacity(0.4)
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF5B4FE8).withOpacity(0.15)
+                    : const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isSelected ? const Color(0xFF5B4FE8) : Colors.blueGrey,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? const Color(0xFF5B4FE8)
+                          : const Color(0xFF1F2937),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Color(0xFF5B4FE8),
+                size: 22,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
