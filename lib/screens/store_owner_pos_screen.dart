@@ -23,6 +23,7 @@ import 'package:exanor/utils/fuzzy_search.dart';
 import 'package:exanor/services/print_settings_service.dart';
 import 'package:exanor/services/bluetooth_print_service.dart';
 import 'package:exanor/screens/receipt_kot_editor_screen.dart';
+import 'package:exanor/widgets/onscreen_keyboard_field.dart';
 
 class StoreOwnerPOSScreen extends StatefulWidget {
   final String storeId;
@@ -161,6 +162,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   // Checkout Options Layout (desktop sidebar only)
   String _posOptionsLayout = 'dropdown'; // 'dropdown' or 'inline'
 
+  // On-screen keyboard (tablet/desktop only)
+  bool _useOnscreenKeyboard = false;
+
   // Collapsible option states for side panel cart
   bool _orderTypeExpanded = false;
   bool _tableExpanded = false;
@@ -240,7 +244,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
   }
 
-  // ── Table Selection ──────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ Table Selection ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   Future<List<Map<String, dynamic>>> _fetchTablesForSelection() async {
     try {
       final res = await ApiService.post(
@@ -610,13 +614,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         final optionsLayout =
             prefs.getString('pos_options_layout') ?? 'dropdown';
         final guestSessionId = prefs.getString('pos_guest_session_id');
+        final useOnscreenKeyboard =
+            prefs.getBool('pos_use_onscreen_keyboard') ?? false;
 
         if (layout == 'top') {
           _posCategorySize = 0.0;
         }
 
         print(
-          "Loading persistent view mode: $val, layout: $layout, workflow: $workflow, options: $optionsLayout, guest: $guestSessionId",
+          "Loading: val=$val layout=$layout workflow=$workflow options=$optionsLayout keyboard=$useOnscreenKeyboard guest=$guestSessionId",
         );
         setState(() {
           _isTextOnlyMode = val;
@@ -625,6 +631,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           _posProductCardSize = cardSize;
           _posCustomerWorkflow = workflow;
           _posOptionsLayout = optionsLayout;
+          _useOnscreenKeyboard = useOnscreenKeyboard;
           _guestSessionId = guestSessionId;
         });
 
@@ -757,7 +764,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               selected_address_id = addresses[0]['id'];
             });
           } else {
-            // No address on file — create a store-generated placeholder then re-fetch
+            // No address on file ΓÇö create a store-generated placeholder then re-fetch
             final created = await _createStoreDefaultAddress();
             if (created) {
               await _fetchUserAddresses();
@@ -807,17 +814,17 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         final data = response['data'];
         if (data['status'] == 200) {
           debugPrint(
-            '✅ Default store address created for customer $customer_user_id',
+            'Γ£à Default store address created for customer $customer_user_id',
           );
           return true;
         }
       }
       debugPrint(
-        '⚠️ add-user-address/ returned unexpected: ${response['data']}',
+        'ΓÜá∩╕Å add-user-address/ returned unexpected: ${response['data']}',
       );
       return false;
     } catch (e) {
-      debugPrint('❌ Error creating default address: $e');
+      debugPrint('Γ¥î Error creating default address: $e');
       return false;
     }
   }
@@ -938,7 +945,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           final hasNextFromApi = pagination?['has_next'] ?? false;
 
           print(
-            '📦 Loaded ${newProducts.length} products, page: ${pagination?['current_page']}, has_next: $hasNextFromApi, total_pages: ${pagination?['total_pages']}',
+            '≡ƒôª Loaded ${newProducts.length} products, page: ${pagination?['current_page']}, has_next: $hasNextFromApi, total_pages: ${pagination?['total_pages']}',
           );
 
           setState(() {
@@ -977,19 +984,19 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
   Future<void> _loadMoreProducts() async {
     print(
-      '🔄 _loadMoreProducts called - isLoadingMore: $_isLoadingMore, hasMore: $_hasMoreProducts, page: $_currentPage',
+      '≡ƒöä _loadMoreProducts called - isLoadingMore: $_isLoadingMore, hasMore: $_hasMoreProducts, page: $_currentPage',
     );
 
     if (_isLoadingMore || !_hasMoreProducts) {
       print(
-        '⏭️ Skipping load: isLoadingMore=$_isLoadingMore, hasMoreProducts=$_hasMoreProducts',
+        'ΓÅ¡∩╕Å Skipping load: isLoadingMore=$_isLoadingMore, hasMoreProducts=$_hasMoreProducts',
       );
       return;
     }
 
     final isSearching = _searchController.text.isNotEmpty;
     if (!isSearching && _selectedCategoryId == null) {
-      print('⏭️ Skipping load: no category selected and not searching');
+      print('ΓÅ¡∩╕Å Skipping load: no category selected and not searching');
       return;
     }
 
@@ -999,7 +1006,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       });
 
       _currentPage++; // Increment page
-      print('📄 Loading page $_currentPage...');
+      print('≡ƒôä Loading page $_currentPage...');
 
       dynamic response;
 
@@ -1053,7 +1060,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         );
       }
 
-      print('📥 API Response status: ${response['statusCode']}');
+      print('≡ƒôÑ API Response status: ${response['statusCode']}');
 
       if (response['statusCode'] == 200 && response['data'] != null) {
         final data = response['data'];
@@ -1069,7 +1076,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           final hasNextFromApi = pagination?['has_next'] ?? false;
 
           print(
-            '✅ Loaded ${newProducts.length} new products. Total now: ${_products.length + newProducts.length}. Page: ${pagination?['current_page']}, has_next: $hasNextFromApi',
+            'Γ£à Loaded ${newProducts.length} new products. Total now: ${_products.length + newProducts.length}. Page: ${pagination?['current_page']}, has_next: $hasNextFromApi',
           );
           setState(() {
             _products.addAll(newProducts); // Append new products
@@ -1081,18 +1088,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               // Use API's has_next field for accurate pagination
               _hasMoreProducts = hasNextFromApi;
             }
-            print('📊 hasMoreProducts now: $_hasMoreProducts');
+            print('≡ƒôè hasMoreProducts now: $_hasMoreProducts');
           });
           _loadProductsUntilScrollable();
         } else {
-          print('❌ No data in response or status != 200');
+          print('Γ¥î No data in response or status != 200');
           setState(() {
             _isLoadingMore = false;
             _hasMoreProducts = false; // No more products
           });
         }
       } else {
-        print('❌ API status code != 200');
+        print('Γ¥î API status code != 200');
         setState(() {
           _isLoadingMore = false;
           _hasMoreProducts = false;
@@ -1103,7 +1110,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         _isLoadingMore = false;
         // Don't set hasMoreProducts to false on error, allow retry
       });
-      print('❌ Error loading more products: $e');
+      print('Γ¥î Error loading more products: $e');
     }
   }
 
@@ -1349,36 +1356,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
   }
 
-  /// Removes a cart item entirely by decrementing until quantity reaches 0.
-  /// The backend automatically deletes items when quantity becomes 0.
+  /// Removes a cart item entirely by setting its quantity to 0 via
+  /// the `/set-cart-item-quantity/` endpoint (a single API call).
   Future<bool> _deleteCartItem({
     required String productCombinationId,
     required String productId,
   }) async {
     try {
-      // Find the item to get current quantity
-      int currentQty = 0;
-      for (var item in _cartItemsAvailable) {
-        if (item['product_combination_id']?.toString() ==
-                productCombinationId ||
-            item['product_id']?.toString() == productId) {
-          currentQty = (item['enquired_quantity'] ?? item['quantity'] ?? 0)
-              .toInt();
-          break;
-        }
-      }
-      if (currentQty == 0) {
-        for (var item in _cartItemsUnavailable) {
-          if (item['product_combination_id']?.toString() ==
-                  productCombinationId ||
-              item['product_id']?.toString() == productId) {
-            currentQty = (item['enquired_quantity'] ?? item['quantity'] ?? 0)
-                .toInt();
-            break;
-          }
-        }
-      }
-
       // Optimistically remove from local lists immediately
       if (mounted) {
         setState(() {
@@ -1399,14 +1383,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         });
       }
 
-      // Call decrement API until quantity reaches 0 (backend removes item at 0)
-      for (int i = 0; i < currentQty; i++) {
-        await _decrementCartItem(productCombinationId, productId);
-      }
+      // Single API call: quantity 0 removes the item on the backend
+      final result = await _setCartItemQuantity(
+        productCombinationId,
+        productId,
+        0,
+        showSnackBarOnError: false,
+      );
 
-      // Refresh cart to sync with backend
-      await _validateCart();
-      return true;
+      if (result['success'] == true) {
+        // Cart already re-validated inside _setCartItemQuantity
+        return true;
+      } else {
+        // Re-sync with backend on failure
+        await _validateCart();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: TranslatedText(
+                result['message'] ?? 'Error removing item',
+              ),
+            ),
+          );
+        }
+        return false;
+      }
     } catch (e) {
       print('Error deleting cart item: $e');
       // Refresh cart to restore correct state
@@ -1468,8 +1469,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     int quantity, {
     bool showSnackBarOnError = true,
   }) async {
-    if (quantity < 1) {
-      return {'success': false, 'message': 'Quantity must be at least 1'};
+    if (quantity < 0) {
+      return {'success': false, 'message': 'Quantity must be 0 or greater'};
     }
 
     try {
@@ -1679,7 +1680,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                               ? "${bank['bank_name']} (${bank['account_number_or_upi_id']})"
                               : bank['account_holder_name'] ??
                                     bank['account_number_or_upi_id'];
-                          return TextField(
+                          return OnscreenKeyboardAwareField(
+                            useOnscreenKeyboard: _useOnscreenKeyboard &&
+                                (PlatformHelper.isDesktop ||
+                                    MediaQuery.of(context).size.width >= 600),
                             controller: controllers[bank['id']],
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
@@ -1687,7 +1691,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                             decoration: InputDecoration(
                               labelText: label,
                               border: const OutlineInputBorder(),
-                              prefixText: '₹ ',
+                              prefixText: '\u20B9 ',
                             ),
                             onChanged: (_) =>
                                 updateCalculations(bank['id'].toString()),
@@ -2421,7 +2425,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       ),
                       const SizedBox(height: 16),
                       // Input
-                      TextField(
+                      OnscreenKeyboardAwareField(
+                        useOnscreenKeyboard: _useOnscreenKeyboard &&
+                            (PlatformHelper.isDesktop ||
+                                MediaQuery.of(ctx).size.width >= 600),
                         controller: controller,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
@@ -2430,7 +2437,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         decoration: InputDecoration(
                           labelText: 'Discount %',
                           hintText:
-                              '0 – ${maxDiscountPercent.toStringAsFixed(0)}',
+                              '0 ΓÇô ${maxDiscountPercent.toStringAsFixed(0)}',
                           suffixText: '%',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -2745,7 +2752,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: TextField(
+                            child: OnscreenKeyboardAwareField(
+                              useOnscreenKeyboard: _useOnscreenKeyboard &&
+                                  (PlatformHelper.isDesktop ||
+                                      MediaQuery.of(context).size.width >= 600),
                               controller: qtyController,
                               keyboardType: TextInputType.number,
                               autofocus: true,
@@ -2862,7 +2872,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
+                      OnscreenKeyboardAwareField(
+                        useOnscreenKeyboard: _useOnscreenKeyboard &&
+                            (PlatformHelper.isDesktop ||
+                                MediaQuery.of(ctx).size.width >= 600),
                         controller: discountController,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
@@ -3114,7 +3127,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       return;
     }
 
-    // Place order directly — skip order-init / review step
+    // Place order directly ΓÇö skip order-init / review step
     await _confirmPlaceOrder();
   }
 
@@ -3653,7 +3666,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                         .map(
                                           (a) => '${a['name']}: ${a['value']}',
                                         )
-                                        .join(' • ');
+                                        .join(' ΓÇó ');
                                   }
 
                                   return Container(
@@ -4664,7 +4677,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         existingIds.add(id);
       }
     }
-    print('📦 Product cache size: ${_allProductsCache.length}');
+    print('≡ƒôª Product cache size: ${_allProductsCache.length}');
   }
 
   /// Perform local fuzzy search on cached products.
@@ -4789,7 +4802,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             _hasMoreProducts = data['has_next'] ?? false;
           });
         } else {
-          // Server returned no results — keep local fuzzy results if available
+          // Server returned no results ΓÇö keep local fuzzy results if available
           if (localResults.isEmpty) {
             setState(() {
               _products = [];
@@ -4804,7 +4817,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           }
         }
       } else {
-        // API error — keep local results if available
+        // API error ΓÇö keep local results if available
         if (localResults.isEmpty) {
           setState(() {
             _productsError = 'Search failed';
@@ -4818,7 +4831,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         }
       }
     } catch (e) {
-      // Network error — keep local results if available
+      // Network error ΓÇö keep local results if available
       if (localResults.isEmpty) {
         setState(() {
           _productsError = 'Search error: $e';
@@ -4949,7 +4962,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     }
   }
 
-  // Customer Phone Bottom Sheet — Clean Design
+  // Customer Phone Bottom Sheet ΓÇö Clean Design
   Future<void> _showCustomerPhoneDialog() async {
     final TextEditingController phoneController = TextEditingController();
     CountryCode selectedCountry = CountryCode.fromCountryCode('IN');
@@ -5081,7 +5094,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: TextField(
+                          child: OnscreenKeyboardAwareField(
+                            useOnscreenKeyboard: _useOnscreenKeyboard &&
+                                (PlatformHelper.isDesktop ||
+                                    MediaQuery.of(context).size.width >= 600),
                             controller: phoneController,
                             keyboardType: TextInputType.phone,
                             style: const TextStyle(
@@ -5369,7 +5385,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   }
 
   /// Registers (or looks up) a customer via the store-staff endpoint.
-  /// No name or gender is required — the API is idempotent and will return
+  /// No name or gender is required ΓÇö the API is idempotent and will return
   /// the existing account if the phone number is already in the database.
   Future<void> _addStoreCustomer(String phoneNumber) async {
     try {
@@ -5554,7 +5570,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '$_totalProductsInCart Items  •  ₹${_grandTotal.toStringAsFixed(2)}',
+                            '$_totalProductsInCart Items  ΓÇó  ₹${_grandTotal.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
@@ -5669,7 +5685,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: TextField(
+                                  child: OnscreenKeyboardAwareField(
+                                    useOnscreenKeyboard: _useOnscreenKeyboard &&
+                                        (PlatformHelper.isDesktop ||
+                                            MediaQuery.of(context).size.width >= 600),
                                     controller: _searchController,
                                     focusNode: _desktopSearchFocusNode,
                                     onChanged: _onSearchChanged,
@@ -6160,7 +6179,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         ),
                       ),
 
-                      // Layout + Menu Sync — desktop: separate buttons, mobile: combined
+                      // Layout + Menu Sync ΓÇö desktop: separate buttons, mobile: combined
                       if (MediaQuery.of(context).size.width > 600) ...[
                         // Layout Settings Button
                         SizedBox(
@@ -6509,7 +6528,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             ),
           ],
         ),
-        child: TextField(
+        child: OnscreenKeyboardAwareField(
+          useOnscreenKeyboard: _useOnscreenKeyboard &&
+              (PlatformHelper.isDesktop ||
+                  MediaQuery.of(context).size.width >= 600),
           controller: _searchController,
           onChanged: _onSearchChanged,
           autofocus: true,
@@ -7210,6 +7232,94 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                 ],
                               ),
                             ),
+                            // ── On-Screen Keyboard ─────────────────────────
+                            const SizedBox(height: 12),
+                            buildSection(
+                              icon: Icons.keyboard_rounded,
+                              title: 'On-Screen Keyboard',
+                              subtitle:
+                                  'Virtual keyboard for text inputs (tablet & desktop only)',
+                              child: Builder(
+                                builder: (ctx) {
+                                  final screenWidth =
+                                      MediaQuery.of(ctx).size.width;
+                                  final isTabletOrDesktop =
+                                      PlatformHelper.isDesktop ||
+                                      screenWidth >= 600;
+                                  return InkWell(
+                                    onTap: isTabletOrDesktop
+                                        ? () => setStateLocal(
+                                              () => _useOnscreenKeyboard =
+                                                  !_useOnscreenKeyboard,
+                                            )
+                                        : null,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isTabletOrDesktop
+                                            ? Colors.grey[50]
+                                            : Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.grey.shade200,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Show On-Screen Keyboard',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                    color: isTabletOrDesktop
+                                                        ? const Color(0xFF1F2937)
+                                                        : Colors.grey[400],
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  isTabletOrDesktop
+                                                      ? 'Tap inputs to open the virtual keyboard'
+                                                      : 'Only available on tablet & desktop',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: isTabletOrDesktop
+                                                        ? const Color(0xFF6B7280)
+                                                        : Colors.grey[400],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Switch.adaptive(
+                                            value: isTabletOrDesktop
+                                                ? _useOnscreenKeyboard
+                                                : false,
+                                            activeColor: primary,
+                                            onChanged: isTabletOrDesktop
+                                                ? (val) => setStateLocal(
+                                                      () =>
+                                                          _useOnscreenKeyboard =
+                                                              val,
+                                                    )
+                                                : null,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -7289,6 +7399,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                 await prefs.setString(
                                   'pos_options_layout',
                                   _posOptionsLayout,
+                                );
+                                await prefs.setBool(
+                                  'pos_use_onscreen_keyboard',
+                                  _useOnscreenKeyboard,
                                 );
                                 if (mounted) {
                                   setState(() {});
@@ -7899,7 +8013,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           if (attributes.isNotEmpty) {
                             modifiersText = attributes
                                 .map((a) => '${a['name']}: ${a['value']}')
-                                .join(' • ');
+                                .join(' ΓÇó ');
                           }
 
                           return Container(
@@ -8267,7 +8381,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       ),
               ),
 
-              // Bottom controls — Premium Design
+              // Bottom controls ΓÇö Premium Design
               if (_cartItemsAvailable.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -8528,7 +8642,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     double cardAspectRatio;
     if (_isTextOnlyMode) {
       // Compact text-only card: 2-line name + price chip + add button.
-      // pad*2 (10) + name 2 lines (~28) + gap (4) + price chip (~20) + gap (4) + btn (26) ≈ 92px
+      // pad*2 (10) + name 2 lines (~28) + gap (4) + price chip (~20) + gap (4) + btn (26) Γëê 92px
       // Keep height fixed regardless of width so wide cards don't stretch tall.
       const targetHeight = 100.0;
       cardAspectRatio = cardWidth / targetHeight;
@@ -8741,7 +8855,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.max,
                     children: [
-                      // Name — fixed 2 lines, ellipsis after
+                      // Name ΓÇö fixed 2 lines, ellipsis after
                       SizedBox(
                         height: nameTwoLineH,
                         width: double.infinity,
@@ -8793,7 +8907,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         ),
                       ),
                       SizedBox(height: gapPriceToBtn),
-                      // Button — absolute bottom
+                      // Button ΓÇö absolute bottom
                       SizedBox(
                         height: btnH,
                         width: double.infinity,
@@ -8836,7 +8950,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               final h = constraints.maxHeight;
               final w = constraints.maxWidth;
 
-              // Bottom section sizing — adaptive to card height
+              // Bottom section sizing ΓÇö adaptive to card height
               final topPad = math.min(5.0, math.max(3.0, h * 0.015));
               final bottomPad = math.min(5.0, math.max(3.0, h * 0.015));
               final gap = math.min(5.0, math.max(2.0, h * 0.015));
@@ -8987,7 +9101,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         ),
                         SizedBox(height: gap),
 
-                        // Button — always pinned to bottom
+                        // Button ΓÇö always pinned to bottom
                         SizedBox(
                           height: btnH,
                           width: double.infinity,
@@ -10211,7 +10325,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   );
                                 },
                                 child: const Text(
-                                  'Done — Refresh Store',
+                                  'Done ΓÇö Refresh Store',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
@@ -11525,13 +11639,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     final paperSize = await InvoicePrintService.getSavedPaperSize() ?? 80.0;
 
     if (connType == null) {
-      BluetoothPrintService.showTopRightNotification(
-        context,
-        message: 'Printer not configured',
-        detail: 'Please set up your printer in Print Settings',
-        icon: Icons.error_outline_rounded,
-        backgroundColor: const Color(0xFFEF4444),
-      );
+      // No printer configured — caller will show the combined notification
+      // with "Print failed" detail, so we just return false here.
       return false;
     }
 
@@ -11558,23 +11667,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
       );
     }
 
-    if (success) {
-      BluetoothPrintService.showTopRightNotification(
-        context,
-        message: 'Printed successfully',
-        detail: 'Receipt sent to printer',
-        icon: Icons.check_circle_rounded,
-        backgroundColor: const Color(0xFF10B981),
-      );
-    } else {
-      BluetoothPrintService.showTopRightNotification(
-        context,
-        message: 'Print failed',
-        detail: 'Could not print receipt',
-        icon: Icons.error_outline_rounded,
-        backgroundColor: const Color(0xFFEF4444),
-      );
-    }
+    // NOTE: We intentionally do NOT show a notification here.
+    // The caller shows a single combined notification like
+    // "Order Placed Successfully! / Printed successfully" (or "Print failed").
     return success;
   }
 
