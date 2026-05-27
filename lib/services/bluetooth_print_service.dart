@@ -1151,9 +1151,10 @@ class _TopRightNotificationState extends State<_TopRightNotification>
 
   @override
   Widget build(BuildContext context) {
+    final hasDetail = widget.detail != null && widget.detail!.isNotEmpty;
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 12,
-      right: 12,
+      top: MediaQuery.of(context).padding.top + 16,
+      right: 16,
       child: SlideTransition(
         position: _slideAnimation,
         child: FadeTransition(
@@ -1165,18 +1166,24 @@ class _TopRightNotificationState extends State<_TopRightNotification>
                 _controller.reverse().then((_) => widget.onDismiss());
               },
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 300),
+                constraints: const BoxConstraints(maxWidth: 320),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
+                  horizontal: 16,
+                  vertical: 14,
                 ),
                 decoration: BoxDecoration(
-                  color: widget.backgroundColor,
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                   boxShadow: [
                     BoxShadow(
-                      color: widget.backgroundColor.withOpacity(0.3),
-                      blurRadius: 12,
+                      color: const Color(0xFF000000).withOpacity(0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: widget.backgroundColor.withOpacity(0.15),
+                      blurRadius: 20,
                       offset: const Offset(0, 4),
                     ),
                   ],
@@ -1184,8 +1191,19 @@ class _TopRightNotificationState extends State<_TopRightNotification>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(widget.icon, color: Colors.white, size: 20),
-                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: widget.backgroundColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        widget.icon,
+                        color: widget.backgroundColor,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Flexible(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1194,18 +1212,19 @@ class _TopRightNotificationState extends State<_TopRightNotification>
                           Text(
                             widget.message,
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1F2937),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          if (widget.detail != null) ...[
-                            const SizedBox(height: 2),
+                          if (hasDetail) ...[
+                            const SizedBox(height: 3),
                             Text(
                               widget.detail!,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
-                                fontSize: 11,
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
