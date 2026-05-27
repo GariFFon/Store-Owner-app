@@ -5151,7 +5151,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                   // Primary button - clean solid color
                   SizedBox(
                     height: 48,
-                    child: ElevatedButton(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor, primaryColor.withOpacity(0.8)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ElevatedButton(
                         onPressed: isLoading
                             ? null
                             : () async {
