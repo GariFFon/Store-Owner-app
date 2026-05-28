@@ -15,6 +15,7 @@ import 'package:country_code_picker/country_code_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:exanor/services/invoice_print_service.dart';
 import 'package:exanor/components/pos_print_options_dialog.dart';
+import 'package:exanor/components/virtual_printer_preview.dart';
 import 'package:exanor/screens/order_details_screen.dart';
 import 'package:exanor/utils/event_bus.dart';
 import 'package:exanor/utils/keyboard_shortcuts.dart';
@@ -155,6 +156,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   double _posCategorySize = 85.0;
   double _posProductCardSize = 220.0;
   double _checkoutPanelWidth = 340.0;
+  String _tabletCartLayout = 'auto'; // 'auto', 'bottom_sheet', 'side_panel'
   String _posCustomerWorkflow =
       'ask_first'; // 'ask_first', 'ask_at_checkout', 'skip'
   String? _guestSessionId;
@@ -180,6 +182,44 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     setStateLocal?.call(() {});
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('pos_options_layout', value);
+  }
+
+  // Debounce timer for saving checkout panel width
+  Timer? _checkoutPanelWidthSaveTimer;
+
+  /// Debounced save of checkout panel width to persist user preference
+  void _debouncedSaveCheckoutPanelWidth() {
+    _checkoutPanelWidthSaveTimer?.cancel();
+    _checkoutPanelWidthSaveTimer = Timer(
+      const Duration(milliseconds: 500),
+      () async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble('pos_checkout_panel_width', _checkoutPanelWidth);
+      },
+    );
+  }
+
+  /// Determine whether to show checkout panel inline based on screen width and tablet cart layout setting
+  bool _shouldShowCheckoutPanel(double screenWidth) {
+    // Mobile phones: always use bottom sheet (ignore tablet cart layout setting)
+    if (screenWidth < 600) return false;
+
+    // Desktop: always show side panel for large screens (>1100)
+    if (screenWidth > 1100) return true;
+
+    // For smaller screens, respect the tablet cart layout setting
+    switch (_tabletCartLayout) {
+      case 'side_panel':
+        // Show side panel if screen is reasonably wide (>700)
+        return screenWidth > 700;
+      case 'bottom_sheet':
+        // Always use bottom sheet button for tablet/phone
+        return false;
+      case 'auto':
+      default:
+        // Default behavior: side panel only for >1100, bottom sheet for smaller
+        return false;
+    }
   }
 
   // Cached tables for inline selection
@@ -616,6 +656,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         final guestSessionId = prefs.getString('pos_guest_session_id');
         final useOnscreenKeyboard =
             prefs.getBool('pos_use_onscreen_keyboard') ?? false;
+        final tabletCartLayout =
+            prefs.getString('pos_tablet_cart_layout') ?? 'auto';
+        final checkoutPanelWidth =
+            prefs.getDouble('pos_checkout_panel_width') ?? 340.0;
 
         if (layout == 'top') {
           _posCategorySize = 0.0;
@@ -633,6 +677,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           _posOptionsLayout = optionsLayout;
           _useOnscreenKeyboard = useOnscreenKeyboard;
           _guestSessionId = guestSessionId;
+          _tabletCartLayout = tabletCartLayout;
+          _checkoutPanelWidth = checkoutPanelWidth;
         });
 
         // For ask_at_checkout, ensure a guest session id exists so the user
@@ -1681,7 +1727,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                               : bank['account_holder_name'] ??
                                     bank['account_number_or_upi_id'];
                           return OnscreenKeyboardAwareField(
-                            useOnscreenKeyboard: _useOnscreenKeyboard &&
+                            useOnscreenKeyboard:
+                                _useOnscreenKeyboard &&
                                 (PlatformHelper.isDesktop ||
                                     MediaQuery.of(context).size.width >= 600),
                             controller: controllers[bank['id']],
@@ -2426,7 +2473,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       const SizedBox(height: 16),
                       // Input
                       OnscreenKeyboardAwareField(
-                        useOnscreenKeyboard: _useOnscreenKeyboard &&
+                        useOnscreenKeyboard:
+                            _useOnscreenKeyboard &&
                             (PlatformHelper.isDesktop ||
                                 MediaQuery.of(ctx).size.width >= 600),
                         controller: controller,
@@ -2753,7 +2801,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           const SizedBox(width: 8),
                           Expanded(
                             child: OnscreenKeyboardAwareField(
-                              useOnscreenKeyboard: _useOnscreenKeyboard &&
+                              useOnscreenKeyboard:
+                                  _useOnscreenKeyboard &&
                                   (PlatformHelper.isDesktop ||
                                       MediaQuery.of(context).size.width >= 600),
                               controller: qtyController,
@@ -2873,7 +2922,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       ),
                       const SizedBox(height: 8),
                       OnscreenKeyboardAwareField(
-                        useOnscreenKeyboard: _useOnscreenKeyboard &&
+                        useOnscreenKeyboard:
+                            _useOnscreenKeyboard &&
                             (PlatformHelper.isDesktop ||
                                 MediaQuery.of(ctx).size.width >= 600),
                         controller: discountController,
@@ -3666,306 +3716,215 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                         .map(
                                           (a) => '${a['name']}: ${a['value']}',
                                         )
-                                        .join(' ΓÇó ');
+                                        .join(' • ');
                                   }
 
-                                  return Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: isAvailable
-                                          ? Colors.white
-                                          : const Color(0xFFFFF7F7),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: isAvailable
-                                            ? const Color(0xFFE2E8F0)
-                                            : const Color(0xFFFCA5A5),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.02),
-                                          blurRadius: 6,
-                                          offset: const Offset(0, 2),
+                                  return Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      // Main Card
+                                      Container(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          16,
+                                          14,
+                                          12,
+                                          14,
                                         ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        // Product Image - Larger
-                                        Container(
-                                          width: 76,
-                                          height: 76,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFF8FAFC),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            border: Border.all(
-                                              color: const Color(0xFFE2E8F0),
-                                            ),
+                                        decoration: BoxDecoration(
+                                          color: isAvailable
+                                              ? Colors.white
+                                              : const Color(0xFFFFF7F7),
+                                          borderRadius: BorderRadius.circular(
+                                            14,
                                           ),
-                                          clipBehavior: Clip.antiAlias,
-                                          child: productImg != null
-                                              ? CustomCachedNetworkImage(
-                                                  imgUrl: productImg,
-                                                  fit: BoxFit.cover,
-                                                )
-                                              : Icon(
-                                                  Icons
-                                                      .image_not_supported_outlined,
-                                                  color: Colors.grey[400],
-                                                  size: 32,
-                                                ),
+                                          border: Border.all(
+                                            color: isAvailable
+                                                ? const Color(0xFFE2E8F0)
+                                                : const Color(0xFFFCA5A5),
+                                            width: 1,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(
+                                                0.02,
+                                              ),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
                                         ),
-                                        const SizedBox(width: 14),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            // Product Image (no X)
+                                            Container(
+                                              width: 60,
+                                              height: 60,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF8FAFC),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFFE2E8F0,
+                                                  ),
+                                                ),
+                                              ),
+                                              clipBehavior: Clip.antiAlias,
+                                              child: productImg != null
+                                                  ? CustomCachedNetworkImage(
+                                                      imgUrl: productImg,
+                                                      fit: BoxFit.cover,
+                                                    )
+                                                  : Icon(
+                                                      Icons
+                                                          .image_not_supported_outlined,
+                                                      color: Colors.grey[400],
+                                                      size: 26,
+                                                    ),
+                                            ),
+                                            const SizedBox(width: 12),
 
-                                        // Details Column
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              // Product Name with Quantity inline
-                                              Row(
+                                            // Details Column
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Expanded(
-                                                    child: RichText(
-                                                      maxLines: 2,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      text: TextSpan(
-                                                        style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          fontSize: 15,
-                                                          color: isAvailable
-                                                              ? const Color(
-                                                                  0xFF1E293B,
-                                                                )
-                                                              : const Color(
-                                                                  0xFFB91C1C,
-                                                                ),
-                                                          height: 1.3,
-                                                        ),
-                                                        children: [
-                                                          TextSpan(
-                                                            text:
-                                                                item['product_name'] ??
-                                                                '',
-                                                          ),
-                                                          TextSpan(
-                                                            text:
-                                                                '  ($quantity)',
+                                                  // Product Name with Quantity inline
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: RichText(
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          text: TextSpan(
                                                             style: TextStyle(
                                                               fontWeight:
                                                                   FontWeight
-                                                                      .w500,
-                                                              color: Colors
-                                                                  .grey[500],
+                                                                      .w700,
                                                               fontSize: 14,
+                                                              color: isAvailable
+                                                                  ? const Color(
+                                                                      0xFF1E293B,
+                                                                    )
+                                                                  : const Color(
+                                                                      0xFFB91C1C,
+                                                                    ),
+                                                              height: 1.3,
                                                             ),
+                                                            children: [
+                                                              TextSpan(
+                                                                text:
+                                                                    item['product_name'] ??
+                                                                    '',
+                                                              ),
+                                                              TextSpan(
+                                                                text:
+                                                                    '  ($quantity)',
+                                                                style: TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                  color: Colors
+                                                                      .grey[500],
+                                                                  fontSize: 13,
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  if (!isAvailable) ...[
-                                                    const SizedBox(width: 6),
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 6,
-                                                            vertical: 2,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: const Color(
-                                                          0xFFFEE2E2,
-                                                        ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                      ),
-                                                      child: const Text(
-                                                        'Unavailable',
-                                                        style: TextStyle(
-                                                          color: Color(
-                                                            0xFFB91C1C,
-                                                          ),
-                                                          fontSize: 9,
-                                                          fontWeight:
-                                                              FontWeight.w700,
                                                         ),
                                                       ),
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-
-                                              // Modifiers if any
-                                              if (modifiersText.isNotEmpty) ...[
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  modifiersText,
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[500],
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ],
-
-                                              const SizedBox(height: 8),
-
-                                              // Price Row
-                                              Row(
-                                                children: [
-                                                  TranslatedText(
-                                                    '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 17,
-                                                      color: theme.primaryColor,
-                                                    ),
-                                                  ),
-                                                  if ((pricing['discount_percent'] ??
-                                                          0) >
-                                                      0) ...[
-                                                    const SizedBox(width: 8),
-                                                    Text(
-                                                      '₹${(pricing['original_sale_price_excl_tax']?.toDouble() ?? pricing['selling_amount_excluding_tax']?.toDouble() ?? 0).toStringAsFixed(2)}',
-                                                      style: TextStyle(
-                                                        color: Colors.grey[400],
-                                                        fontSize: 12,
-                                                        decoration:
-                                                            TextDecoration
-                                                                .lineThrough,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 5,
-                                                            vertical: 2,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: const Color(
-                                                          0xFF5B4FE8,
-                                                        ).withOpacity(0.1),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                      ),
-                                                      child: Text(
-                                                        '-${pricing['discount_percent'].toStringAsFixed(0)}%',
-                                                        style: const TextStyle(
-                                                          color: Color(
-                                                            0xFF5B4FE8,
-                                                          ),
-                                                          fontSize: 10,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-
-                                              const SizedBox(height: 12),
-
-                                              // Actions Row: Quantity + Edit/Delete
-                                              Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment
-                                                        .spaceBetween,
-                                                children: [
-                                                  // Quantity Controls
-                                                  Container(
-                                                    height: 36,
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(
-                                                        0xFFF8FAFC,
-                                                      ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            20,
-                                                          ),
-                                                      border: Border.all(
-                                                        color: const Color(
-                                                          0xFFE2E8F0,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        _buildQtyBtn(
-                                                          Icons.remove,
-                                                          () async {
-                                                            await _decrementCartItem(
-                                                              item['product_combination_id'] ??
-                                                                  '',
-                                                              item['product_id'] ??
-                                                                  '',
-                                                            );
-                                                            setSheetState(
-                                                              () {},
-                                                            );
-                                                          },
+                                                      if (!isAvailable) ...[
+                                                        const SizedBox(
+                                                          width: 6,
                                                         ),
                                                         Container(
                                                           padding:
                                                               const EdgeInsets.symmetric(
-                                                                horizontal: 12,
+                                                                horizontal: 5,
+                                                                vertical: 2,
                                                               ),
-                                                          child: Text(
-                                                            '$quantity',
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w700,
-                                                                  fontSize: 14,
-                                                                  color: Color(
-                                                                    0xFF1E293B,
-                                                                  ),
+                                                          decoration: BoxDecoration(
+                                                            color: const Color(
+                                                              0xFFFEE2E2,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  4,
                                                                 ),
                                                           ),
-                                                        ),
-                                                        _buildQtyBtn(
-                                                          Icons.add,
-                                                          () async {
-                                                            await _incrementCartItem(
-                                                              item['product_combination_id'] ??
-                                                                  '',
-                                                              item['product_id'] ??
-                                                                  '',
-                                                            );
-                                                            setSheetState(
-                                                              () {},
-                                                            );
-                                                          },
-                                                          enabled: isAvailable,
+                                                          child: const Text(
+                                                            'Unavailable',
+                                                            style: TextStyle(
+                                                              color: Color(
+                                                                0xFFB91C1C,
+                                                              ),
+                                                              fontSize: 8,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                            ),
+                                                          ),
                                                         ),
                                                       ],
-                                                    ),
+                                                    ],
                                                   ),
 
-                                                  // Action Buttons: Discount, Edit, Delete
+                                                  // Modifiers if any
+                                                  if (modifiersText
+                                                      .isNotEmpty) ...[
+                                                    const SizedBox(height: 3),
+                                                    Text(
+                                                      modifiersText,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: Colors.grey[500],
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+
+                                                  const SizedBox(height: 8),
+
+                                                  // Price + Coupon + Pencil in one row
                                                   Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
                                                     children: [
-                                                      // Discount
+                                                      // Price
+                                                      Text(
+                                                        '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                          fontSize: 16,
+                                                          color: theme
+                                                              .primaryColor,
+                                                        ),
+                                                      ),
+                                                      if ((pricing['discount_percent'] ??
+                                                              0) >
+                                                          0) ...[
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                        Text(
+                                                          '₹${(pricing['original_sale_price_excl_tax']?.toDouble() ?? pricing['selling_amount_excluding_tax']?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                                          style: TextStyle(
+                                                            color: Colors
+                                                                .grey[400],
+                                                            fontSize: 12,
+                                                            decoration:
+                                                                TextDecoration
+                                                                    .lineThrough,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                      const SizedBox(width: 10),
+                                                      // Coupon Button (bigger)
                                                       InkWell(
                                                         onTap: () {
                                                           _showDiscountDialog(
@@ -3987,7 +3946,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                         },
                                                         borderRadius:
                                                             BorderRadius.circular(
-                                                              18,
+                                                              10,
                                                             ),
                                                         child: Container(
                                                           width: 32,
@@ -4007,13 +3966,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                                   ),
                                                             borderRadius:
                                                                 BorderRadius.circular(
-                                                                  18,
+                                                                  10,
                                                                 ),
                                                           ),
                                                           child: Icon(
                                                             Icons
                                                                 .local_offer_outlined,
-                                                            size: 14,
+                                                            size: 18,
                                                             color:
                                                                 (pricing['discount_percent'] ??
                                                                         0) >
@@ -4027,7 +3986,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                         ),
                                                       ),
                                                       const SizedBox(width: 8),
-                                                      // Edit
+                                                      // Edit Button (bigger)
                                                       InkWell(
                                                         onTap: () {
                                                           _showEditCartItemDialog(
@@ -4039,7 +3998,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                         },
                                                         borderRadius:
                                                             BorderRadius.circular(
-                                                              18,
+                                                              10,
                                                             ),
                                                         child: Container(
                                                           width: 32,
@@ -4050,51 +4009,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                             ),
                                                             borderRadius:
                                                                 BorderRadius.circular(
-                                                                  18,
+                                                                  10,
                                                                 ),
                                                           ),
                                                           child: Icon(
                                                             Icons.edit_outlined,
-                                                            size: 14,
+                                                            size: 18,
                                                             color: Colors
                                                                 .grey[600],
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      // Delete
-                                                      InkWell(
-                                                        onTap: () async {
-                                                          await _confirmAndDeleteCartItem(
-                                                            item,
-                                                            () => setSheetState(
-                                                              () {},
-                                                            ),
-                                                          );
-                                                        },
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              18,
-                                                            ),
-                                                        child: Container(
-                                                          width: 32,
-                                                          height: 32,
-                                                          decoration: BoxDecoration(
-                                                            color: const Color(
-                                                              0xFFFEE2E2,
-                                                            ),
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  18,
-                                                                ),
-                                                          ),
-                                                          child: const Icon(
-                                                            Icons
-                                                                .delete_outline,
-                                                            size: 14,
-                                                            color: Color(
-                                                              0xFFB91C1C,
-                                                            ),
                                                           ),
                                                         ),
                                                       ),
@@ -4102,553 +4024,389 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                   ),
                                                 ],
                                               ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
+                                            ),
 
-                      // Bottom Section: Payment Breakdown & Checkout
-                      if (_cartItemsAvailable.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 16,
-                                offset: const Offset(0, -4),
-                              ),
-                            ],
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(24),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (_posOptionsLayout == 'dropdown') ...[
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      InkWell(
-                                        onTap: () async {
-                                          await _showOrderMethodSelection();
-                                          setSheetState(() {});
-                                        },
-                                        borderRadius:
-                                            const BorderRadius.vertical(
-                                              top: Radius.circular(12),
-                                            ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 12,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                width: 32,
-                                                height: 32,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.orange.shade50,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Icon(
-                                                  Icons.room_service_outlined,
-                                                  size: 16,
-                                                  color: Colors.orange.shade700,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    const Text(
-                                                      'Order Type',
-                                                      style: TextStyle(
-                                                        color: Colors.black45,
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                    TranslatedText(
-                                                      _selectedOrderMethod?['order_method_name'] ??
-                                                          'Select Type',
-                                                      style: TextStyle(
-                                                        color: Colors
-                                                            .orange
-                                                            .shade800,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              Icon(
-                                                Icons.keyboard_arrow_right,
-                                                size: 18,
-                                                color: Colors.grey[400],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      InkWell(
-                                        onTap: () => _showTableSelectionSheet(
-                                          (fn) => setSheetState(fn),
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 12,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                width: 32,
-                                                height: 32,
-                                                decoration: BoxDecoration(
-                                                  color: _selectedTable != null
-                                                      ? const Color(
-                                                          0xFF5B4FE8,
-                                                        ).withOpacity(0.08)
-                                                      : const Color(0xFFF1F5F9),
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Icon(
-                                                  Icons
-                                                      .table_restaurant_outlined,
-                                                  size: 16,
-                                                  color: _selectedTable != null
-                                                      ? const Color(0xFF5B4FE8)
-                                                      : Colors.grey[400],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: _selectedTable != null
-                                                    ? Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          const Text(
-                                                            'Table',
-                                                            style: TextStyle(
-                                                              color: Colors
-                                                                  .black45,
-                                                              fontSize: 10,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                            ),
-                                                          ),
-                                                          Text(
-                                                            _selectedTable!['table_number']
-                                                                    ?.toString() ??
-                                                                '',
-                                                            style:
-                                                                const TextStyle(
-                                                                  color: Color(
-                                                                    0xFF5B4FE8,
-                                                                  ),
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w700,
-                                                                  fontSize: 13,
-                                                                ),
-                                                          ),
-                                                        ],
-                                                      )
-                                                    : Text(
-                                                        'Select Table',
-                                                        style: TextStyle(
-                                                          color:
-                                                              Colors.grey[500],
-                                                          fontSize: 13,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                      ),
-                                              ),
-                                              if (_selectedTable != null)
-                                                GestureDetector(
-                                                  onTap: () => setSheetState(
-                                                    () => _selectedTable = null,
-                                                  ),
-                                                  child: Icon(
-                                                    Icons.close_rounded,
-                                                    size: 16,
-                                                    color: Colors.grey[400],
-                                                  ),
-                                                )
-                                              else
-                                                Icon(
-                                                  Icons.keyboard_arrow_right,
-                                                  size: 18,
-                                                  color: Colors.grey[400],
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      InkWell(
-                                        onTap: () {
-                                          _showPaymentModeSelector(
-                                            (fn) => setSheetState(fn),
-                                          );
-                                        },
-                                        borderRadius:
-                                            const BorderRadius.vertical(
-                                              bottom: Radius.circular(12),
-                                            ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 12,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                width: 32,
-                                                height: 32,
-                                                decoration: BoxDecoration(
+                                            const SizedBox(width: 10),
+
+                                            // Quantity Controls (even bigger)
+                                            Container(
+                                              height: 42,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF8FAFC),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                border: Border.all(
                                                   color: const Color(
-                                                    0xFFF1F5F9,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Icon(
-                                                  Icons.payments_outlined,
-                                                  size: 16,
-                                                  color: theme.primaryColor,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    const Text(
-                                                      'Payment',
-                                                      style: TextStyle(
-                                                        color: Colors.black45,
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      _selectedPaymentMode ==
-                                                              'UNPAID'
-                                                          ? 'Unpaid'
-                                                          : _selectedPaymentMode ==
-                                                                'MULTI-MODE'
-                                                          ? 'Split Payment'
-                                                          : (_bankDetails.firstWhere(
-                                                                      (b) =>
-                                                                          b['id']
-                                                                              .toString() ==
-                                                                          _selectedPaymentMode,
-                                                                      orElse: () => {
-                                                                        'bank_name':
-                                                                            'Paid',
-                                                                      },
-                                                                    )['bank_name'] ??
-                                                                    'Paid')
-                                                                .toString(),
-                                                      style: TextStyle(
-                                                        color:
-                                                            theme.primaryColor,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              Icon(
-                                                Icons.keyboard_arrow_right,
-                                                size: 18,
-                                                color: Colors.grey[400],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ] else ...[
-                                _buildInlineOptionLabel('Order Type'),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: _orderMethods.map((method) {
-                                    final isSelected =
-                                        _selectedOrderMethod?['id'] ==
-                                        method['id'];
-                                    return _buildOptionChip(
-                                      label:
-                                          method['order_method_name']
-                                              ?.toString() ??
-                                          '',
-                                      isSelected: isSelected,
-                                      onTap: () => setSheetState(
-                                        () => _selectedOrderMethod = method,
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                                const SizedBox(height: 8),
-                                _buildInlineOptionLabel('Table'),
-                                if (_isTablesLoading)
-                                  const SizedBox(
-                                    height: 28,
-                                    child: Center(
-                                      child: SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: [
-                                      _buildOptionChip(
-                                        label: 'None',
-                                        isSelected: _selectedTable == null,
-                                        onTap: () => setSheetState(
-                                          () => _selectedTable = null,
-                                        ),
-                                      ),
-                                      ..._availableTables.map((table) {
-                                        final isSelected =
-                                            _selectedTable?['id'] ==
-                                            table['id'];
-                                        return _buildOptionChip(
-                                          label:
-                                              'T${table['table_number']?.toString() ?? ''}',
-                                          isSelected: isSelected,
-                                          onTap: () => setSheetState(
-                                            () => _selectedTable = table,
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                  ),
-                                const SizedBox(height: 8),
-                                _buildInlineOptionLabel('Payment'),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: [
-                                    _buildOptionChip(
-                                      label: 'Unpaid',
-                                      isSelected:
-                                          _selectedPaymentMode == 'UNPAID',
-                                      onTap: () => setSheetState(
-                                        () => _selectedPaymentMode = 'UNPAID',
-                                      ),
-                                    ),
-                                    _buildOptionChip(
-                                      label: 'Split',
-                                      isSelected:
-                                          _selectedPaymentMode == 'MULTI-MODE',
-                                      onTap: () {
-                                        setSheetState(
-                                          () => _selectedPaymentMode =
-                                              'MULTI-MODE',
-                                        );
-                                        _showMultiModeDialog(setSheetState);
-                                      },
-                                    ),
-                                    ..._bankDetails.map((bank) {
-                                      final bankId = bank['id'].toString();
-                                      final isSelected =
-                                          _selectedPaymentMode == bankId;
-                                      return _buildOptionChip(
-                                        label:
-                                            bank['bank_name']?.toString() ??
-                                            bank['account_holder_name']
-                                                ?.toString() ??
-                                            'Bank',
-                                        isSelected: isSelected,
-                                        onTap: () => setSheetState(
-                                          () => _selectedPaymentMode = bankId,
-                                        ),
-                                      );
-                                    }),
-                                  ],
-                                ),
-                              ],
-                              const SizedBox(height: 10),
-
-                              // Order Summary / Payment Breakdown
-                              if (_cartData != null &&
-                                  _cartData!['cart_total'] != null) ...[
-                                GestureDetector(
-                                  onTap: () {
-                                    setSheetState(() {
-                                      showDetails = !showDetails;
-                                    });
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF8FAFC),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: const Color(0xFFE2E8F0),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                const TranslatedText(
-                                                  'Order Summary',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13,
-                                                    color: Colors.black87,
+                                                    0xFFE2E8F0,
                                                   ),
                                                 ),
-                                                const SizedBox(width: 8),
-                                                Icon(
-                                                  showDetails
-                                                      ? Icons
-                                                            .keyboard_arrow_up_rounded
-                                                      : Icons
-                                                            .keyboard_arrow_down_rounded,
-                                                  size: 18,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ],
-                                            ),
-                                            if (!showDetails)
-                                              Text(
-                                                '₹${_grandTotal.toStringAsFixed(2)}',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                  color: theme.primaryColor,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        if (showDetails) ...[
-                                          const SizedBox(height: 10),
-                                          const Divider(height: 1),
-                                          const SizedBox(height: 10),
-                                          ...(_cartData!['cart_total'] as List).map(
-                                            (e) => Padding(
-                                              padding: const EdgeInsets.only(
-                                                bottom: 6,
                                               ),
                                               child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment
-                                                        .spaceBetween,
+                                                mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  TranslatedText(
-                                                    e['title'] ?? '',
-                                                    style: TextStyle(
-                                                      color: Colors.grey[600],
-                                                      fontSize: 12,
+                                                  InkWell(
+                                                    onTap: () async {
+                                                      await _decrementCartItem(
+                                                        item['product_combination_id'] ??
+                                                            '',
+                                                        item['product_id'] ??
+                                                            '',
+                                                      );
+                                                      setSheetState(() {});
+                                                    },
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                    child: Container(
+                                                      width: 38,
+                                                      height: 38,
+                                                      child: const Icon(
+                                                        Icons.remove,
+                                                        size: 20,
+                                                        color: Color(
+                                                          0xFF64748B,
+                                                        ),
+                                                      ),
                                                     ),
                                                   ),
-                                                  TranslatedText(
-                                                    '₹${e['value']?.toString() ?? '0.0'}',
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontSize: 12,
-                                                      color: Colors.black87,
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
+                                                        ),
+                                                    child: Text(
+                                                      '$quantity',
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        fontSize: 16,
+                                                        color: Color(
+                                                          0xFF1E293B,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  InkWell(
+                                                    onTap: isAvailable
+                                                        ? () async {
+                                                            await _incrementCartItem(
+                                                              item['product_combination_id'] ??
+                                                                  '',
+                                                              item['product_id'] ??
+                                                                  '',
+                                                            );
+                                                            setSheetState(
+                                                              () {},
+                                                            );
+                                                          }
+                                                        : null,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                    child: Container(
+                                                      width: 38,
+                                                      height: 38,
+                                                      child: Icon(
+                                                        Icons.add,
+                                                        size: 20,
+                                                        color: isAvailable
+                                                            ? theme.primaryColor
+                                                            : Colors.grey[400],
+                                                      ),
                                                     ),
                                                   ),
                                                 ],
                                               ),
                                             ),
+                                          ],
+                                        ),
+                                      ),
+
+                                      // X Delete Button - at top-left of entire card
+                                      Positioned(
+                                        top: -10,
+                                        left: -10,
+                                        child: InkWell(
+                                          onTap: () async {
+                                            await _confirmAndDeleteCartItem(
+                                              item,
+                                              () => setSheetState(() {}),
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(
+                                            18,
                                           ),
-                                        ],
+                                          child: Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFB91C1C),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.white,
+                                                width: 2,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.15),
+                                                  blurRadius: 4,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: const Icon(
+                                              Icons.close,
+                                              size: 20,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                      ),
+
+                      // Bottom controls — matches desktop/tablet panel
+                      if (_cartItemsAvailable.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border(
+                              top: BorderSide(
+                                color: const Color(0xFFE2E8F0),
+                                width: 1,
+                              ),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 12,
+                                offset: const Offset(0, -4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Collapsible Order Options section
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    // Header with toggle
+                                    InkWell(
+                                      onTap: () => setSheetState(
+                                        () => _optionsSectionExpanded =
+                                            !_optionsSectionExpanded,
+                                      ),
+                                      borderRadius: BorderRadius.vertical(
+                                        top: const Radius.circular(10),
+                                        bottom: _optionsSectionExpanded
+                                            ? Radius.zero
+                                            : const Radius.circular(10),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.tune_outlined,
+                                              size: 16,
+                                              color: Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Order Options',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey[800],
+                                                ),
+                                              ),
+                                            ),
+                                            if (!_optionsSectionExpanded) ...[
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFE0E7FF,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  _selectedOrderMethod?['order_method_name']
+                                                          ?.toString() ??
+                                                      'Select Type',
+                                                  style: const TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Color(0xFF4338CA),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              if (_selectedTable != null)
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 2,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(
+                                                      0xFFE0E7FF,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    'T${_selectedTable!['table_number']?.toString() ?? ''}',
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color: Color(0xFF4338CA),
+                                                    ),
+                                                  ),
+                                                ),
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: _getPaymentColor()
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  _getPaymentLabel(),
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: _getPaymentColor(),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                            ],
+                                            Icon(
+                                              _optionsSectionExpanded
+                                                  ? Icons.keyboard_arrow_up
+                                                  : Icons.keyboard_arrow_down,
+                                              size: 18,
+                                              color: Colors.grey[400],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    // Expanded content
+                                    if (_optionsSectionExpanded)
+                                      Container(
+                                        decoration: const BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(
+                                              color: Color(0xFFE2E8F0),
+                                            ),
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.all(10),
+                                        child: _posOptionsLayout == 'inline'
+                                            ? _buildInlineOptions()
+                                            : _buildDropdownOptions(),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Total + Place Order row
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Total Amount',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                        Text(
+                                          '₹${_grandTotal.toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w800,
+                                            color: theme.primaryColor,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 14),
-                              ],
-
-                              // Place Order Button
-                              SizedBox(
-                                height: 40,
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    _reviewOrder();
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF059669),
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.zero,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      TranslatedText(
-                                        'Place Order',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
+                                  SizedBox(
+                                    height: 44,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        _reviewOrder();
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF0F172A,
+                                        ),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
                                         ),
                                       ),
-                                      SizedBox(width: 6),
-                                      Icon(
-                                        Icons.arrow_forward_rounded,
-                                        size: 16,
+                                      child: const Text(
+                                        'Place Order',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
                             ],
                           ),
@@ -5095,7 +4853,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         const SizedBox(width: 12),
                         Expanded(
                           child: OnscreenKeyboardAwareField(
-                            useOnscreenKeyboard: _useOnscreenKeyboard &&
+                            useOnscreenKeyboard:
+                                _useOnscreenKeyboard &&
                                 (PlatformHelper.isDesktop ||
                                     MediaQuery.of(context).size.width >= 600),
                             controller: phoneController,
@@ -5462,7 +5221,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               _buildTopBanner(theme),
 
               Expanded(
-                child: (constraints.maxWidth > 1100)
+                child: _shouldShowCheckoutPanel(constraints.maxWidth)
                     ? (_posCategoryLayout == 'top'
                           ? Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5520,7 +5279,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         },
       ),
       floatingActionButton:
-          _totalProductsInCart > 0 && MediaQuery.of(context).size.width <= 1100
+          _totalProductsInCart > 0 &&
+              !_shouldShowCheckoutPanel(MediaQuery.of(context).size.width)
           ? SizedBox(
               height: 45,
               child: AnimatedBuilder(
@@ -5570,7 +5330,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '$_totalProductsInCart Items  ΓÇó  ₹${_grandTotal.toStringAsFixed(2)}',
+                            '$_totalProductsInCart Items  •  ₹${_grandTotal.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
@@ -5686,9 +5446,11 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: OnscreenKeyboardAwareField(
-                                    useOnscreenKeyboard: _useOnscreenKeyboard &&
+                                    useOnscreenKeyboard:
+                                        _useOnscreenKeyboard &&
                                         (PlatformHelper.isDesktop ||
-                                            MediaQuery.of(context).size.width >= 600),
+                                            MediaQuery.of(context).size.width >=
+                                                600),
                                     controller: _searchController,
                                     focusNode: _desktopSearchFocusNode,
                                     onChanged: _onSearchChanged,
@@ -6529,7 +6291,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           ],
         ),
         child: OnscreenKeyboardAwareField(
-          useOnscreenKeyboard: _useOnscreenKeyboard &&
+          useOnscreenKeyboard:
+              _useOnscreenKeyboard &&
               (PlatformHelper.isDesktop ||
                   MediaQuery.of(context).size.width >= 600),
           controller: _searchController,
@@ -7232,6 +6995,52 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                 ],
                               ),
                             ),
+                            // ── Tablet Cart Layout ─────────────────────────
+                            // Only show for tablets and desktop (not mobile phones)
+                            Builder(
+                              builder: (ctx) {
+                                final screenWidth = MediaQuery.of(
+                                  ctx,
+                                ).size.width;
+                                final isTabletOrDesktop = screenWidth >= 600;
+                                if (!isTabletOrDesktop) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(height: 12),
+                                    buildSection(
+                                      icon: Icons.shopping_cart_rounded,
+                                      title: 'Tablet Cart Layout',
+                                      subtitle:
+                                          'How the cart appears on tablet screens',
+                                      child: Row(
+                                        children: [
+                                          _tabletCartLayoutChip(
+                                            'Auto',
+                                            'auto',
+                                            setStateLocal,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          _tabletCartLayoutChip(
+                                            'Button',
+                                            'bottom_sheet',
+                                            setStateLocal,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          _tabletCartLayoutChip(
+                                            'Side Panel',
+                                            'side_panel',
+                                            setStateLocal,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                             // ── On-Screen Keyboard ─────────────────────────
                             const SizedBox(height: 12),
                             buildSection(
@@ -7241,17 +7050,18 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   'Virtual keyboard for text inputs (tablet & desktop only)',
                               child: Builder(
                                 builder: (ctx) {
-                                  final screenWidth =
-                                      MediaQuery.of(ctx).size.width;
+                                  final screenWidth = MediaQuery.of(
+                                    ctx,
+                                  ).size.width;
                                   final isTabletOrDesktop =
                                       PlatformHelper.isDesktop ||
                                       screenWidth >= 600;
                                   return InkWell(
                                     onTap: isTabletOrDesktop
                                         ? () => setStateLocal(
-                                              () => _useOnscreenKeyboard =
-                                                  !_useOnscreenKeyboard,
-                                            )
+                                            () => _useOnscreenKeyboard =
+                                                !_useOnscreenKeyboard,
+                                          )
                                         : null,
                                     borderRadius: BorderRadius.circular(10),
                                     child: Container(
@@ -7281,7 +7091,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                     fontWeight: FontWeight.w600,
                                                     fontSize: 13,
                                                     color: isTabletOrDesktop
-                                                        ? const Color(0xFF1F2937)
+                                                        ? const Color(
+                                                            0xFF1F2937,
+                                                          )
                                                         : Colors.grey[400],
                                                   ),
                                                 ),
@@ -7293,7 +7105,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                   style: TextStyle(
                                                     fontSize: 11,
                                                     color: isTabletOrDesktop
-                                                        ? const Color(0xFF6B7280)
+                                                        ? const Color(
+                                                            0xFF6B7280,
+                                                          )
                                                         : Colors.grey[400],
                                                   ),
                                                 ),
@@ -7307,10 +7121,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                             activeColor: primary,
                                             onChanged: isTabletOrDesktop
                                                 ? (val) => setStateLocal(
-                                                      () =>
-                                                          _useOnscreenKeyboard =
-                                                              val,
-                                                    )
+                                                    () => _useOnscreenKeyboard =
+                                                        val,
+                                                  )
                                                 : null,
                                           ),
                                         ],
@@ -7403,6 +7216,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                 await prefs.setBool(
                                   'pos_use_onscreen_keyboard',
                                   _useOnscreenKeyboard,
+                                );
+                                await prefs.setString(
+                                  'pos_tablet_cart_layout',
+                                  _tabletCartLayout,
                                 );
                                 if (mounted) {
                                   setState(() {});
@@ -7562,6 +7379,39 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tabletCartLayoutChip(
+    String label,
+    String value,
+    StateSetter setStateLocal,
+  ) {
+    final isSelected = _tabletCartLayout == value;
+    final primary = Theme.of(context).primaryColor;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setStateLocal(() => _tabletCartLayout = value),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? primary : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isSelected ? primary : Colors.grey[300]!),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.grey[800],
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+            ),
           ),
         ),
       ),
@@ -7850,8 +7700,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             onHorizontalDragUpdate: (details) {
               setState(() {
                 _checkoutPanelWidth -= details.delta.dx;
-                _checkoutPanelWidth = _checkoutPanelWidth.clamp(260.0, 480.0);
+                // Allow resizing up to 60% of screen width (half screen or slightly more)
+                final maxWidth = MediaQuery.of(context).size.width * 0.6;
+                _checkoutPanelWidth = _checkoutPanelWidth.clamp(
+                  260.0,
+                  maxWidth,
+                );
               });
+              // Debounced save
+              _debouncedSaveCheckoutPanelWidth();
             },
             child: Container(
               width: 8,
@@ -8013,295 +7870,290 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                           if (attributes.isNotEmpty) {
                             modifiersText = attributes
                                 .map((a) => '${a['name']}: ${a['value']}')
-                                .join(' ΓÇó ');
+                                .join(' • ');
                           }
 
-                          return Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isAvailable
-                                  ? Colors.white
-                                  : const Color(0xFFFFF7F7),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isAvailable
-                                    ? const Color(0xFFE2E8F0)
-                                    : const Color(0xFFFCA5A5),
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.02),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                // Product Image - Larger like reference
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
-                                    ),
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isAvailable
+                                      ? Colors.white
+                                      : const Color(0xFFFFF7F7),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: isAvailable
+                                        ? const Color(0xFFE2E8F0)
+                                        : const Color(0xFFFCA5A5),
+                                    width: 1,
                                   ),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: productImg != null
-                                      ? CustomCachedNetworkImage(
-                                          imgUrl: productImg,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Icon(
-                                          Icons.image_not_supported_outlined,
-                                          color: Colors.grey[400],
-                                          size: 24,
-                                        ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.02),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-
-                                // Details Column
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // Product Name with Quantity inline
-                                      Row(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    // Product Image with X overlay
+                                    SizedBox(
+                                      width: 56,
+                                      height: 56,
+                                      child: Stack(
                                         children: [
-                                          Expanded(
-                                            child: RichText(
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              text: TextSpan(
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 14,
-                                                  color: isAvailable
-                                                      ? const Color(0xFF1E293B)
-                                                      : const Color(0xFFB91C1C),
-                                                  height: 1.3,
-                                                ),
-                                                children: [
-                                                  TextSpan(
-                                                    text:
-                                                        item['product_name'] ??
-                                                        '',
+                                          Container(
+                                            width: 56,
+                                            height: 56,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8FAFC),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              border: Border.all(
+                                                color: const Color(0xFFE2E8F0),
+                                              ),
+                                            ),
+                                            clipBehavior: Clip.antiAlias,
+                                            child: productImg != null
+                                                ? CustomCachedNetworkImage(
+                                                    imgUrl: productImg,
+                                                    fit: BoxFit.cover,
+                                                  )
+                                                : Icon(
+                                                    Icons
+                                                        .image_not_supported_outlined,
+                                                    color: Colors.grey[400],
+                                                    size: 24,
                                                   ),
-                                                  TextSpan(
-                                                    text: '  ($quantity)',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+
+                                    // Details Column
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // Product Name with Quantity inline
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: RichText(
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  text: TextSpan(
                                                     style: TextStyle(
                                                       fontWeight:
-                                                          FontWeight.w500,
-                                                      color: Colors.grey[500],
-                                                      fontSize: 13,
+                                                          FontWeight.w700,
+                                                      fontSize: 14,
+                                                      color: isAvailable
+                                                          ? const Color(
+                                                              0xFF1E293B,
+                                                            )
+                                                          : const Color(
+                                                              0xFFB91C1C,
+                                                            ),
+                                                      height: 1.3,
                                                     ),
+                                                    children: [
+                                                      TextSpan(
+                                                        text:
+                                                            item['product_name'] ??
+                                                            '',
+                                                      ),
+                                                      TextSpan(
+                                                        text: '  ($quantity)',
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                          color:
+                                                              Colors.grey[500],
+                                                          fontSize: 13,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                          if (!isAvailable) ...[
-                                            const SizedBox(width: 6),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 5,
-                                                    vertical: 2,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFFEE2E2),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: const Text(
-                                                'Unavailable',
-                                                style: TextStyle(
-                                                  color: Color(0xFFB91C1C),
-                                                  fontSize: 8,
-                                                  fontWeight: FontWeight.w700,
                                                 ),
                                               ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-
-                                      // Modifiers/Attributes if any
-                                      if (modifiersText.isNotEmpty) ...[
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          modifiersText,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey[500],
+                                              if (!isAvailable) ...[
+                                                const SizedBox(width: 6),
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 5,
+                                                        vertical: 2,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(
+                                                      0xFFFEE2E2,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                  ),
+                                                  child: const Text(
+                                                    'Unavailable',
+                                                    style: TextStyle(
+                                                      color: Color(0xFFB91C1C),
+                                                      fontSize: 8,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
 
-                                      const SizedBox(height: 6),
-
-                                      // Price Row with Discount
-                                      Row(
-                                        children: [
-                                          Text(
-                                            '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 15,
-                                              color: theme.primaryColor,
-                                            ),
-                                          ),
-                                          if ((pricing['discount_percent'] ??
-                                                  0) >
-                                              0) ...[
-                                            const SizedBox(width: 6),
+                                          // Modifiers/Attributes if any
+                                          if (modifiersText.isNotEmpty) ...[
+                                            const SizedBox(height: 3),
                                             Text(
-                                              '₹${(pricing['original_sale_price_excl_tax']?.toDouble() ?? pricing['selling_amount_excluding_tax']?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                              modifiersText,
                                               style: TextStyle(
-                                                color: Colors.grey[400],
                                                 fontSize: 11,
-                                                decoration:
-                                                    TextDecoration.lineThrough,
+                                                color: Colors.grey[500],
                                               ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ],
+
+                                          const SizedBox(height: 8),
+
+                                          // Price + Coupon + Pencil in one row
+                                          Row(
+                                            children: [
+                                              // Price
+                                              Text(
+                                                '₹${pricing['item_total']?.toStringAsFixed(2) ?? '0.00'}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 16,
+                                                  color: theme.primaryColor,
+                                                ),
+                                              ),
+                                              if ((pricing['discount_percent'] ??
+                                                      0) >
+                                                  0) ...[
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  '₹${(pricing['original_sale_price_excl_tax']?.toDouble() ?? pricing['selling_amount_excluding_tax']?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[400],
+                                                    fontSize: 12,
+                                                    decoration: TextDecoration
+                                                        .lineThrough,
+                                                  ),
+                                                ),
+                                              ],
+                                              const SizedBox(width: 10),
+                                              // Coupon Button (bigger)
+                                              InkWell(
+                                                onTap: () {
+                                                  _showDiscountDialog(
+                                                    item['product_in_cart_id']
+                                                            ?.toString() ??
+                                                        '',
+                                                    (pricing['max_discount_percent']
+                                                                ?.toDouble() ??
+                                                            0)
+                                                        .toDouble(),
+                                                    (pricing['discount_percent']
+                                                                ?.toDouble() ??
+                                                            0)
+                                                        .toDouble(),
+                                                    () => setState(() {}),
+                                                  );
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Container(
+                                                  width: 32,
+                                                  height: 32,
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        (pricing['discount_percent'] ??
+                                                                0) >
+                                                            0
+                                                        ? const Color(
+                                                            0xFF5B4FE8,
+                                                          ).withOpacity(0.1)
+                                                        : const Color(
+                                                            0xFFF1F5F9,
+                                                          ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.local_offer_outlined,
+                                                    size: 18,
+                                                    color:
+                                                        (pricing['discount_percent'] ??
+                                                                0) >
+                                                            0
+                                                        ? const Color(
+                                                            0xFF5B4FE8,
+                                                          )
+                                                        : Colors.grey[500],
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              // Edit Button (bigger)
+                                              InkWell(
+                                                onTap: () {
+                                                  _showEditCartItemDialog(
+                                                    item,
+                                                    () => setState(() {}),
+                                                  );
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Container(
+                                                  width: 32,
+                                                  height: 32,
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(
+                                                      0xFFF1F5F9,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.edit_outlined,
+                                                    size: 18,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ],
                                       ),
-                                    ],
-                                  ),
-                                ),
-
-                                const SizedBox(width: 10),
-
-                                // Right Side: Actions + Quantity
-                                Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // Action Icons Row (Edit, Delete)
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        // Discount Button
-                                        InkWell(
-                                          onTap: () {
-                                            _showDiscountDialog(
-                                              item['product_in_cart_id']
-                                                      ?.toString() ??
-                                                  '',
-                                              (pricing['max_discount_percent']
-                                                          ?.toDouble() ??
-                                                      0)
-                                                  .toDouble(),
-                                              (pricing['discount_percent']
-                                                          ?.toDouble() ??
-                                                      0)
-                                                  .toDouble(),
-                                              () => setState(() {}),
-                                            );
-                                          },
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Container(
-                                            width: 24,
-                                            height: 24,
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  (pricing['discount_percent'] ??
-                                                          0) >
-                                                      0
-                                                  ? const Color(
-                                                      0xFF5B4FE8,
-                                                    ).withOpacity(0.1)
-                                                  : const Color(0xFFF1F5F9),
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: Icon(
-                                              Icons.local_offer_outlined,
-                                              size: 12,
-                                              color:
-                                                  (pricing['discount_percent'] ??
-                                                          0) >
-                                                      0
-                                                  ? const Color(0xFF5B4FE8)
-                                                  : Colors.grey[500],
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        // Edit Button
-                                        InkWell(
-                                          onTap: () {
-                                            _showEditCartItemDialog(
-                                              item,
-                                              () => setState(() {}),
-                                            );
-                                          },
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Container(
-                                            width: 24,
-                                            height: 24,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF1F5F9),
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: Icon(
-                                              Icons.edit_outlined,
-                                              size: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        // Delete Button
-                                        InkWell(
-                                          onTap: () async {
-                                            await _confirmAndDeleteCartItem(
-                                              item,
-                                              () => setState(() {}),
-                                            );
-                                          },
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Container(
-                                            width: 24,
-                                            height: 24,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFFEE2E2),
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: const Icon(
-                                              Icons.delete_outline,
-                                              size: 12,
-                                              color: Color(0xFFB91C1C),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
                                     ),
 
-                                    const SizedBox(height: 8),
+                                    const SizedBox(width: 10),
 
-                                    // Quantity Controls
+                                    // Quantity Controls (even bigger)
                                     Container(
-                                      height: 28,
+                                      height: 42,
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFF8FAFC),
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                           color: const Color(0xFFE2E8F0),
                                         ),
@@ -8309,7 +8161,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          // Minus
                                           InkWell(
                                             onTap: () async {
                                               await _decrementCartItem(
@@ -8319,31 +8170,31 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                               );
                                             },
                                             borderRadius: BorderRadius.circular(
-                                              8,
+                                              10,
                                             ),
                                             child: Container(
-                                              width: 26,
-                                              height: 26,
-                                              child: Icon(
+                                              width: 38,
+                                              height: 38,
+                                              child: const Icon(
                                                 Icons.remove,
-                                                size: 14,
-                                                color: Colors.grey[700],
+                                                size: 20,
+                                                color: Color(0xFF64748B),
                                               ),
                                             ),
                                           ),
                                           Container(
-                                            width: 28,
-                                            alignment: Alignment.center,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                            ),
                                             child: Text(
                                               '$quantity',
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.w700,
-                                                fontSize: 13,
+                                                fontSize: 16,
                                                 color: Color(0xFF1E293B),
                                               ),
                                             ),
                                           ),
-                                          // Plus
                                           InkWell(
                                             onTap: isAvailable
                                                 ? () async {
@@ -8355,14 +8206,14 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                   }
                                                 : null,
                                             borderRadius: BorderRadius.circular(
-                                              8,
+                                              10,
                                             ),
                                             child: Container(
-                                              width: 26,
-                                              height: 26,
+                                              width: 38,
+                                              height: 38,
                                               child: Icon(
                                                 Icons.add,
-                                                size: 14,
+                                                size: 20,
                                                 color: isAvailable
                                                     ? theme.primaryColor
                                                     : Colors.grey[400],
@@ -8374,8 +8225,47 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
+                              ),
+
+                              // X Delete Button - at top-left of entire card
+                              Positioned(
+                                top: -10,
+                                left: -10,
+                                child: InkWell(
+                                  onTap: () async {
+                                    await _confirmAndDeleteCartItem(
+                                      item,
+                                      () => setState(() {}),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(18),
+                                  child: Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFB91C1C),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.15),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           );
                         },
                       ),
@@ -11207,6 +11097,76 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         ),
                         const SizedBox(height: 14),
 
+                        // Virtual Printer Preview Button
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFF3B82F6)),
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => VirtualPrinterPreview(
+                                  paperWidthMm: paperSize ?? 80.0,
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF3B82F6),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.preview,
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Virtual Printer Preview',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14,
+                                          color: Color(0xFF1F2937),
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        'Test & preview before printing on real paper',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: Color(0xFF3B82F6),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
                         // Auto Print Section
                         Container(
                           width: double.infinity,
@@ -11635,37 +11595,61 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   }
 
   Future<bool> _autoPrintOrder(String orderId) async {
-    final connType = await InvoicePrintService.getSavedConnectionType();
-    final paperSize = await InvoicePrintService.getSavedPaperSize() ?? 80.0;
+    // Check both services for connection type (they use different preference keys)
+    String? connType = await InvoicePrintService.getSavedConnectionType();
+    connType ??= await PrintSettingsService.getConnectionType();
+
+    // Also check both services for paper size
+    double? paperSize = await InvoicePrintService.getSavedPaperSize();
+    paperSize ??= await PrintSettingsService.getPaperSize() ?? 80.0;
 
     if (connType == null) {
       // No printer configured — caller will show the combined notification
       // with "Print failed" detail, so we just return false here.
+      debugPrint('Auto print failed: No printer connection type found');
       return false;
     }
 
+    debugPrint(
+      'Auto print starting with connection type: $connType, paper size: $paperSize',
+    );
+
     bool success = false;
     if (connType == InvoicePrintService.connectionBluetooth) {
-      if (InvoicePrintService.isDesktop) {
-        success = await InvoicePrintService.printPosInvoice(
-          orderId,
-          type: connType,
-          widthInMm: paperSize,
-        );
-      } else {
-        success = await BluetoothPrintService.printPosInvoice(
-          orderId,
-          type: connType,
-          widthInMm: paperSize,
-        );
+      // Ensure BT printer is set and connected before printing
+      final hasBtPrinter = await BluetoothPrintService.hasDefaultPrinter();
+      if (!hasBtPrinter) {
+        debugPrint('Auto print failed: No default Bluetooth printer set');
+        return false;
       }
+
+      // Try to connect if not already connected
+      final btConnected = await BluetoothPrintService.isConnected();
+      if (!btConnected) {
+        debugPrint('Auto print: Bluetooth not connected, reconnecting...');
+        final reconnected = await BluetoothPrintService.connectToSavedPrinter();
+        if (!reconnected) {
+          debugPrint('Auto print failed: Could not reconnect to BT printer');
+          return false;
+        }
+      }
+
+      // Use BluetoothPrintService for all bluetooth connections
+      // type must be 'quick'/'invoice'/'ticket', NOT the connection type
+      success = await BluetoothPrintService.printPosInvoice(
+        orderId,
+        type: 'quick',
+        widthInMm: paperSize,
+      );
     } else {
       success = await InvoicePrintService.printPosInvoice(
         orderId,
-        type: connType,
+        type: 'quick',
         widthInMm: paperSize,
       );
     }
+
+    debugPrint('Auto print result: success=$success');
 
     // NOTE: We intentionally do NOT show a notification here.
     // The caller shows a single combined notification like
