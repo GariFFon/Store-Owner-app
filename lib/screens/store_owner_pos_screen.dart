@@ -1925,6 +1925,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     return const Color(0xFF059669);
   }
 
+  // Apply state change via sheet setter (if inside modal) or main setState
+  void _applySheetState(StateSetter? sheetSetter, VoidCallback fn) {
+    if (sheetSetter != null) {
+      sheetSetter(fn);
+    } else {
+      setState(fn);
+    }
+  }
+
   // Collapsible option container for side panel
   Widget _buildCollapsibleOption({
     required String label,
@@ -2015,7 +2024,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   }
 
   // Inline options - section style with labels above chips
-  Widget _buildInlineOptions() {
+  Widget _buildInlineOptions({StateSetter? sheetSetter}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2034,7 +2043,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             return _buildMiniChip(
               label: method['order_method_name']?.toString() ?? '',
               isSelected: isSelected,
-              onTap: () => setState(() => _selectedOrderMethod = method),
+              onTap: () => _applySheetState(
+                sheetSetter,
+                () => _selectedOrderMethod = method,
+              ),
               selectedColor: const Color(0xFFE0E7FF),
               selectedTextColor: const Color(0xFF4338CA),
             );
@@ -2060,7 +2072,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                   _buildMiniChip(
                     label: 'None',
                     isSelected: _selectedTable == null,
-                    onTap: () => setState(() => _selectedTable = null),
+                    onTap: () => _applySheetState(
+                      sheetSetter,
+                      () => _selectedTable = null,
+                    ),
                     selectedColor: const Color(0xFFF1F5F9),
                     selectedTextColor: const Color(0xFF64748B),
                   ),
@@ -2069,7 +2084,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     return _buildMiniChip(
                       label: 'T${table['table_number']?.toString() ?? ''}',
                       isSelected: isSelected,
-                      onTap: () => setState(() => _selectedTable = table),
+                      onTap: () => _applySheetState(
+                        sheetSetter,
+                        () => _selectedTable = table,
+                      ),
                       selectedColor: const Color(0xFFE0E7FF),
                       selectedTextColor: const Color(0xFF4338CA),
                     );
@@ -2091,7 +2109,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             _buildMiniChip(
               label: 'Unpaid',
               isSelected: _selectedPaymentMode == 'UNPAID',
-              onTap: () => setState(() => _selectedPaymentMode = 'UNPAID'),
+              onTap: () => _applySheetState(
+                sheetSetter,
+                () => _selectedPaymentMode = 'UNPAID',
+              ),
               selectedColor: const Color(0xFFFEE2E2),
               selectedTextColor: const Color(0xFFB91C1C),
             ),
@@ -2099,8 +2120,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               label: 'Split',
               isSelected: _selectedPaymentMode == 'MULTI-MODE',
               onTap: () {
-                setState(() => _selectedPaymentMode = 'MULTI-MODE');
-                _showMultiModeDialog((fn) => setState(fn));
+                final StateSetter effectiveSetter =
+                    sheetSetter ?? (fn) => setState(fn);
+                effectiveSetter(() => _selectedPaymentMode = 'MULTI-MODE');
+                _showMultiModeDialog(effectiveSetter);
               },
               selectedColor: const Color(0xFFE0E7FF),
               selectedTextColor: const Color(0xFF4338CA),
@@ -2114,7 +2137,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     bank['account_holder_name']?.toString() ??
                     'Bank',
                 isSelected: isSelected,
-                onTap: () => setState(() => _selectedPaymentMode = bankId),
+                onTap: () => _applySheetState(
+                  sheetSetter,
+                  () => _selectedPaymentMode = bankId,
+                ),
                 selectedColor: const Color(0xFFD1FAE5),
                 selectedTextColor: const Color(0xFF059669),
               );
@@ -2181,7 +2207,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
   }
 
   // Dropdown options - the individual collapsible sections
-  Widget _buildDropdownOptions() {
+  Widget _buildDropdownOptions({StateSetter? sheetSetter}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2195,8 +2221,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           color: const Color(0xFFE0E7FF),
           textColor: const Color(0xFF4338CA),
           expanded: _orderTypeExpanded,
-          onToggle: () =>
-              setState(() => _orderTypeExpanded = !_orderTypeExpanded),
+          onToggle: () => _applySheetState(
+            sheetSetter,
+            () => _orderTypeExpanded = !_orderTypeExpanded,
+          ),
           content: Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -2205,10 +2233,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               return _buildPremiumChip(
                 label: method['order_method_name']?.toString() ?? '',
                 isSelected: isSelected,
-                onTap: () {
-                  setState(() => _selectedOrderMethod = method);
+                onTap: () => _applySheetState(sheetSetter, () {
+                  _selectedOrderMethod = method;
                   _orderTypeExpanded = false;
-                },
+                }),
                 selectedColor: const Color(0xFFE0E7FF),
                 selectedTextColor: const Color(0xFF4338CA),
               );
@@ -2226,7 +2254,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           color: const Color(0xFFE0E7FF),
           textColor: const Color(0xFF4338CA),
           expanded: _tableExpanded,
-          onToggle: () => setState(() => _tableExpanded = !_tableExpanded),
+          onToggle: () => _applySheetState(
+            sheetSetter,
+            () => _tableExpanded = !_tableExpanded,
+          ),
           content: _isTablesLoading
               ? const SizedBox(
                   height: 28,
@@ -2245,10 +2276,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                     _buildPremiumChip(
                       label: 'None',
                       isSelected: _selectedTable == null,
-                      onTap: () {
-                        setState(() => _selectedTable = null);
+                      onTap: () => _applySheetState(sheetSetter, () {
+                        _selectedTable = null;
                         _tableExpanded = false;
-                      },
+                      }),
                       selectedColor: const Color(0xFFF1F5F9),
                       selectedTextColor: const Color(0xFF64748B),
                     ),
@@ -2257,10 +2288,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       return _buildPremiumChip(
                         label: 'T${table['table_number']?.toString() ?? ''}',
                         isSelected: isSelected,
-                        onTap: () {
-                          setState(() => _selectedTable = table);
+                        onTap: () => _applySheetState(sheetSetter, () {
+                          _selectedTable = table;
                           _tableExpanded = false;
-                        },
+                        }),
                         selectedColor: const Color(0xFFE0E7FF),
                         selectedTextColor: const Color(0xFF4338CA),
                       );
@@ -2277,7 +2308,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
           color: _getPaymentColor().withOpacity(0.1),
           textColor: _getPaymentColor(),
           expanded: _paymentExpanded,
-          onToggle: () => setState(() => _paymentExpanded = !_paymentExpanded),
+          onToggle: () => _applySheetState(
+            sheetSetter,
+            () => _paymentExpanded = !_paymentExpanded,
+          ),
           content: Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -2285,10 +2319,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               _buildPremiumChip(
                 label: 'Unpaid',
                 isSelected: _selectedPaymentMode == 'UNPAID',
-                onTap: () {
-                  setState(() => _selectedPaymentMode = 'UNPAID');
+                onTap: () => _applySheetState(sheetSetter, () {
+                  _selectedPaymentMode = 'UNPAID';
                   _paymentExpanded = false;
-                },
+                }),
                 selectedColor: const Color(0xFFFEE2E2),
                 selectedTextColor: const Color(0xFFB91C1C),
               ),
@@ -2296,9 +2330,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                 label: 'Split',
                 isSelected: _selectedPaymentMode == 'MULTI-MODE',
                 onTap: () {
-                  setState(() => _selectedPaymentMode = 'MULTI-MODE');
-                  _paymentExpanded = false;
-                  _showMultiModeDialog((fn) => setState(fn));
+                  final StateSetter effectiveSetter =
+                      sheetSetter ?? (fn) => setState(fn);
+                  effectiveSetter(() {
+                    _selectedPaymentMode = 'MULTI-MODE';
+                    _paymentExpanded = false;
+                  });
+                  _showMultiModeDialog(effectiveSetter);
                 },
                 selectedColor: const Color(0xFFE0E7FF),
                 selectedTextColor: const Color(0xFF4338CA),
@@ -2312,10 +2350,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       bank['account_holder_name']?.toString() ??
                       'Bank',
                   isSelected: isSelected,
-                  onTap: () {
-                    setState(() => _selectedPaymentMode = bankId);
+                  onTap: () => _applySheetState(sheetSetter, () {
+                    _selectedPaymentMode = bankId;
                     _paymentExpanded = false;
-                  },
+                  }),
                   selectedColor: const Color(0xFFD1FAE5),
                   selectedTextColor: const Color(0xFF059669),
                 );
@@ -4341,8 +4379,12 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                         ),
                                         padding: const EdgeInsets.all(10),
                                         child: _posOptionsLayout == 'inline'
-                                            ? _buildInlineOptions()
-                                            : _buildDropdownOptions(),
+                                            ? _buildInlineOptions(
+                                                sheetSetter: setSheetState,
+                                              )
+                                            : _buildDropdownOptions(
+                                                sheetSetter: setSheetState,
+                                              ),
                                       ),
                                   ],
                                 ),
