@@ -138,7 +138,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen>
       _barcodeControllers[i] = TextEditingController(
         text:
             product['barcode']?.toString() ??
-            'GEN-${const Uuid().v4().substring(0, 8).toUpperCase()}',
+            const Uuid().v4(),
       );
       _mfgDateControllers[i] = TextEditingController(
         text: product['manufactured_on_date']?.toString() ?? '',
