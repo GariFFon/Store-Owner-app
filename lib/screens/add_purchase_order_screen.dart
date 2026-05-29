@@ -180,7 +180,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
           productTemplate['product_combination_template_image'];
       final String barcode =
           productTemplate['barcode'] ??
-          'AG-${const Uuid().v4().substring(0, 8).toUpperCase()}';
+          const Uuid().v4();
 
       _selectedProducts.add({
         ...productTemplate,
@@ -1949,7 +1949,7 @@ class _AddPurchaseOrderScreenState extends State<AddPurchaseOrderScreen> {
                             suffix: GestureDetector(
                               onTap: () {
                                 final newBarcode =
-                                    'AG-${const Uuid().v4().substring(0, 8).toUpperCase()}';
+                                    const Uuid().v4();
                                 setState(() {
                                   item['barcode'] = newBarcode;
                                   _barcodeControllers[index].text = newBarcode;
