@@ -1203,16 +1203,22 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
 
   Future<void> _validateCart() async {
     try {
-      final body = {
+      final body = <String, dynamic>{
         'store_id': widget.storeId,
         'order_method_id':
             _selectedOrderMethod?['id'] ?? null, // Default order method
-        'user_address_id': selected_address_id ?? null, // Default address
         'lat': _lat,
         'lng': _lng,
         'store_access': true,
         'customer_user_id': customer_user_id ?? '',
       };
+      // For guest sessions without a real address, send guest_session_id
+      // as user_address_id to satisfy the backend's required field check.
+      if (selected_address_id != null && selected_address_id!.isNotEmpty) {
+        body['user_address_id'] = selected_address_id;
+      } else if (_guestSessionId != null && _guestSessionId!.isNotEmpty) {
+        body['user_address_id'] = _guestSessionId!;
+      }
       if (_guestSessionId != null && _guestSessionId!.isNotEmpty) {
         body['guest_session_id'] = _guestSessionId!;
       }
@@ -1294,12 +1300,39 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         // Build product_id -> total quantity map from product_in_cart
         // product_in_cart has the correct product_id that matches product grid IDs
         final Map<String, int> productQuantities = {};
+        // Also build product_id -> cart_row_id map so items_available gets
+        // the real product_in_cart_id needed by the discount API.
+        final Map<String, String> productIdToCartRowId = {};
         final productInCart = data['product_in_cart'] ?? [];
         for (var item in productInCart) {
           final pid = item['product_id']?.toString() ?? '';
           if (pid.isEmpty) continue;
           final qty = (item['quantity'] as num?)?.toInt() ?? 1;
           productQuantities[pid] = (productQuantities[pid] ?? 0) + qty;
+
+          // Try multiple field names for the cart row UUID
+          final cartRowId = item['id']?.toString() ??
+              item['product_in_cart_id']?.toString() ??
+              item['cart_id']?.toString() ??
+              '';
+          if (pid.isNotEmpty && cartRowId.isNotEmpty) {
+            productIdToCartRowId[pid] = cartRowId;
+          }
+        }
+
+        // Enrich items_available with real product_in_cart_id from product_in_cart
+        // Match by product_id since product_in_cart entries don't have product_combination_id
+        for (int i = 0; i < _cartItemsAvailable.length; i++) {
+          final itemProductId =
+              _cartItemsAvailable[i]['product_id']?.toString() ?? '';
+          if (itemProductId.isNotEmpty &&
+              productIdToCartRowId.containsKey(itemProductId)) {
+            _cartItemsAvailable[i] = Map<String, dynamic>.from(
+              _cartItemsAvailable[i],
+            );
+            _cartItemsAvailable[i]['product_in_cart_id'] =
+                productIdToCartRowId[itemProductId];
+          }
         }
 
         // Update product card quantities to match actual cart state
@@ -2438,17 +2471,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     VoidCallback? onDone,
     String? productCombinationId,
   }) async {
-    // Determine if productInCartId is an actual cart row UUID or a combo ID fallback
-    // Cart row UUIDs are typically 36 chars with dashes (e.g., 28e9eb7e-021a-4c51-a91c-4f74e25a9390)
-    // If productCombinationId is provided and matches productInCartId, it's a combo ID fallback
-    final isComboIdFallback =
-        productCombinationId != null &&
-        productCombinationId.isNotEmpty &&
-        productCombinationId == productInCartId;
-
-    final effectiveCartId = (productInCartId.isNotEmpty && !isComboIdFallback)
-        ? productInCartId
-        : '';
+    // Fallback: if product_in_cart_id is empty, use product_combination_id
+    final effectiveCartId = productInCartId.isNotEmpty ? productInCartId : '';
     final effectiveComboId = productCombinationId ?? '';
 
     try {
@@ -2457,13 +2481,27 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         'store_id': widget.storeId,
         'discount_percent': discountPercent,
       };
-      if (effectiveCartId.isNotEmpty) {
-        body['product_in_cart_id'] = effectiveCartId;
-      } else if (effectiveComboId.isNotEmpty) {
-        body['product_combination_id'] = effectiveComboId;
-        if (customer_user_id != null && customer_user_id!.isNotEmpty) {
-          body['customer_user_id'] = customer_user_id;
+
+      final isGuest = customer_user_id == null || customer_user_id!.isEmpty;
+      if (isGuest) {
+        // Guest cart path (v1.3): customer_user_id="" + guest_session_id required
+        body['customer_user_id'] = '';
+        if (_guestSessionId != null && _guestSessionId!.isNotEmpty) {
+          body['guest_session_id'] = _guestSessionId!;
         }
+      } else {
+        // Registered customer path
+        body['customer_user_id'] = customer_user_id;
+      }
+
+      // product_in_cart_id: the API accepts GuestCartItem.id,
+      // ProductsInCartData.id, OR product_combination_id as a fallback.
+      // For guest carts the lookup is scoped to guest_session_id automatically.
+      final effectiveId = effectiveCartId.isNotEmpty
+          ? effectiveCartId
+          : effectiveComboId;
+      if (effectiveId.isNotEmpty) {
+        body['product_in_cart_id'] = effectiveId;
       }
       final response = await ApiService.post(
         '/apply-product-discount/',
@@ -2490,20 +2528,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
             );
           }
 
-          // Use exact values from API discount_details for local update
-          final discountDetails = data['discount_details'];
-          if (discountDetails is Map<String, dynamic>) {
-            _updateLocalDiscountFromDetails(productInCartId, discountDetails);
-          } else if (discountPercent == 0) {
-            // Clear: discount_details may be absent — zero out locally
-            _updateLocalDiscountFromDetails(productInCartId, {
-              'discount_percent': 0.0,
-            });
-          }
+          // Re-validate cart from server to get updated totals with discount.
+          await _validateCart();
           onDone?.call();
-          // Don't call _validateCart here - it may return stale data immediately after discount
-          // The discount is already applied locally from API response
-          // Next cart operation will naturally sync with server
           return;
         }
       }
@@ -3192,12 +3219,24 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                         item['product_in_cart_id']
                                             ?.toString() ??
                                         '';
-                                    if (productInCartId.isNotEmpty &&
+                                    final comboId =
+                                        item['product_combination_id']
+                                            ?.toString() ??
+                                        item['id']?.toString() ??
+                                        '';
+                                    if ((productInCartId.isNotEmpty ||
+                                            comboId.isNotEmpty) &&
                                         newDiscount != currentDiscount) {
                                       await _applyProductDiscount(
-                                        productInCartId,
+                                        productInCartId.isNotEmpty
+                                            ? productInCartId
+                                            : comboId,
                                         newDiscount,
                                         onDone: onUpdated,
+                                        productCombinationId:
+                                            comboId.isNotEmpty
+                                            ? comboId
+                                            : null,
                                       );
                                     } else {
                                       onUpdated?.call();
@@ -10215,7 +10254,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                               ),
                               const SizedBox(height: 8),
                               ...((syncResult!['items'] as List)
-                                      .take(10)
                                       .toList())
                                   .map(
                                     (item) => Container(
@@ -10275,18 +10313,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                       ),
                                     ),
                                   ),
-                              if ((syncResult!['items'] as List).length > 10)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    '+ ${(syncResult!['items'] as List).length - 10} more items',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey[500],
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
                             ],
                           ],
                         ),
@@ -10390,7 +10416,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   );
                                 },
                                 child: const Text(
-                                  'Done ΓÇö Refresh Store',
+                                  'Done - Refresh Store',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
