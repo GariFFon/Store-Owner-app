@@ -1249,7 +1249,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
         // Robustly fetch items from either key directly
         final items =
             data['items_available'] ?? data['validated_cart_data'] ?? [];
-        _cartItemsAvailable = List<Map<String, dynamic>>.from(items);
+        final serverItems = List<Map<String, dynamic>>.from(items);
+
+        // Use server items directly (simple approach)
+        _cartItemsAvailable = serverItems;
 
         // 'items_unavailable' is usually only in auto-validate-cart response
         _cartItemsUnavailable = List<Map<String, dynamic>>.from(
@@ -2365,20 +2368,106 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     );
   }
 
+  void _updateLocalDiscountFromDetails(
+    String productInCartId,
+    Map<String, dynamic> details,
+  ) {
+    if (!mounted) return;
+    setState(() {
+      for (var i = 0; i < _cartItemsAvailable.length; i++) {
+        final existingItem = _cartItemsAvailable[i];
+        final existingCartId =
+            existingItem['product_in_cart_id']?.toString() ?? '';
+        final existingComboId =
+            existingItem['product_combination_id']?.toString() ??
+            existingItem['id']?.toString() ??
+            '';
+
+        // Match by product_in_cart_id OR by product_combination_id fallback
+        final matchesCartId =
+            existingCartId.isNotEmpty && existingCartId == productInCartId;
+        final matchesComboId =
+            existingComboId.isNotEmpty && existingComboId == productInCartId;
+
+        if (matchesCartId || matchesComboId) {
+          final item = Map<String, dynamic>.from(existingItem);
+          final pricing = Map<String, dynamic>.from(
+            item['pricing_details'] ?? {},
+          );
+          final qty = (item['enquired_quantity'] ?? item['quantity'] ?? 1)
+              .toInt();
+          final discPct = (details['discount_percent']?.toDouble() ?? 0.0);
+
+          // IMPORTANT: Update product_in_cart_id from API response
+          // The API may create/return a new cart row ID
+          final newCartId = details['product_in_cart_id']?.toString();
+          if (newCartId != null && newCartId.isNotEmpty) {
+            item['product_in_cart_id'] = newCartId;
+          }
+
+          // Update item-level discount
+          item['discount_percent'] = discPct;
+
+          // Update pricing_details from API discount_details
+          pricing['discount_percent'] = discPct;
+          pricing['discount_amount_excl_tax'] =
+              (details['discount_amount_excl_tax']?.toDouble() ?? 0.0);
+          pricing['original_sale_price_excl_tax'] =
+              (details['sale_price_excl_tax']?.toDouble() ?? 0.0);
+          pricing['selling_amount_excluding_tax'] =
+              (details['discounted_price_excl_tax']?.toDouble() ??
+              pricing['selling_amount_excluding_tax']?.toDouble() ??
+              0.0);
+
+          // item_total = discounted incl-GST × quantity
+          final discPriceInclTax =
+              (details['discounted_price_incl_tax']?.toDouble() ?? 0.0);
+          pricing['item_total'] = discPriceInclTax * qty;
+
+          item['pricing_details'] = pricing;
+          _cartItemsAvailable[i] = item;
+          break;
+        }
+      }
+    });
+  }
+
   Future<void> _applyProductDiscount(
     String productInCartId,
     double discountPercent, {
     VoidCallback? onDone,
+    String? productCombinationId,
   }) async {
+    // Determine if productInCartId is an actual cart row UUID or a combo ID fallback
+    // Cart row UUIDs are typically 36 chars with dashes (e.g., 28e9eb7e-021a-4c51-a91c-4f74e25a9390)
+    // If productCombinationId is provided and matches productInCartId, it's a combo ID fallback
+    final isComboIdFallback =
+        productCombinationId != null &&
+        productCombinationId.isNotEmpty &&
+        productCombinationId == productInCartId;
+
+    final effectiveCartId = (productInCartId.isNotEmpty && !isComboIdFallback)
+        ? productInCartId
+        : '';
+    final effectiveComboId = productCombinationId ?? '';
+
     try {
+      final body = <String, dynamic>{
+        'store_access': true,
+        'store_id': widget.storeId,
+        'discount_percent': discountPercent,
+      };
+      if (effectiveCartId.isNotEmpty) {
+        body['product_in_cart_id'] = effectiveCartId;
+      } else if (effectiveComboId.isNotEmpty) {
+        body['product_combination_id'] = effectiveComboId;
+        if (customer_user_id != null && customer_user_id!.isNotEmpty) {
+          body['customer_user_id'] = customer_user_id;
+        }
+      }
       final response = await ApiService.post(
         '/apply-product-discount/',
-        body: {
-          'store_access': true,
-          'store_id': widget.storeId,
-          'product_in_cart_id': productInCartId,
-          'discount_percent': discountPercent,
-        },
+        body: body,
         useBearerToken: true,
       );
 
@@ -2400,8 +2489,21 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               ),
             );
           }
-          await _validateCart();
+
+          // Use exact values from API discount_details for local update
+          final discountDetails = data['discount_details'];
+          if (discountDetails is Map<String, dynamic>) {
+            _updateLocalDiscountFromDetails(productInCartId, discountDetails);
+          } else if (discountPercent == 0) {
+            // Clear: discount_details may be absent — zero out locally
+            _updateLocalDiscountFromDetails(productInCartId, {
+              'discount_percent': 0.0,
+            });
+          }
           onDone?.call();
+          // Don't call _validateCart here - it may return stale data immediately after discount
+          // The discount is already applied locally from API response
+          // Next cart operation will naturally sync with server
           return;
         }
       }
@@ -2436,8 +2538,9 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
     String productInCartId,
     double maxDiscountPercent,
     double currentDiscount,
-    VoidCallback? onApplied,
-  ) {
+    VoidCallback? onApplied, {
+    String? productCombinationId,
+  }) {
     if (maxDiscountPercent <= 0) {
       showDialog(
         context: context,
@@ -2473,12 +2576,15 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                 borderRadius: BorderRadius.circular(16),
               ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 360),
+                constraints: const BoxConstraints(maxWidth: 400),
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
                     children: [
                       // Header
                       Row(
@@ -2523,7 +2629,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                         decoration: InputDecoration(
                           labelText: 'Discount %',
                           hintText:
-                              '0 ΓÇô ${maxDiscountPercent.toStringAsFixed(0)}',
+                              '0-${maxDiscountPercent.toStringAsFixed(0)}',
                           suffixText: '%',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -2560,7 +2666,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       ),
                       const SizedBox(height: 16),
                       // Actions
-                      Row(
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
                           if (currentDiscount > 0)
                             TextButton(
@@ -2570,6 +2679,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   productInCartId,
                                   0,
                                   onDone: onApplied,
+                                  productCombinationId: productCombinationId,
                                 );
                               },
                               style: TextButton.styleFrom(
@@ -2577,12 +2687,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                               ),
                               child: const TranslatedText('Clear'),
                             ),
-                          const Spacer(),
                           TextButton(
                             onPressed: () => Navigator.pop(ctx),
                             child: const TranslatedText('Cancel'),
                           ),
-                          const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: errorText != null
                                 ? null
@@ -2601,6 +2709,8 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                       productInCartId,
                                       val,
                                       onDone: onApplied,
+                                      productCombinationId:
+                                          productCombinationId,
                                     );
                                   },
                             style: ElevatedButton.styleFrom(
@@ -2725,10 +2835,13 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 400),
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
                     children: [
                       // Header
                       Row(
@@ -3014,7 +3127,10 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                       ),
                       const SizedBox(height: 20),
                       // Actions
-                      Row(
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
                           TextButton(
                             onPressed: () async {
@@ -3032,7 +3148,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                             ),
                             child: const TranslatedText('Remove'),
                           ),
-                          const Spacer(),
                           TextButton(
                             onPressed: () {
                               qtyDebounce?.cancel();
@@ -3040,7 +3155,6 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                             },
                             child: const TranslatedText('Cancel'),
                           ),
-                          const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed:
                                 (qtyError != null ||
@@ -3793,7 +3907,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                         ),
                                         child: Row(
                                           crossAxisAlignment:
-                                              CrossAxisAlignment.center,
+                                              CrossAxisAlignment.start,
                                           children: [
                                             // Product Image (no X)
                                             Container(
@@ -3834,44 +3948,24 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                   Row(
                                                     children: [
                                                       Expanded(
-                                                        child: RichText(
+                                                        child: Text(
+                                                          item['product_name'] ??
+                                                              '',
                                                           maxLines: 2,
                                                           overflow: TextOverflow
                                                               .ellipsis,
-                                                          text: TextSpan(
-                                                            style: TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w700,
-                                                              fontSize: 14,
-                                                              color: isAvailable
-                                                                  ? const Color(
-                                                                      0xFF1E293B,
-                                                                    )
-                                                                  : const Color(
-                                                                      0xFFB91C1C,
-                                                                    ),
-                                                              height: 1.3,
-                                                            ),
-                                                            children: [
-                                                              TextSpan(
-                                                                text:
-                                                                    item['product_name'] ??
-                                                                    '',
-                                                              ),
-                                                              TextSpan(
-                                                                text:
-                                                                    '  ($quantity)',
-                                                                style: TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w500,
-                                                                  color: Colors
-                                                                      .grey[500],
-                                                                  fontSize: 13,
-                                                                ),
-                                                              ),
-                                                            ],
+                                                          style: TextStyle(
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            fontSize: 14,
+                                                            color: isAvailable
+                                                                ? const Color(
+                                                                    0xFF1E293B,
+                                                                  )
+                                                                : const Color(
+                                                                    0xFFB91C1C,
+                                                                  ),
+                                                            height: 1.3,
                                                           ),
                                                         ),
                                                       ),
@@ -3961,202 +4055,239 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                           ),
                                                         ),
                                                       ],
-                                                      const SizedBox(width: 10),
-                                                      // Coupon Button (bigger)
-                                                      InkWell(
-                                                        onTap: () {
-                                                          _showDiscountDialog(
-                                                            item['product_in_cart_id']
-                                                                    ?.toString() ??
-                                                                '',
-                                                            (pricing['max_discount_percent']
-                                                                        ?.toDouble() ??
-                                                                    0)
-                                                                .toDouble(),
-                                                            (pricing['discount_percent']
-                                                                        ?.toDouble() ??
-                                                                    0)
-                                                                .toDouble(),
-                                                            () => setSheetState(
-                                                              () {},
-                                                            ),
-                                                          );
-                                                        },
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              10,
-                                                            ),
-                                                        child: Container(
-                                                          width: 32,
-                                                          height: 32,
-                                                          decoration: BoxDecoration(
-                                                            color:
-                                                                (pricing['discount_percent'] ??
-                                                                        0) >
-                                                                    0
-                                                                ? const Color(
-                                                                    0xFF5B4FE8,
-                                                                  ).withOpacity(
-                                                                    0.1,
-                                                                  )
-                                                                : const Color(
-                                                                    0xFFF1F5F9,
-                                                                  ),
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  10,
-                                                                ),
-                                                          ),
-                                                          child: Icon(
-                                                            Icons
-                                                                .local_offer_outlined,
-                                                            size: 18,
-                                                            color:
-                                                                (pricing['discount_percent'] ??
-                                                                        0) >
-                                                                    0
-                                                                ? const Color(
-                                                                    0xFF5B4FE8,
-                                                                  )
-                                                                : Colors
-                                                                      .grey[500],
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      // Edit Button (bigger)
-                                                      InkWell(
-                                                        onTap: () {
-                                                          _showEditCartItemDialog(
-                                                            item,
-                                                            () => setSheetState(
-                                                              () {},
-                                                            ),
-                                                          );
-                                                        },
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              10,
-                                                            ),
-                                                        child: Container(
-                                                          width: 32,
-                                                          height: 32,
-                                                          decoration: BoxDecoration(
-                                                            color: const Color(
-                                                              0xFFF1F5F9,
-                                                            ),
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  10,
-                                                                ),
-                                                          ),
-                                                          child: Icon(
-                                                            Icons.edit_outlined,
-                                                            size: 18,
-                                                            color: Colors
-                                                                .grey[600],
-                                                          ),
-                                                        ),
-                                                      ),
                                                     ],
                                                   ),
                                                 ],
                                               ),
                                             ),
 
-                                            const SizedBox(width: 10),
+                                            const SizedBox(width: 8),
 
-                                            // Quantity Controls (even bigger)
-                                            Container(
-                                              height: 42,
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF8FAFC),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                border: Border.all(
-                                                  color: const Color(
-                                                    0xFFE2E8F0,
+                                            // Right side: Quantity (top) + Actions (bottom)
+                                            Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
+                                              children: [
+                                                // Quantity controls
+                                                Container(
+                                                  height: 42,
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(
+                                                      0xFFF8FAFC,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: const Color(
+                                                        0xFFE2E8F0,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      InkWell(
+                                                        onTap: () async {
+                                                          await _decrementCartItem(
+                                                            item['product_combination_id'] ??
+                                                                '',
+                                                            item['product_id'] ??
+                                                                '',
+                                                          );
+                                                          setSheetState(() {});
+                                                        },
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              10,
+                                                            ),
+                                                        child: Container(
+                                                          width: 38,
+                                                          height: 38,
+                                                          child: const Icon(
+                                                            Icons.remove,
+                                                            size: 20,
+                                                            color: Color(
+                                                              0xFF64748B,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 12,
+                                                            ),
+                                                        child: Text(
+                                                          '$quantity',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                                fontSize: 16,
+                                                                color: Color(
+                                                                  0xFF1E293B,
+                                                                ),
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      InkWell(
+                                                        onTap: isAvailable
+                                                            ? () async {
+                                                                await _incrementCartItem(
+                                                                  item['product_combination_id'] ??
+                                                                      '',
+                                                                  item['product_id'] ??
+                                                                      '',
+                                                                );
+                                                                setSheetState(
+                                                                  () {},
+                                                                );
+                                                              }
+                                                            : null,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              10,
+                                                            ),
+                                                        child: Container(
+                                                          width: 38,
+                                                          height: 38,
+                                                          child: Icon(
+                                                            Icons.add,
+                                                            size: 20,
+                                                            color: isAvailable
+                                                                ? theme
+                                                                      .primaryColor
+                                                                : Colors
+                                                                      .grey[400],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  InkWell(
-                                                    onTap: () async {
-                                                      await _decrementCartItem(
-                                                        item['product_combination_id'] ??
-                                                            '',
-                                                        item['product_id'] ??
-                                                            '',
-                                                      );
-                                                      setSheetState(() {});
-                                                    },
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          10,
+                                                const SizedBox(height: 4),
+                                                // Coupon + Edit buttons
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceEvenly,
+                                                  children: [
+                                                    InkWell(
+                                                      onTap: () {
+                                                        final cartId =
+                                                            item['product_in_cart_id']
+                                                                ?.toString() ??
+                                                            '';
+                                                        final comboId =
+                                                            item['product_combination_id']
+                                                                ?.toString() ??
+                                                            item['id']
+                                                                ?.toString() ??
+                                                            '';
+                                                        _showDiscountDialog(
+                                                          cartId.isNotEmpty
+                                                              ? cartId
+                                                              : comboId,
+                                                          (pricing['max_discount_percent']
+                                                                      ?.toDouble() ??
+                                                                  0)
+                                                              .toDouble(),
+                                                          (pricing['discount_percent']
+                                                                      ?.toDouble() ??
+                                                                  0)
+                                                              .toDouble(),
+                                                          () => setSheetState(
+                                                            () {},
+                                                          ),
+                                                          productCombinationId:
+                                                              comboId.isNotEmpty
+                                                              ? comboId
+                                                              : null,
+                                                        );
+                                                      },
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                      child: Container(
+                                                        width: 32,
+                                                        height: 32,
+                                                        decoration: BoxDecoration(
+                                                          color:
+                                                              (pricing['discount_percent'] ??
+                                                                      0) >
+                                                                  0
+                                                              ? const Color(
+                                                                  0xFF5B4FE8,
+                                                                ).withOpacity(
+                                                                  0.1,
+                                                                )
+                                                              : const Color(
+                                                                  0xFFF1F5F9,
+                                                                ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
                                                         ),
-                                                    child: Container(
-                                                      width: 38,
-                                                      height: 38,
-                                                      child: const Icon(
-                                                        Icons.remove,
-                                                        size: 20,
-                                                        color: Color(
-                                                          0xFF64748B,
+                                                        child: Icon(
+                                                          Icons
+                                                              .local_offer_outlined,
+                                                          size: 18,
+                                                          color:
+                                                              (pricing['discount_percent'] ??
+                                                                      0) >
+                                                                  0
+                                                              ? const Color(
+                                                                  0xFF5B4FE8,
+                                                                )
+                                                              : Colors
+                                                                    .grey[500],
                                                         ),
                                                       ),
                                                     ),
-                                                  ),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 12,
+                                                    const SizedBox(width: 4),
+                                                    InkWell(
+                                                      onTap: () {
+                                                        _showEditCartItemDialog(
+                                                          item,
+                                                          () => setSheetState(
+                                                            () {},
+                                                          ),
+                                                        );
+                                                      },
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                      child: Container(
+                                                        width: 32,
+                                                        height: 32,
+                                                        decoration: BoxDecoration(
+                                                          color: const Color(
+                                                            0xFFF1F5F9,
+                                                          ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
                                                         ),
-                                                    child: Text(
-                                                      '$quantity',
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        fontSize: 16,
-                                                        color: Color(
-                                                          0xFF1E293B,
+                                                        child: Icon(
+                                                          Icons.edit_outlined,
+                                                          size: 18,
+                                                          color:
+                                                              Colors.grey[600],
                                                         ),
                                                       ),
                                                     ),
-                                                  ),
-                                                  InkWell(
-                                                    onTap: isAvailable
-                                                        ? () async {
-                                                            await _incrementCartItem(
-                                                              item['product_combination_id'] ??
-                                                                  '',
-                                                              item['product_id'] ??
-                                                                  '',
-                                                            );
-                                                            setSheetState(
-                                                              () {},
-                                                            );
-                                                          }
-                                                        : null,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          10,
-                                                        ),
-                                                    child: Container(
-                                                      width: 38,
-                                                      height: 38,
-                                                      child: Icon(
-                                                        Icons.add,
-                                                        size: 20,
-                                                        color: isAvailable
-                                                            ? theme.primaryColor
-                                                            : Colors.grey[400],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
+                                                  ],
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         ),
@@ -7940,7 +8071,7 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                   ],
                                 ),
                                 child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     // Product Image with X overlay
                                     SizedBox(
@@ -7987,41 +8118,22 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                           Row(
                                             children: [
                                               Expanded(
-                                                child: RichText(
+                                                child: Text(
+                                                  item['product_name'] ?? '',
                                                   maxLines: 2,
                                                   overflow:
                                                       TextOverflow.ellipsis,
-                                                  text: TextSpan(
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      fontSize: 14,
-                                                      color: isAvailable
-                                                          ? const Color(
-                                                              0xFF1E293B,
-                                                            )
-                                                          : const Color(
-                                                              0xFFB91C1C,
-                                                            ),
-                                                      height: 1.3,
-                                                    ),
-                                                    children: [
-                                                      TextSpan(
-                                                        text:
-                                                            item['product_name'] ??
-                                                            '',
-                                                      ),
-                                                      TextSpan(
-                                                        text: '  ($quantity)',
-                                                        style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                          color:
-                                                              Colors.grey[500],
-                                                          fontSize: 13,
-                                                        ),
-                                                      ),
-                                                    ],
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 14,
+                                                    color: isAvailable
+                                                        ? const Color(
+                                                            0xFF1E293B,
+                                                          )
+                                                        : const Color(
+                                                            0xFFB91C1C,
+                                                          ),
+                                                    height: 1.3,
                                                   ),
                                                 ),
                                               ),
@@ -8099,171 +8211,192 @@ class _StoreOwnerPOSScreenState extends State<StoreOwnerPOSScreen>
                                                 ),
                                               ],
                                               const SizedBox(width: 10),
-                                              // Coupon Button (bigger)
-                                              InkWell(
-                                                onTap: () {
-                                                  _showDiscountDialog(
-                                                    item['product_in_cart_id']
-                                                            ?.toString() ??
-                                                        '',
-                                                    (pricing['max_discount_percent']
-                                                                ?.toDouble() ??
-                                                            0)
-                                                        .toDouble(),
-                                                    (pricing['discount_percent']
-                                                                ?.toDouble() ??
-                                                            0)
-                                                        .toDouble(),
-                                                    () => setState(() {}),
-                                                  );
-                                                },
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                child: Container(
-                                                  width: 32,
-                                                  height: 32,
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        (pricing['discount_percent'] ??
-                                                                0) >
-                                                            0
-                                                        ? const Color(
-                                                            0xFF5B4FE8,
-                                                          ).withOpacity(0.1)
-                                                        : const Color(
-                                                            0xFFF1F5F9,
-                                                          ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          10,
-                                                        ),
-                                                  ),
-                                                  child: Icon(
-                                                    Icons.local_offer_outlined,
-                                                    size: 18,
-                                                    color:
-                                                        (pricing['discount_percent'] ??
-                                                                0) >
-                                                            0
-                                                        ? const Color(
-                                                            0xFF5B4FE8,
-                                                          )
-                                                        : Colors.grey[500],
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              // Edit Button (bigger)
-                                              InkWell(
-                                                onTap: () {
-                                                  _showEditCartItemDialog(
-                                                    item,
-                                                    () => setState(() {}),
-                                                  );
-                                                },
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                child: Container(
-                                                  width: 32,
-                                                  height: 32,
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(
-                                                      0xFFF1F5F9,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          10,
-                                                        ),
-                                                  ),
-                                                  child: Icon(
-                                                    Icons.edit_outlined,
-                                                    size: 18,
-                                                    color: Colors.grey[600],
-                                                  ),
-                                                ),
-                                              ),
                                             ],
                                           ),
                                         ],
                                       ),
                                     ),
 
-                                    const SizedBox(width: 10),
+                                    const SizedBox(width: 8),
 
-                                    // Quantity Controls (even bigger)
-                                    Container(
-                                      height: 42,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF8FAFC),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: const Color(0xFFE2E8F0),
+                                    // Right side: Quantity (top) + Actions (bottom)
+                                    Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        // Quantity controls
+                                        Container(
+                                          height: 42,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF8FAFC),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFE2E8F0),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              InkWell(
+                                                onTap: () async {
+                                                  await _decrementCartItem(
+                                                    item['product_combination_id'] ??
+                                                        '',
+                                                    item['product_id'] ?? '',
+                                                  );
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Container(
+                                                  width: 38,
+                                                  height: 38,
+                                                  child: const Icon(
+                                                    Icons.remove,
+                                                    size: 20,
+                                                    color: Color(0xFF64748B),
+                                                  ),
+                                                ),
+                                              ),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                    ),
+                                                child: Text(
+                                                  '$quantity',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 16,
+                                                    color: Color(0xFF1E293B),
+                                                  ),
+                                                ),
+                                              ),
+                                              InkWell(
+                                                onTap: isAvailable
+                                                    ? () async {
+                                                        await _incrementCartItem(
+                                                          item['product_combination_id'] ??
+                                                              '',
+                                                          item['product_id'] ??
+                                                              '',
+                                                        );
+                                                      }
+                                                    : null,
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Container(
+                                                  width: 38,
+                                                  height: 38,
+                                                  child: Icon(
+                                                    Icons.add,
+                                                    size: 20,
+                                                    color: isAvailable
+                                                        ? theme.primaryColor
+                                                        : Colors.grey[400],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          InkWell(
-                                            onTap: () async {
-                                              await _decrementCartItem(
-                                                item['product_combination_id'] ??
-                                                    '',
-                                                item['product_id'] ?? '',
-                                              );
-                                            },
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                            child: Container(
-                                              width: 38,
-                                              height: 38,
-                                              child: const Icon(
-                                                Icons.remove,
-                                                size: 20,
-                                                color: Color(0xFF64748B),
+                                        const SizedBox(height: 4),
+                                        // Coupon + Edit buttons
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceEvenly,
+                                          children: [
+                                            InkWell(
+                                              onTap: () {
+                                                final cartId =
+                                                    item['product_in_cart_id']
+                                                        ?.toString() ??
+                                                    '';
+                                                final comboId =
+                                                    item['product_combination_id']
+                                                        ?.toString() ??
+                                                    item['id']?.toString() ??
+                                                    '';
+                                                _showDiscountDialog(
+                                                  cartId.isNotEmpty
+                                                      ? cartId
+                                                      : comboId,
+                                                  (pricing['max_discount_percent']
+                                                              ?.toDouble() ??
+                                                          0)
+                                                      .toDouble(),
+                                                  (pricing['discount_percent']
+                                                              ?.toDouble() ??
+                                                          0)
+                                                      .toDouble(),
+                                                  () => setState(() {}),
+                                                  productCombinationId:
+                                                      comboId.isNotEmpty
+                                                      ? comboId
+                                                      : null,
+                                                );
+                                              },
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: Container(
+                                                width: 32,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      (pricing['discount_percent'] ??
+                                                              0) >
+                                                          0
+                                                      ? const Color(
+                                                          0xFF5B4FE8,
+                                                        ).withOpacity(0.1)
+                                                      : const Color(0xFFF1F5F9),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Icon(
+                                                  Icons.local_offer_outlined,
+                                                  size: 18,
+                                                  color:
+                                                      (pricing['discount_percent'] ??
+                                                              0) >
+                                                          0
+                                                      ? const Color(0xFF5B4FE8)
+                                                      : Colors.grey[500],
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                            ),
-                                            child: Text(
-                                              '$quantity',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 16,
-                                                color: Color(0xFF1E293B),
+                                            const SizedBox(width: 4),
+                                            InkWell(
+                                              onTap: () {
+                                                _showEditCartItemDialog(
+                                                  item,
+                                                  () => setState(() {}),
+                                                );
+                                              },
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: Container(
+                                                width: 32,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFF1F5F9,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Icon(
+                                                  Icons.edit_outlined,
+                                                  size: 18,
+                                                  color: Colors.grey[600],
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                          InkWell(
-                                            onTap: isAvailable
-                                                ? () async {
-                                                    await _incrementCartItem(
-                                                      item['product_combination_id'] ??
-                                                          '',
-                                                      item['product_id'] ?? '',
-                                                    );
-                                                  }
-                                                : null,
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                            child: Container(
-                                              width: 38,
-                                              height: 38,
-                                              child: Icon(
-                                                Icons.add,
-                                                size: 20,
-                                                color: isAvailable
-                                                    ? theme.primaryColor
-                                                    : Colors.grey[400],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
