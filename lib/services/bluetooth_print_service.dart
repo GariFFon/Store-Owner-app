@@ -562,10 +562,11 @@ class BluetoothPrintService {
     final products = data['products'] as List? ?? [];
 
     final config = await ReceiptLayoutConfig.load('kot');
-    final int lineWidth = config.paperWidthChars;
+    // Auto-derive paper width chars from widthInMm if mismatch (any-printer support)
+    final int lineWidth = _resolveLineWidth(widthInMm, config.paperWidthChars);
     final int bSize = config.globalFontSize;
     print(
-      '[BluetoothPrint] KOT config loaded: width=$lineWidth, fontSize=$bSize, sections=${config.enabledSections.map((s) => s.id).toList()}',
+      '[BluetoothPrint] KOT config: widthMM=$widthInMm chars=$lineWidth fontSize=$bSize sections=${config.enabledSections.map((s) => s.id).toList()}',
     );
 
     void printBreakLine() {
@@ -587,34 +588,53 @@ class BluetoothPrintService {
       final opts = section.options;
       switch (section.id) {
         case 'kot_header':
-          final title = opts['title'] ?? 'KITCHEN TICKET';
-          _bluetooth.printCustom(title, bSize == 0 ? 1 : bSize + 1, 1);
+          final title = (opts['title'] as String?) ?? 'KITCHEN TICKET';
+          final bool showBold = opts['showBold'] != false;
+          if (showBold) {
+            try {
+              _bluetooth.writeBytes(Uint8List.fromList([27, 69, 1]));
+            } catch (_) {}
+          }
+          _bluetooth.printCustom(title, bSize == 0 ? 2 : bSize + 1, 1);
+          if (showBold) {
+            try {
+              _bluetooth.writeBytes(Uint8List.fromList([27, 69, 0]));
+            } catch (_) {}
+          }
           printBreakLine();
           break;
         case 'store_name':
           _bluetooth.printCustom("Store: ${storeInfo['name'] ?? ''}", bSize, 0);
           break;
         case 'order_info':
-          if (opts['showOrderId'] == true) {
+          if (opts['showOrderId'] != false) {
             _bluetooth.printCustom(
               "Order ID: ${storeInfo['order_number'] ?? ''}",
               bSize,
               0,
             );
           }
-          if (opts['showTokenNo'] == true) {
+          if (opts['showTokenNo'] != false) {
             _bluetooth.printCustom(
               "Token No: ${storeInfo['token_number'] ?? data['token_number'] ?? ''}",
               bSize,
               0,
             );
           }
-          if (opts['showCustomerName'] == true &&
+          if (opts['showCustomerName'] != false &&
               userInfo['name'] != null &&
               userInfo['name'] != 'unnamed user') {
             _bluetooth.printCustom("Customer: ${userInfo['name']}", bSize, 0);
           }
-          if (opts['showDate'] == true) {
+          if (opts['showTableNo'] == true &&
+              (data['table_number'] ?? storeInfo['table_number']) != null) {
+            _bluetooth.printCustom(
+              "Table: ${data['table_number'] ?? storeInfo['table_number']}",
+              bSize,
+              0,
+            );
+          }
+          if (opts['showDate'] != false) {
             _bluetooth.printCustom(
               "Date: ${DateTime.now().toString().substring(0, 16)}",
               bSize,
@@ -624,18 +644,59 @@ class BluetoothPrintService {
           printBreakLine();
           break;
         case 'items_list':
+          // Resolve item font size from option ('small'|'normal'|'large')
+          final String fontSizeOpt = (opts['fontSize'] as String?) ?? 'large';
+          final int itemSize = fontSizeOpt == 'large'
+              ? (bSize == 0 ? 1 : bSize + 1)
+              : fontSizeOpt == 'small'
+              ? 0
+              : bSize;
+          final bool showQty = opts['showQuantity'] != false;
+          final bool showPrice = opts['showPrice'] == true;
+          final bool showNotes = opts['showNotes'] != false;
           _bluetooth.printCustom("ITEMS:", bSize, 0);
           for (int i = 0; i < products.length; i++) {
             final p = products[i];
-            String qty = opts['showQuantity'] == true
-                ? "${p['quantity']}x "
-                : "";
-            _printWrappedLine(
-              "$qty${p['product_name']}",
-              lineWidth,
-              align: 0,
-              size: bSize,
-            );
+            final String qty = showQty ? "${p['quantity']}x " : "";
+            final String name = (p['product_name'] ?? '').toString();
+            if (showPrice) {
+              final pricing = p['pricing_details'] ?? {};
+              final amt =
+                  "${pricing['selling_amount_including_tax'] ?? p['price'] ?? ''}";
+              _printTabularItem(
+                "$qty$name",
+                '',
+                amt,
+                lineWidth,
+                lineWidth <= 32 ? 0 : 0,
+                lineWidth <= 32 ? 8 : 12,
+                size: itemSize,
+              );
+            } else {
+              _printWrappedLine(
+                "$qty$name",
+                lineWidth,
+                align: 0,
+                size: itemSize,
+              );
+            }
+            // Show item notes/customizations
+            if (showNotes) {
+              final notes =
+                  (p['notes'] ??
+                          p['special_instructions'] ??
+                          p['customization'] ??
+                          '')
+                      .toString();
+              if (notes.isNotEmpty) {
+                _printWrappedLine(
+                  "  > $notes",
+                  lineWidth,
+                  align: 0,
+                  size: bSize,
+                );
+              }
+            }
             if (i < products.length - 1) {
               _bluetooth.printCustom(" ", bSize, 0);
             }
@@ -643,10 +704,20 @@ class BluetoothPrintService {
           printBreakLine();
           break;
         case 'special_instructions':
-          // Future feature for instructions
+          final orderNote =
+              (data['order_notes'] ??
+                      data['special_instructions'] ??
+                      storeInfo['notes'] ??
+                      '')
+                  .toString();
+          if (orderNote.isNotEmpty) {
+            _bluetooth.printCustom("NOTES:", bSize == 0 ? 1 : bSize, 0);
+            _printWrappedLine(orderNote, lineWidth, align: 0, size: bSize);
+            printBreakLine();
+          }
           break;
         case 'kot_footer':
-          final text = opts['text'] ?? '';
+          final text = (opts['text'] as String?) ?? '';
           if (text.isNotEmpty) _bluetooth.printCustom(text, bSize, 1);
           break;
       }
@@ -686,15 +757,16 @@ class BluetoothPrintService {
     final qrCodeUrl = data['qr_code_url'] ?? '';
 
     final config = await ReceiptLayoutConfig.load('receipt');
-    final int lineWidth = config.paperWidthChars;
+    // Auto-derive paper width chars from widthInMm (any-printer support)
+    final int lineWidth = _resolveLineWidth(widthInMm, config.paperWidthChars);
     final int bSize = config.globalFontSize;
     print(
-      '[BluetoothPrint] Receipt config loaded: width=$lineWidth, fontSize=$bSize, sections=${config.enabledSections.map((s) => s.id).toList()}',
+      '[BluetoothPrint] Receipt config: widthMM=$widthInMm chars=$lineWidth fontSize=$bSize sections=${config.enabledSections.map((s) => s.id).toList()}',
     );
 
-    // Width configurations
-    final int qtyW = lineWidth <= 32 ? 6 : 8;
-    final int amtW = lineWidth <= 32 ? 8 : 12;
+    // Width configurations - scale based on actual line width
+    final int qtyW = lineWidth <= 32 ? 5 : (lineWidth <= 42 ? 6 : 8);
+    final int amtW = lineWidth <= 32 ? 8 : (lineWidth <= 42 ? 10 : 12);
 
     void printBreakLine() {
       if (config.showBreakLine) {
@@ -792,12 +864,16 @@ class BluetoothPrintService {
             } catch (_) {}
             _bluetooth.printCustom(" ", bSize, 0);
           }
+          final bool showUnitPrice = opts['showUnitPrice'] == true;
+          final bool showTax = opts['showTax'] == true;
+          final bool detailed = (opts['format'] as String?) == 'detailed';
           for (int i = 0; i < products.length; i++) {
             final p = products[i];
             final pricing = p['pricing_details'] ?? {};
-            final name = p['product_name'] ?? '';
+            final name = (p['product_name'] ?? '').toString();
             final qty = "${p['quantity'] ?? 0}";
-            final amt = "${pricing['selling_amount_including_tax'] ?? 0}";
+            final amt =
+                "${pricing['selling_amount_including_tax'] ?? p['price'] ?? 0}";
             _printTabularItem(
               name,
               qty,
@@ -807,6 +883,38 @@ class BluetoothPrintService {
               amtW,
               size: bSize,
             );
+            if (showUnitPrice) {
+              final unit =
+                  pricing['selling_amount'] ??
+                  pricing['unit_price'] ??
+                  p['price'] ??
+                  '';
+              if (unit.toString().isNotEmpty) {
+                _printWrappedLine(
+                  "  @ $unit / unit",
+                  lineWidth,
+                  align: 0,
+                  size: bSize,
+                );
+              }
+            }
+            if (showTax) {
+              final tax = pricing['tax_amount'] ?? pricing['tax'] ?? '';
+              if (tax.toString().isNotEmpty && tax.toString() != '0') {
+                _printWrappedLine(
+                  "  Tax: $tax",
+                  lineWidth,
+                  align: 0,
+                  size: bSize,
+                );
+              }
+            }
+            if (detailed) {
+              final desc = (p['description'] ?? p['notes'] ?? '').toString();
+              if (desc.isNotEmpty) {
+                _printWrappedLine("  $desc", lineWidth, align: 0, size: bSize);
+              }
+            }
             if (i < products.length - 1) _bluetooth.printCustom(" ", bSize, 0);
           }
           printBreakLine();
@@ -852,14 +960,33 @@ class BluetoothPrintService {
           break;
         case 'qr_code':
           if (qrCodeUrl.isNotEmpty) {
+            // Apply size + position options
+            final String qrSize = (opts['size'] as String?) ?? 'medium';
+            final int qrPx = qrSize == 'small'
+                ? 180
+                : qrSize == 'large'
+                ? 320
+                : 250;
+            final String pos = (opts['position'] as String?) ?? 'center';
+            final int align = pos == 'left'
+                ? 0
+                : pos == 'right'
+                ? 2
+                : 1;
             _bluetooth.printNewLine();
-            _bluetooth.printQRcode(qrCodeUrl, 250, 250, 1);
+            _bluetooth.printQRcode(qrCodeUrl, qrPx, qrPx, align);
             _bluetooth.printNewLine();
           }
           break;
         case 'footer_message':
-          final text = opts['text'] ?? config.footerText;
-          if (text.isNotEmpty) _bluetooth.printCustom(text, bSize, 1);
+          final text = (opts['text'] as String?) ?? config.footerText;
+          final String alignStr = (opts['alignment'] as String?) ?? 'center';
+          final int fAlign = alignStr == 'left'
+              ? 0
+              : alignStr == 'right'
+              ? 2
+              : 1;
+          if (text.isNotEmpty) _bluetooth.printCustom(text, bSize, fAlign);
           break;
       }
     }
@@ -899,6 +1026,35 @@ class BluetoothPrintService {
       _bluetooth.printCustom(text.substring(start, end), size, align);
       start += width;
     }
+  }
+
+  /// Resolve effective character width based on physical paper width in mm.
+  /// Supports any paper size by mapping mm → chars using ~12 chars/inch (~0.47 chars/mm).
+  /// Falls back to user-configured paperWidthChars if it matches the requested mm,
+  /// otherwise auto-derives so layouts always fit the actual roll.
+  ///   58mm  -> 32 chars
+  ///   76mm  -> 42 chars (older 3-inch)
+  ///   80mm  -> 48 chars
+  ///   112mm -> 64 chars
+  static int _resolveLineWidth(double widthInMm, int configuredChars) {
+    int derived;
+    if (widthInMm <= 35) {
+      derived = 24; // very narrow / portable
+    } else if (widthInMm <= 60) {
+      derived = 32; // 58mm
+    } else if (widthInMm <= 78) {
+      derived = 42; // 76mm 3-inch
+    } else if (widthInMm <= 90) {
+      derived = 48; // 80mm
+    } else {
+      derived = 64; // wide-format
+    }
+    // If configured width is reasonable and roughly matches derived, prefer it
+    // (lets user fine-tune for cheap printers with narrower print head margins).
+    if (configuredChars > 0 && (configuredChars - derived).abs() <= 6) {
+      return configuredChars;
+    }
+    return derived;
   }
 
   /// Format 3 columns: Item (wrap) | Qty | Amt

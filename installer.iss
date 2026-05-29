@@ -1,12 +1,12 @@
 ; ==========================================================================
 ; Exanor Store Partner — Inno Setup Installer Script
-; Version : 1.0.11+12
-; Updated : 2026-05-23
+; Version : 1.0.12+13
+; Updated : 2026-05-27
 ; ==========================================================================
 
 #define MyAppName      "Exanor Store App"
-#define MyAppVersion   "1.0.11"
-#define MyAppBuild     "12"
+#define MyAppVersion   "1.0.12"
+#define MyAppBuild     "13"
 #define MyAppPublisher "Exanor"
 #define MyAppURL       "https://exanor.store"
 #define MyAppExeName   "exanor_user_new.exe"

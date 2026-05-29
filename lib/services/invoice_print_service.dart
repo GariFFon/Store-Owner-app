@@ -155,7 +155,271 @@ class InvoicePrintService {
     final grandTotal = data['grand_total'] ?? 0;
     final qrCodeUrl = data['qr_code_url'] ?? '';
 
+    // Load layout configs to honor user customizations universally
+    final kotConfig = await ReceiptLayoutConfig.load('kot');
+    final receiptConfig = await ReceiptLayoutConfig.load('receipt');
+
+    // Map breakLineStyle to PDF border style
+    pw.BorderStyle styleFor(String s) => s == 'solid'
+        ? pw.BorderStyle.solid
+        : s == 'double'
+        ? pw.BorderStyle.solid
+        : pw.BorderStyle.dashed;
+
+    // Font size multiplier from globalFontSize (0=normal,1=med,2=large)
+    double fontMul(int g) => g == 0
+        ? 1.0
+        : g == 1
+        ? 1.15
+        : 1.3;
+
+    pw.Widget buildBreak(ReceiptLayoutConfig cfg) {
+      if (!cfg.showBreakLine) return pw.SizedBox(height: 2);
+      return pw.Divider(
+        thickness: cfg.breakLineStyle == 'double' ? 1.0 : 0.5,
+        borderStyle: styleFor(cfg.breakLineStyle),
+      );
+    }
+
     pw.Widget buildTicket() {
+      final cfg = kotConfig;
+      final mul = fontMul(cfg.globalFontSize);
+      final children = <pw.Widget>[];
+      for (final section in cfg.enabledSections) {
+        final opts = section.options;
+        switch (section.id) {
+          case 'kot_header':
+            final title = (opts['title'] as String?) ?? 'KITCHEN TICKET';
+            final showBold = opts['showBold'] != false;
+            children.add(
+              pw.Center(
+                child: pw.Text(
+                  title,
+                  style: pw.TextStyle(
+                    fontSize: headerSize * mul,
+                    fontWeight: showBold
+                        ? pw.FontWeight.bold
+                        : pw.FontWeight.normal,
+                  ),
+                ),
+              ),
+            );
+            children.add(buildBreak(cfg));
+            break;
+          case 'store_name':
+            children.add(
+              pw.Text(
+                "Store: ${storeInfo['name'] ?? ''}",
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: bodySize * mul,
+                ),
+              ),
+            );
+            break;
+          case 'order_info':
+            if (opts['showOrderId'] != false) {
+              children.add(
+                pw.Text(
+                  "Order ID: ${storeInfo['order_number'] ?? ''}",
+                  style: pw.TextStyle(
+                    fontSize: bodySize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            if (opts['showTokenNo'] != false) {
+              children.add(
+                pw.Text(
+                  "Token No: ${storeInfo['token_number'] ?? data['token_number'] ?? ''}",
+                  style: pw.TextStyle(
+                    fontSize: bodySize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            if (opts['showCustomerName'] != false &&
+                userInfo['name'] != null &&
+                userInfo['name'] != 'unnamed user') {
+              children.add(
+                pw.Text(
+                  "Customer: ${userInfo['name']}",
+                  style: pw.TextStyle(
+                    fontSize: bodySize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            if (opts['showTableNo'] == true &&
+                (data['table_number'] ?? storeInfo['table_number']) != null) {
+              children.add(
+                pw.Text(
+                  "Table: ${data['table_number'] ?? storeInfo['table_number']}",
+                  style: pw.TextStyle(
+                    fontSize: bodySize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            if (opts['showDate'] != false) {
+              children.add(
+                pw.Text(
+                  "Date: ${DateTime.now().toString().substring(0, 16)}",
+                  style: pw.TextStyle(
+                    fontSize: bodySize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            children.add(buildBreak(cfg));
+            break;
+          case 'items_list':
+            final fontSizeOpt = (opts['fontSize'] as String?) ?? 'large';
+            final itemSize = fontSizeOpt == 'large'
+                ? bodySize * mul * 1.25
+                : fontSizeOpt == 'small'
+                ? bodySize * mul * 0.85
+                : bodySize * mul;
+            final showQty = opts['showQuantity'] != false;
+            final showPrice = opts['showPrice'] == true;
+            final showNotes = opts['showNotes'] != false;
+            children.add(
+              pw.Text(
+                "ITEMS:",
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: bodySize * mul,
+                ),
+              ),
+            );
+            children.add(pw.SizedBox(height: sectionSpacing));
+            for (final p in products) {
+              final qty = showQty ? "${p['quantity']}x " : "";
+              final name = (p['product_name'] ?? '').toString();
+              if (showPrice) {
+                final pricing = p['pricing_details'] ?? {};
+                final amt =
+                    "${pricing['selling_amount_including_tax'] ?? p['price'] ?? ''}";
+                children.add(
+                  pw.Padding(
+                    padding: pw.EdgeInsets.symmetric(vertical: itemSpacing),
+                    child: pw.Row(
+                      children: [
+                        pw.Expanded(
+                          child: pw.Text(
+                            "$qty$name",
+                            style: pw.TextStyle(
+                              fontSize: itemSize,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        pw.Text(
+                          amt,
+                          style: pw.TextStyle(
+                            fontSize: itemSize,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              } else {
+                children.add(
+                  pw.Padding(
+                    padding: pw.EdgeInsets.symmetric(vertical: itemSpacing),
+                    child: pw.Text(
+                      "$qty$name",
+                      style: pw.TextStyle(
+                        fontSize: itemSize,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              if (showNotes) {
+                final notes =
+                    (p['notes'] ??
+                            p['special_instructions'] ??
+                            p['customization'] ??
+                            '')
+                        .toString();
+                if (notes.isNotEmpty) {
+                  children.add(
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 8),
+                      child: pw.Text(
+                        "> $notes",
+                        style: pw.TextStyle(
+                          fontSize: bodySize * mul * 0.9,
+                          fontStyle: pw.FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              }
+            }
+            children.add(buildBreak(cfg));
+            break;
+          case 'special_instructions':
+            final orderNote =
+                (data['order_notes'] ??
+                        data['special_instructions'] ??
+                        storeInfo['notes'] ??
+                        '')
+                    .toString();
+            if (orderNote.isNotEmpty) {
+              children.add(
+                pw.Text(
+                  "NOTES:",
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: bodySize * mul,
+                  ),
+                ),
+              );
+              children.add(
+                pw.Text(
+                  orderNote,
+                  style: pw.TextStyle(fontSize: bodySize * mul),
+                ),
+              );
+              children.add(buildBreak(cfg));
+            }
+            break;
+          case 'kot_footer':
+            final text = (opts['text'] as String?) ?? '';
+            if (text.isNotEmpty) {
+              children.add(
+                pw.Center(
+                  child: pw.Text(
+                    text,
+                    style: pw.TextStyle(
+                      fontSize: bodySize * mul,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            }
+            break;
+        }
+      }
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: children,
+      );
+    }
+
+    pw.Widget _legacyBuildTicket() {
       return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
@@ -225,6 +489,429 @@ class InvoicePrintService {
     }
 
     pw.Widget buildInvoice() {
+      final cfg = receiptConfig;
+      final mul = fontMul(cfg.globalFontSize);
+      final children = <pw.Widget>[];
+
+      pw.TextAlign alignFromString(String s) => s == 'left'
+          ? pw.TextAlign.left
+          : s == 'right'
+          ? pw.TextAlign.right
+          : pw.TextAlign.center;
+
+      for (final section in cfg.enabledSections) {
+        final opts = section.options;
+        switch (section.id) {
+          case 'store_logo':
+            if (logoImage != null) {
+              final sizeOpt = (opts['size'] as String?) ?? 'medium';
+              final ls = sizeOpt == 'small'
+                  ? logoSize * 0.7
+                  : sizeOpt == 'large'
+                  ? logoSize * 1.3
+                  : logoSize;
+              children.add(
+                pw.Center(
+                  child: pw.Image(logoImage, height: ls, width: ls),
+                ),
+              );
+              children.add(pw.SizedBox(height: 3));
+            }
+            break;
+          case 'store_name':
+            children.add(
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      storeInfo['name'] ?? '',
+                      style: pw.TextStyle(
+                        fontSize: storeNameSize * mul,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    if (opts['showAddress'] == true &&
+                        storeInfo['address'] != null)
+                      pw.Text(
+                        storeInfo['address'],
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(
+                          fontSize: smallSize * mul,
+                          fontWeight: boldWeight,
+                        ),
+                      ),
+                    if (opts['showPhone'] == true && storeInfo['phone'] != null)
+                      pw.Text(
+                        "Ph: ${storeInfo['phone']}",
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(
+                          fontSize: smallSize * mul,
+                          fontWeight: boldWeight,
+                        ),
+                      ),
+                    if (opts['showGST'] == true &&
+                        storeInfo['gst_number'] != null)
+                      pw.Text(
+                        "GSTIN: ${storeInfo['gst_number']}",
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(
+                          fontSize: smallSize * mul,
+                          fontWeight: boldWeight,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+            children.add(buildBreak(cfg));
+            break;
+          case 'bill_info':
+            if (opts['showBillNo'] == true) {
+              children.add(
+                pw.Text(
+                  "Bill No: ${storeInfo['bill_number'] ?? ''}",
+                  style: pw.TextStyle(
+                    fontSize: smallSize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            if (opts['showTokenNo'] == true) {
+              children.add(
+                pw.Text(
+                  "Token No: ${storeInfo['token_number'] ?? ''}",
+                  style: pw.TextStyle(
+                    fontSize: smallSize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            if (opts['showDate'] == true) {
+              children.add(
+                pw.Text(
+                  "Date: ${DateTime.now().toString().substring(0, 16)}",
+                  style: pw.TextStyle(
+                    fontSize: smallSize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            children.add(buildBreak(cfg));
+            break;
+          case 'customer_info':
+            if (opts['showName'] == true) {
+              children.add(
+                pw.Text(
+                  "Customer: ${userInfo['name'] ?? 'Guest'}",
+                  style: pw.TextStyle(
+                    fontSize: smallSize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            if (opts['showPhone'] == true && userInfo['phone'] != null) {
+              children.add(
+                pw.Text(
+                  "Phone: ${userInfo['phone']}",
+                  style: pw.TextStyle(
+                    fontSize: smallSize * mul,
+                    fontWeight: boldWeight,
+                  ),
+                ),
+              );
+            }
+            children.add(buildBreak(cfg));
+            break;
+          case 'products_table':
+            final showHeader = opts['showHeader'] == true;
+            final showUnitPrice = opts['showUnitPrice'] == true;
+            final showTax = opts['showTax'] == true;
+            final detailed = (opts['format'] as String?) == 'detailed';
+            if (showHeader) {
+              children.add(
+                pw.Row(
+                  children: [
+                    pw.Expanded(
+                      flex: itemFlex,
+                      child: pw.Text(
+                        "Item",
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: smallSize * mul,
+                        ),
+                      ),
+                    ),
+                    pw.SizedBox(
+                      width: isNarrow ? 18 : 30,
+                      child: pw.Text(
+                        "Qty",
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: smallSize * mul,
+                        ),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                    ),
+                    pw.Expanded(
+                      flex: amountFlex,
+                      child: pw.Text(
+                        "Amt",
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: smallSize * mul,
+                        ),
+                        textAlign: pw.TextAlign.right,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              children.add(pw.SizedBox(height: 2));
+            }
+            for (final p in products) {
+              final pricing = p['pricing_details'] ?? {};
+              children.add(
+                pw.Padding(
+                  padding: pw.EdgeInsets.symmetric(vertical: itemSpacing),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        flex: itemFlex,
+                        child: pw.Text(
+                          p['product_name'] ?? '',
+                          style: pw.TextStyle(
+                            fontSize: smallSize * mul,
+                            fontWeight: boldWeight,
+                          ),
+                        ),
+                      ),
+                      pw.SizedBox(
+                        width: isNarrow ? 18 : 30,
+                        child: pw.Text(
+                          "${p['quantity'] ?? 0}",
+                          style: pw.TextStyle(
+                            fontSize: smallSize * mul,
+                            fontWeight: boldWeight,
+                          ),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: amountFlex,
+                        child: pw.Text(
+                          "${pricing['selling_amount_including_tax'] ?? p['price'] ?? 0}",
+                          style: pw.TextStyle(
+                            fontSize: smallSize * mul,
+                            fontWeight: boldWeight,
+                          ),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              if (showUnitPrice) {
+                final unit =
+                    pricing['selling_amount'] ??
+                    pricing['unit_price'] ??
+                    p['price'] ??
+                    '';
+                if (unit.toString().isNotEmpty) {
+                  children.add(
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 6),
+                      child: pw.Text(
+                        "@ $unit / unit",
+                        style: pw.TextStyle(fontSize: smallSize * mul * 0.9),
+                      ),
+                    ),
+                  );
+                }
+              }
+              if (showTax) {
+                final tax = pricing['tax_amount'] ?? pricing['tax'] ?? '';
+                if (tax.toString().isNotEmpty && tax.toString() != '0') {
+                  children.add(
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 6),
+                      child: pw.Text(
+                        "Tax: $tax",
+                        style: pw.TextStyle(fontSize: smallSize * mul * 0.9),
+                      ),
+                    ),
+                  );
+                }
+              }
+              if (detailed) {
+                final desc = (p['description'] ?? p['notes'] ?? '').toString();
+                if (desc.isNotEmpty) {
+                  children.add(
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 6),
+                      child: pw.Text(
+                        desc,
+                        style: pw.TextStyle(
+                          fontSize: smallSize * mul * 0.9,
+                          fontStyle: pw.FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              }
+            }
+            children.add(buildBreak(cfg));
+            break;
+          case 'cart_totals':
+            for (final item in cartTotal) {
+              children.add(
+                pw.Padding(
+                  padding: pw.EdgeInsets.symmetric(vertical: itemSpacing),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(
+                          item['title'] ?? '',
+                          style: pw.TextStyle(fontSize: smallSize * mul),
+                        ),
+                      ),
+                      pw.Text(
+                        "${item['value'] ?? 0}",
+                        style: pw.TextStyle(fontSize: smallSize * mul),
+                        textAlign: pw.TextAlign.right,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            break;
+          case 'platform_fees':
+            for (final item in platformFees) {
+              children.add(
+                pw.Padding(
+                  padding: pw.EdgeInsets.symmetric(vertical: itemSpacing),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(
+                          item['title'] ?? '',
+                          style: pw.TextStyle(
+                            fontSize: smallSize * mul,
+                            fontWeight: boldWeight,
+                          ),
+                        ),
+                      ),
+                      pw.Text(
+                        "${item['value'] ?? 0}",
+                        style: pw.TextStyle(
+                          fontSize: smallSize * mul,
+                          fontWeight: boldWeight,
+                        ),
+                        textAlign: pw.TextAlign.right,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            children.add(buildBreak(cfg));
+            break;
+          case 'grand_total':
+            children.add(
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    "GRAND TOTAL",
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: grandTotalSize * mul,
+                    ),
+                  ),
+                  pw.Text(
+                    "$grandTotal",
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: grandTotalSize * mul,
+                    ),
+                  ),
+                ],
+              ),
+            );
+            children.add(buildBreak(cfg));
+            break;
+          case 'qr_code':
+            if (qrCodeUrl.isNotEmpty) {
+              final sizeOpt = (opts['size'] as String?) ?? 'medium';
+              final qs = sizeOpt == 'small'
+                  ? qrSize * 0.7
+                  : sizeOpt == 'large'
+                  ? qrSize * 1.4
+                  : qrSize;
+              final position = (opts['position'] as String?) ?? 'center';
+              final align = position == 'left'
+                  ? pw.Alignment.centerLeft
+                  : position == 'right'
+                  ? pw.Alignment.centerRight
+                  : pw.Alignment.center;
+              children.add(pw.SizedBox(height: sectionSpacing));
+              children.add(
+                pw.Align(
+                  alignment: align,
+                  child: pw.SizedBox(
+                    height: qs,
+                    width: qs,
+                    child: pw.BarcodeWidget(
+                      barcode: pw.Barcode.qrCode(),
+                      data: qrCodeUrl,
+                    ),
+                  ),
+                ),
+              );
+              children.add(pw.SizedBox(height: sectionSpacing));
+            }
+            break;
+          case 'footer_message':
+            final text = (opts['text'] as String?) ?? cfg.footerText;
+            final alignStr = (opts['alignment'] as String?) ?? 'center';
+            if (text.isNotEmpty) {
+              final widget = pw.Text(
+                text,
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: thankYouSize * mul,
+                ),
+                textAlign: alignFromString(alignStr),
+              );
+              if (alignStr == 'center') {
+                children.add(pw.Center(child: widget));
+              } else {
+                children.add(
+                  pw.SizedBox(width: double.infinity, child: widget),
+                );
+              }
+            }
+            break;
+        }
+      }
+      children.add(pw.SizedBox(height: 5));
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: children,
+      );
+    }
+
+    pw.Widget _legacyBuildInvoice() {
       return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
