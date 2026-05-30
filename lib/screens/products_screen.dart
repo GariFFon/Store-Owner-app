@@ -548,8 +548,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             onPressed: () {
                               showDialog(
                                 context: context,
-                                barrierColor: Colors.black.withValues(alpha: 0.3),
-                                builder: (_) => _AddProductDialog(storeId: widget.storeId),
+                                barrierColor: Colors.black.withValues(
+                                  alpha: 0.3,
+                                ),
+                                builder: (_) =>
+                                    _AddProductDialog(storeId: widget.storeId),
                               );
                             },
                             constraints: const BoxConstraints(),
@@ -621,7 +624,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         borderRadius: BorderRadius.circular(24), // Pill-shaped fully rounded
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04), // Soft shadow 
+            color: Colors.black.withOpacity(0.04), // Soft shadow
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -641,7 +644,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFF2563EB),
+                        ),
                       ),
                     )
                   : const Icon(
@@ -672,9 +677,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ),
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
@@ -777,7 +780,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
             if (_isSearchLoadingMore) return _buildLoadingMoreCell();
             return _buildEndOfListCell(_searchResults.length, label: 'result');
           }
-          return _buildProductCard(_searchResults[index], theme, isList: isList);
+          return _buildProductCard(
+            _searchResults[index],
+            theme,
+            isList: isList,
+          );
         },
       ),
     );
@@ -835,9 +842,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
                   return Expanded(
                     child: Padding(
-                      padding: EdgeInsets.only(
-                        left: colIndex == 0 ? 0 : 16.0,
-                      ),
+                      padding: EdgeInsets.only(left: colIndex == 0 ? 0 : 16.0),
                       child: itemBuilder(context, index, true), // Force List UI
                     ),
                   );
@@ -1049,7 +1054,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   // ── Product card ──────────────────────────────────────────────────────────
-  Widget _buildProductCard(Map<String, dynamic> product, ThemeData theme, {bool isList = false}) {
+  Widget _buildProductCard(
+    Map<String, dynamic> product,
+    ThemeData theme, {
+    bool isList = false,
+  }) {
     final name = product['product_name'] ?? 'Unknown Product';
     final parentCat = _capitalize(product['parent_category'] ?? '');
     final childCat = _capitalize(product['child_category'] ?? '');
@@ -1112,7 +1121,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         width: 120,
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
-                          border: Border(right: BorderSide(color: Colors.grey[200]!)),
+                          border: Border(
+                            right: BorderSide(color: Colors.grey[200]!),
+                          ),
                         ),
                         child: Stack(
                           fit: StackFit.expand,
@@ -1155,8 +1166,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               Text(
                                 showBrand
                                     ? (categoryLabel.isNotEmpty
-                                        ? '$categoryLabel • $brandName'
-                                        : brandName!)
+                                          ? '$categoryLabel • $brandName'
+                                          : brandName!)
                                     : categoryLabel,
                                 style: TextStyle(
                                   fontSize: 12,
@@ -1171,37 +1182,58 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 spacing: 4,
                                 runSpacing: 4,
                                 children: [
-                                  if (isPosEnabled) _softBadge('POS', const Color(0xFF10B981)),
-                                  if (isOnline) _softBadge('Online', const Color(0xFF3B82F6)),
+                                  if (isPosEnabled)
+                                    _softBadge('POS', const Color(0xFF10B981)),
+                                  if (isOnline)
+                                    _softBadge(
+                                      'Online',
+                                      const Color(0xFF3B82F6),
+                                    ),
                                   if (status != null && status.isNotEmpty)
-                                    _softBadge(_capitalize(status), _statusColor(status)),
+                                    _softBadge(
+                                      _capitalize(status),
+                                      _statusColor(status),
+                                    ),
                                 ],
                               ),
                               const SizedBox(height: 10),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.grey[50],
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(color: Colors.grey[200]!),
                                 ),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     _buildStatRow(
                                       icon: Icons.inventory_2_outlined,
                                       title: 'INVENTORY',
-                                      value: '${_compactFormat(totalLeft)} left',
-                                      valueColor: totalLeft > 0 ? const Color(0xFF0F766E) : Colors.red,
+                                      value:
+                                          '${_compactFormat(totalLeft)} left',
+                                      valueColor: totalLeft > 0
+                                          ? const Color(0xFF0F766E)
+                                          : Colors.red,
                                     ),
                                     Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 6),
-                                      child: Divider(height: 1, color: Colors.grey[200]),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 6,
+                                      ),
+                                      child: Divider(
+                                        height: 1,
+                                        color: Colors.grey[200],
+                                      ),
                                     ),
                                     _buildStatRow(
                                       icon: Icons.sell_outlined,
                                       title: 'TOTAL SOLD',
-                                      value: '${_compactFormat(totalSold)} units',
+                                      value:
+                                          '${_compactFormat(totalSold)} units',
                                       valueColor: Colors.orange[700]!,
                                     ),
                                   ],
@@ -1284,11 +1316,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   icon: Icons.inventory_2_outlined,
                                   title: 'INVENTORY',
                                   value: '${_compactFormat(totalLeft)} left',
-                                  valueColor: totalLeft > 0 ? const Color(0xFF0F766E) : Colors.red,
+                                  valueColor: totalLeft > 0
+                                      ? const Color(0xFF0F766E)
+                                      : Colors.red,
                                 ),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 6),
-                                  child: Divider(height: 1, color: Colors.grey[200]),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                  ),
+                                  child: Divider(
+                                    height: 1,
+                                    color: Colors.grey[200],
+                                  ),
                                 ),
                                 _buildStatRow(
                                   icon: Icons.sell_outlined,
@@ -1304,10 +1343,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             spacing: 6,
                             runSpacing: 6,
                             children: [
-                              if (isPosEnabled) _softBadge('POS', const Color(0xFF10B981)),
-                              if (isOnline) _softBadge('Online', const Color(0xFF3B82F6)),
+                              if (isPosEnabled)
+                                _softBadge('POS', const Color(0xFF10B981)),
+                              if (isOnline)
+                                _softBadge('Online', const Color(0xFF3B82F6)),
                               if (status != null && status.isNotEmpty)
-                                _softBadge(_capitalize(status), _statusColor(status)),
+                                _softBadge(
+                                  _capitalize(status),
+                                  _statusColor(status),
+                                ),
                             ],
                           ),
                         ],
@@ -1366,8 +1410,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
       ],
     );
   }
-
-
 
   Widget _softBadge(String label, Color color) {
     return Container(
@@ -1453,7 +1495,7 @@ class _AddProductDialogState extends State<_AddProductDialog> {
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
     final q = value.trim();
-    if (q.length < 3) return;
+    if (q.length < 1) return;
     _debounceTimer = Timer(const Duration(milliseconds: 800), () {
       if (mounted) _search(q);
     });
@@ -1788,7 +1830,8 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                             ),
                             const SizedBox(height: 16),
                             GestureDetector(
-                              onTap: () => _showAiProductBottomSheet(_lastQuery),
+                              onTap: () =>
+                                  _showAiProductBottomSheet(_lastQuery),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 20,
@@ -1796,12 +1839,17 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                                 ),
                                 decoration: BoxDecoration(
                                   gradient: const LinearGradient(
-                                    colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                                    colors: [
+                                      Color(0xFF7C3AED),
+                                      Color(0xFF6D28D9),
+                                    ],
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF7C3AED).withOpacity(0.3),
+                                      color: const Color(
+                                        0xFF7C3AED,
+                                      ).withOpacity(0.3),
                                       blurRadius: 10,
                                       offset: const Offset(0, 4),
                                     ),
@@ -1860,7 +1908,12 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                               }
                               if (!_hasMore && _results.isNotEmpty) {
                                 return Padding(
-                                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    0,
+                                    12,
+                                    0,
+                                    8,
+                                  ),
                                   child: Column(
                                     children: [
                                       Text(
@@ -1872,7 +1925,10 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                                         ),
                                       ),
                                       const SizedBox(height: 12),
-                                      Divider(color: Colors.grey[100], height: 1),
+                                      Divider(
+                                        color: Colors.grey[100],
+                                        height: 1,
+                                      ),
                                       const SizedBox(height: 12),
                                       Text(
                                         'Can\'t find what you\'re looking for?',
@@ -1883,7 +1939,9 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                                       ),
                                       const SizedBox(height: 10),
                                       GestureDetector(
-                                        onTap: () => _showAiProductBottomSheet(_lastQuery),
+                                        onTap: () => _showAiProductBottomSheet(
+                                          _lastQuery,
+                                        ),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 20,
@@ -1891,12 +1949,19 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                                           ),
                                           decoration: BoxDecoration(
                                             gradient: const LinearGradient(
-                                              colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                                              colors: [
+                                                Color(0xFF7C3AED),
+                                                Color(0xFF6D28D9),
+                                              ],
                                             ),
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: const Color(0xFF7C3AED).withOpacity(0.25),
+                                                color: const Color(
+                                                  0xFF7C3AED,
+                                                ).withOpacity(0.25),
                                                 blurRadius: 8,
                                                 offset: const Offset(0, 3),
                                               ),
@@ -2277,12 +2342,12 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
           'store_id': widget.storeId,
           'editables': [
             {'field': 'product_name', 'value': _nameCtrl.text.trim()},
-            {'field': 'brand_name',   'value': _brandCtrl.text.trim()},
-            {'field': 'slug',         'value': _slugCtrl.text.trim()},
-            {'field': 'description',  'value': _descriptionCtrl.text.trim()},
+            {'field': 'brand_name', 'value': _brandCtrl.text.trim()},
+            {'field': 'slug', 'value': _slugCtrl.text.trim()},
+            {'field': 'description', 'value': _descriptionCtrl.text.trim()},
             {'field': 'product_type', 'value': 'physical'},
             {'field': 'parent_category', 'value': _parentCatCtrl.text.trim()},
-            {'field': 'child_category',  'value': _childCatCtrl.text.trim()},
+            {'field': 'child_category', 'value': _childCatCtrl.text.trim()},
             {'field': 'is_draft', 'value': false},
           ],
         },
@@ -2301,23 +2366,29 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
         await Future.delayed(const Duration(milliseconds: 800));
         if (mounted) Navigator.of(context).pop();
       } else {
-        final msg = data?['message']?.toString() ?? 'Failed to add product. Please try again.';
+        final msg =
+            data?['message']?.toString() ??
+            'Failed to add product. Please try again.';
         _showSnackbar(msg, isError: true);
       }
     } catch (e) {
       if (!mounted) return;
-      _showSnackbar(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      _showSnackbar(
+        e.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isAdding = false);
     }
   }
 
-
   void _showSnackbar(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: isError ? Colors.red.shade700 : const Color(0xFF059669),
+        backgroundColor: isError
+            ? Colors.red.shade700
+            : const Color(0xFF059669),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -2329,7 +2400,10 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
     final mq = MediaQuery.of(context);
     // Constrain the sheet to the available height above the keyboard
     final maxSheetHeight =
-        mq.size.height - mq.viewInsets.bottom - mq.padding.top - mq.padding.bottom;
+        mq.size.height -
+        mq.viewInsets.bottom -
+        mq.padding.top -
+        mq.padding.bottom;
 
     return AnimatedPadding(
       padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
@@ -2441,12 +2515,19 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.error_outline, color: Colors.red.shade600, size: 16),
+                  Icon(
+                    Icons.error_outline,
+                    color: Colors.red.shade600,
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -2519,7 +2600,9 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         ),
                         SizedBox(width: 10),
@@ -2557,7 +2640,8 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
     final aiMeta = _generatedTemplate?['ai_metadata'] as Map? ?? {};
     final modelUsed = aiMeta['model_used'] as String? ?? '';
     final variationsFound = aiMeta['variations_found'] ?? 0;
-    final totalCombinations = _generatedTemplate?['combinations_generated'] ?? 0;
+    final totalCombinations =
+        _generatedTemplate?['combinations_generated'] ?? 0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -2686,8 +2770,9 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      _isAdded ? const Color(0xFF059669) : const Color(0xFFE2E8F0),
+                  disabledBackgroundColor: _isAdded
+                      ? const Color(0xFF059669)
+                      : const Color(0xFFE2E8F0),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -2700,7 +2785,9 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : Row(
@@ -2729,10 +2816,10 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
                 onPressed: _isAdding
                     ? null
                     : () => setState(() {
-                          _phase = 'input';
-                          _generatedTemplate = null;
-                          _isAdded = false;
-                        }),
+                        _phase = 'input';
+                        _generatedTemplate = null;
+                        _isAdded = false;
+                      }),
                 icon: const Icon(Icons.refresh_rounded, size: 16),
                 label: const Text(
                   'Generate Again',
@@ -2769,13 +2856,13 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
       ),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(
-          fontSize: 12,
-          color: Color(0xFF64748B),
-        ),
+        labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
         filled: true,
         fillColor: const Color(0xFFF8FAFC),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -2786,10 +2873,7 @@ class _AiProductBottomSheetState extends State<_AiProductBottomSheet> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(
-            color: Color(0xFF7C3AED),
-            width: 1.5,
-          ),
+          borderSide: const BorderSide(color: Color(0xFF7C3AED), width: 1.5),
         ),
       ),
     );
