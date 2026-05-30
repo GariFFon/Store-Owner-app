@@ -1409,6 +1409,9 @@ class _AddProductDialogState extends State<_AddProductDialog> {
   bool _hasSearched = false;
   String _lastQuery = '';
 
+  // ── Debounce ─────────────────────────────────────────
+  Timer? _debounceTimer;
+
   // ── Pagination ───────────────────────────────────────
   int _currentPage = 1;
   bool _hasMore = false;
@@ -1440,10 +1443,20 @@ class _AddProductDialogState extends State<_AddProductDialog> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _ctrl.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    final q = value.trim();
+    if (q.length < 3) return;
+    _debounceTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) _search(q);
+    });
   }
 
   Future<void> _search(String query) async {
@@ -1671,13 +1684,14 @@ class _AddProductDialogState extends State<_AddProductDialog> {
                         controller: _ctrl,
                         focusNode: _focusNode,
                         textInputAction: TextInputAction.search,
+                        onChanged: _onSearchChanged,
                         onSubmitted: _search,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Type product name & press Enter…',
+                          hintText: 'Search products (min. 3 characters)…',
                           hintStyle: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 13,
